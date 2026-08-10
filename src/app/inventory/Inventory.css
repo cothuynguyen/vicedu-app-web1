@@ -1,0 +1,363 @@
+.inventory-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-bottom: 2rem;
+}
+
+.inventory-tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.05);
+  margin-bottom: 1rem;
+}
+
+.inventory-tabs button {
+  padding: 0.75rem 1.5rem;
+  background: none;
+  border: none;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  font-size: 1rem;
+}
+
+.inventory-tabs button:hover {
+  color: var(--primary);
+}
+
+.inventory-tabs button.active {
+  color: var(--primary);
+}
+
+.inventory-tabs button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--primary);
+  border-radius: 2px 2px 0 0;
+}
+
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.inventory-table th,
+.inventory-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.inventory-table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.inventory-table tr:last-child td {
+  border-bottom: none;
+}
+
+.inventory-table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.number-col {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-positive {
+  color: var(--success);
+  font-weight: bold;
+}
+
+.stock-zero {
+  color: var(--danger);
+  font-weight: bold;
+}
+
+.type-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.type-badge.nhap {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
+.type-badge.xuat {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+/* HIỆU ỨNG VÀ BỐ CỤC DÀNH CHO BẢN IN (PRINT) */
+.print-only-cell, .print-only-block {
+  display: none;
+}
+
+@media print {
+  /* Ẩn tất cả các thành phần giao diện không cần thiết */
+  .sidebar, .page-header, .filters-bar, .inventory-tabs, .modal-overlay, .no-print {
+    display: none !important;
+  }
+  
+  /* Mở rộng không gian in và bỏ nền gradient */
+  body, html, .main-content, .inventory-container {
+    background: #ffffff !important;
+    margin-left: 0 !important;
+    padding: 0 !important;
+    min-height: auto !important;
+  }
+  
+  .glass-panel {
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  /* Định dạng lại bảng cho giống Excel */
+  .inventory-table {
+    border: 1px solid #000;
+    width: 100%;
+    background: #ffffff !important;
+  }
+  
+  .inventory-table th, .inventory-table td {
+    border: 1px solid #000 !important;
+    padding: 8px !important;
+    font-size: 11pt !important;
+    color: #000 !important;
+    background: #ffffff !important;
+  }
+
+  .inventory-table th {
+    background: #f3f4f6 !important;
+    font-weight: bold;
+    text-align: center;
+  }
+  
+  .print-only-cell {
+    display: table-cell !important;
+  }
+  
+  .print-only-block {
+    display: block !important;
+  }
+
+  /* Đảm bảo máy in in đúng màu nền nếu có */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Product image catalog & upload styles */
+.product-thumbnail-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.product-thumbnail {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  background: #f1f5f9;
+  transition: transform 0.2s;
+}
+
+.product-thumbnail:hover {
+  transform: scale(1.05);
+}
+
+.product-thumbnail-placeholder {
+  width: 40px;
+  height: 40px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text-muted);
+}
+
+.image-upload-section {
+  margin-top: 1.25rem;
+  border-top: 1px dashed rgba(0, 0, 0, 0.1);
+  padding-top: 1rem;
+}
+
+.image-preview-item {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.image-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.image-remove-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: background-color 0.2s;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.image-remove-btn:hover {
+  background: #dc2626;
+}
+
+.file-upload-box {
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #f8fafc;
+}
+
+.file-upload-box:hover {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.02);
+}
+
+/* Lightbox Modal */
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease;
+}
+
+.lightbox-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lightbox-image {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  animation: scaleUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: -44px;
+  right: 0;
+  color: #94a3b8;
+  background: none;
+  border: none;
+  font-size: 2.25rem;
+  font-weight: 300;
+  cursor: pointer;
+  transition: color 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+
+.lightbox-close:hover {
+  color: white;
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(2px);
+}
+
+.lightbox-nav:hover {
+  background: rgba(255, 255, 255, 0.3);
+  scale: 1.05;
+}
+
+.lightbox-nav.prev {
+  left: -70px;
+}
+
+.lightbox-nav.next {
+  right: -70px;
+}
+
+.lightbox-indicator {
+  color: #94a3b8;
+  margin-top: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+

@@ -1,0 +1,8 @@
+
+> vicedu-app@0.1.0 start
+> next start -p 3001
+
+▲ Next.js 16.2.9
+- Local:         http://localhost:3001
+- Network:       http://192.168.1.5:3001
+✓ Ready in 456ms
