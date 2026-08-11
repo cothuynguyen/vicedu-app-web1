@@ -9,8 +9,8 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export async function POST(req: NextRequest) {
   try {
-    const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
-    const privateVapidKey = process.env.VAPID_PRIVATE_KEY!;
+    const publicVapidKey = 'BMsc31ia9_WG-lerXR3WVMWQ_e8LW7nRkpAh4SwJPFBmR2INyHnn7yhbichDZ5ygclknOxcYoIb-A6lLRKvQRtE';
+    const privateVapidKey = 'pyE_RzR7hkJ1aRvWYZqmM1PvsueETITNtZl_28G1xik';
 
     if (publicVapidKey && privateVapidKey) {
       webpush.setVapidDetails(
