@@ -778,6 +778,26 @@ export default function ClassModal({
             if (logErr) console.error("Insert log error:", logErr);
           }
         }
+
+        // --- GỬI WEB PUSH NOTIFICATION CHO PHỤ HUYNH ---
+        if (commentText !== "" || newPoints !== 0 || homeworkText !== "") {
+          const classStd = classStudents.find(c => c.student_id === record.student_id);
+          const parentEmail = classStd?.students?.parent_email;
+          if (parentEmail && parentEmail.trim() !== "") {
+            try {
+              fetch('/api/send-push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: parentEmail.trim(),
+                  title: `VicEdu: Cập nhật từ lớp ${formData.class_name || ''}`,
+                  body: finalContent.replace(prefix, '').trim() || 'Giáo viên vừa cập nhật tình hình học tập',
+                  url: '/'
+                })
+              }).catch(e => console.error("Push fetch error:", e));
+            } catch(e) {}
+          }
+        }
       }
       
       // Cập nhật số dư (Tiền/Giờ) của học viên đã được xử lý tự động qua Database Trigger (trg_attendance_recalc)
