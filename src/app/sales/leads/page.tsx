@@ -226,15 +226,15 @@ export default function LeadsCRM() {
         
       let interData: any[] = [];
       if (crmCustomers && crmCustomers.length > 0) {
-        const customerIds = crmCustomers.map(c => c.id);
+        const customerIds = crmCustomers.map((c: any) => c.id);
         const { data: interactions } = await supabase
           .from("crm_interactions")
           .select('customer_id, action_type, content, created_at')
           .in('customer_id', customerIds);
           
         if (interactions) {
-          interData = interactions.map(inter => {
-            const customer = crmCustomers.find(c => c.id === inter.customer_id);
+          interData = interactions.map((inter: any) => {
+            const customer = crmCustomers.find((c: any) => c.id === inter.customer_id);
             return {
               phone: customer?.phone,
               activity_type: inter.action_type,

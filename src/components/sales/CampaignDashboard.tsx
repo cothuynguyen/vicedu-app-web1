@@ -37,7 +37,7 @@ export default function CampaignDashboard() {
     if (filterBranch !== "Tất cả") {
       query = query.or(`branch_id.eq.Tất cả,branch_id.ilike.%${filterBranch}%`);
     } else {
-      if (!['Super Admin', 'Kế toán HO', 'Giám đốc'].includes(user?.role)) {
+      if (!['Super Admin', 'Kế toán HO', 'Giám đốc'].includes(user?.role || '')) {
         const branchList = user?.branch_id ? user.branch_id.split(',').map((b: string) => b.trim()) : [];
         if (branchList.length > 0) {
           const orConditions = branchList.map((b: string) => `branch_id.ilike.%${b}%`).join(',');
@@ -119,7 +119,7 @@ export default function CampaignDashboard() {
       let tasks = camp.internal_campaign_tasks || [];
       if (filterBranch !== "Tất cả") {
         tasks = tasks.filter((t: any) => t.students?.branch_id?.includes(filterBranch));
-      } else if (!['Super Admin', 'Kế toán HO', 'Giám đốc'].includes(user?.role)) {
+      } else if (!['Super Admin', 'Kế toán HO', 'Giám đốc'].includes(user?.role || '')) {
         const branchList = user?.branch_id ? user.branch_id.split(',').map((b: string) => b.trim()) : [];
         if (branchList.length > 0) {
           tasks = tasks.filter((t: any) => branchList.some((b: string) => t.students?.branch_id?.includes(b)));

@@ -47,7 +47,7 @@ export default function SalesTasksPage() {
     if (filterBranch !== "Tất cả") {
       query = query.ilike("students.branch_id", `%${filterBranch}%`);
     } else {
-      if (!['Super Admin', 'Kế toán HO', 'Giám đốc'].includes(user?.role)) {
+      if (!['Super Admin', 'Kế toán HO', 'Giám đốc'].includes(user?.role || '')) {
         const branchList = user?.branch_id ? user.branch_id.split(',').map((b: string) => b.trim()) : [];
         if (branchList.length > 0) {
           const orConditions = branchList.map((b: string) => `branch_id.ilike.%${b}%`).join(',');
