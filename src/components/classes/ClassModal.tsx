@@ -678,6 +678,27 @@ export default function ClassModal({
           }]);
         }
       }
+
+      // --- GỬI WEB PUSH NOTIFICATION CHO PHỤ HUYNH ---
+      if (note.trim() !== "" || newPoints !== 0 || homeworkText !== "") {
+        const classStd = classStudents.find(c => c.student_id === studentId);
+        const parentEmail = classStd?.students?.parent_email;
+        if (parentEmail && parentEmail.trim() !== "") {
+          try {
+            fetch('/api/send-push', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: parentEmail.trim(),
+                title: `VicEdu: Cập nhật từ lớp ${formData.class_name || ''}`,
+                body: finalContent.replace(prefix, '').trim() || 'Giáo viên vừa cập nhật tình hình học tập',
+                url: '/'
+              })
+            }).catch(e => console.error("Push fetch error:", e));
+          } catch(e) {}
+        }
+      }
+
     } catch (err: any) {
       console.error("Error saving teacher note directly:", err);
       alert("Lỗi khi đồng bộ nhận xét: " + err.message);
