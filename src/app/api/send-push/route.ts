@@ -51,7 +51,12 @@ export async function POST(req: NextRequest) {
         endpoint: sub.endpoint,
         keys: sub.keys,
       };
-      return webpush.sendNotification(subscriptionInfo, payload).catch((err) => {
+      return webpush.sendNotification(subscriptionInfo, payload, {
+        TTL: 86400,
+        headers: {
+          'Urgency': 'high'
+        }
+      }).catch((err) => {
         console.error('Lỗi khi push cho', sub.user_email, err);
         // Nếu endpoint hết hạn (410), xóa khỏi db
         if (err.statusCode === 410 || err.statusCode === 404) {
