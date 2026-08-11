@@ -2,15 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
-const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
-const privateVapidKey = process.env.VAPID_PRIVATE_KEY!;
-
-webpush.setVapidDetails(
-  'mailto:viceduheadoffice@gmail.com',
-  publicVapidKey,
-  privateVapidKey
-);
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -18,6 +9,16 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export async function POST(req: NextRequest) {
   try {
+    const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+    const privateVapidKey = process.env.VAPID_PRIVATE_KEY!;
+
+    if (publicVapidKey && privateVapidKey) {
+      webpush.setVapidDetails(
+        'mailto:viceduheadoffice@gmail.com',
+        publicVapidKey,
+        privateVapidKey
+      );
+    }
     const { email, title, body, url } = await req.json();
 
     if (!email || !title || !body) {
