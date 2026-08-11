@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, count: subscriptions.length });
   } catch (error) {
     console.error('Error sending push:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
+
   }
 }
