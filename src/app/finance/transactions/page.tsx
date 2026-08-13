@@ -35,6 +35,7 @@ export default function TransactionsPage() {
   const [filterType, setFilterType] = useState("Tất cả");
   const [filterBranch, setFilterBranch] = useState("Tất cả");
   const [filterMonth, setFilterMonth] = useState(""); // Format: "YYYY-MM"
+  const [filterStatus, setFilterStatus] = useState("Tất cả");
 
   // Modal Student Filter & Search
   const [modalStudentSearch, setModalStudentSearch] = useState("");
@@ -344,7 +345,10 @@ export default function TransactionsPage() {
       matchMonth = recMonth === filterMonth;
     }
     
-    return matchSearch && matchType && matchBranch && matchMonth;
+    const matchStatus = filterStatus === "Tất cả" || 
+      (filterStatus === "Đã duyệt" ? rec.status === "Đã duyệt" : rec.status !== "Đã duyệt");
+    
+    return matchSearch && matchType && matchBranch && matchMonth && matchStatus;
   });
 
   const filteredStudentsForModal = students.filter(s => {
@@ -376,6 +380,47 @@ export default function TransactionsPage() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Nút lọc nhanh trạng thái duyệt */}
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button 
+          onClick={() => setFilterStatus("Tất cả")}
+          className={`btn btn-sm ${filterStatus === "Tất cả" ? "btn-primary" : "btn-secondary"}`}
+          style={{ borderRadius: '20px', padding: '0.4rem 1.25rem', fontWeight: 600 }}
+        >
+          Tất cả phiếu
+        </button>
+        <button 
+          onClick={() => setFilterStatus("Chờ duyệt")}
+          className="btn btn-sm"
+          style={{ 
+            borderRadius: '20px', 
+            padding: '0.4rem 1.25rem',
+            background: filterStatus === "Chờ duyệt" ? '#f59e0b' : 'rgba(245, 158, 11, 0.15)',
+            color: filterStatus === "Chờ duyệt" ? '#fff' : '#d97706',
+            border: 'none',
+            fontWeight: 600,
+            transition: 'all 0.2s'
+          }}
+        >
+          🟠 Chờ duyệt ({receipts.filter(r => r.status !== "Đã duyệt").length})
+        </button>
+        <button 
+          onClick={() => setFilterStatus("Đã duyệt")}
+          className="btn btn-sm"
+          style={{ 
+            borderRadius: '20px', 
+            padding: '0.4rem 1.25rem',
+            background: filterStatus === "Đã duyệt" ? '#10b981' : 'rgba(16, 185, 129, 0.15)',
+            color: filterStatus === "Đã duyệt" ? '#fff' : '#059669',
+            border: 'none',
+            fontWeight: 600,
+            transition: 'all 0.2s'
+          }}
+        >
+          🟢 Đã duyệt ({receipts.filter(r => r.status === "Đã duyệt").length})
+        </button>
       </div>
 
       <div className="filters-bar glass-panel" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
