@@ -42,7 +42,7 @@ export default function EmployeesPage() {
     position: "", role: "User", status: "Chính thức", avatar_url: "",
     // Các trường mở rộng HRIS
     dob: "", id_card: "", id_date: "", id_front_url: "", id_back_url: "", current_address: "",
-    bank_account: "", bank_owner: "", bank_name: "", start_date: "", facebook_url: "",
+    bank_account: "", bank_owner: "", bank_name: "", bank_branch: "", start_date: "", facebook_url: "",
     total_leave_days: 12, used_leave_days: 0, profile_info: "", record_status: "Thiếu thông tin",
     contract_status: "Thử việc", salary_level: "", base_salary: 0, insurance_salary: 0, notes: ""
   });
@@ -54,7 +54,7 @@ export default function EmployeesPage() {
   const fetchData = async () => {
     if (authLoading) return;
     setLoading(true);
-    let query = supabase.from("users").select("id, password, full_name, nickname, email, branch_id, department, role, status, created_at, avatar_url, nationality, gender, phone, position, dob, id_card, id_date, id_front_url, id_back_url, current_address, bank_account, bank_owner, bank_name, start_date, facebook_url, total_leave_days, used_leave_days, profile_info, record_status, contract_status, salary_level, base_salary, insurance_salary, notes");
+    let query = supabase.from("users").select("id, password, full_name, nickname, email, branch_id, department, role, status, created_at, avatar_url, nationality, gender, phone, position, dob, id_card, id_date, id_front_url, id_back_url, current_address, bank_account, bank_owner, bank_name, bank_branch, start_date, facebook_url, total_leave_days, used_leave_days, profile_info, record_status, contract_status, salary_level, base_salary, insurance_salary, notes");
     
     if (!isGlobalRole) {
       if (activeBranch) {
@@ -134,7 +134,7 @@ export default function EmployeesPage() {
       phone: "", email: "", password: "", branch_id: activeRole === "Super Admin" ? "Việt Trì 1" : (activeBranch.includes(",") ? activeBranch.split(",")[0].trim() : activeBranch), department: "Đào tạo", 
       position: "", role: "User", status: "Chính thức", avatar_url: "",
       dob: "", id_card: "", id_date: "", id_front_url: "", id_back_url: "", current_address: "",
-      bank_account: "", bank_owner: "", bank_name: "", start_date: "", facebook_url: "",
+      bank_account: "", bank_owner: "", bank_name: "", bank_branch: "", start_date: "", facebook_url: "",
       total_leave_days: 12, used_leave_days: 0, profile_info: "", record_status: "Thiếu thông tin",
       contract_status: "Thử việc", salary_level: "", base_salary: 0, insurance_salary: 0, notes: ""
     });
@@ -156,7 +156,7 @@ export default function EmployeesPage() {
       dob: emp.dob || "", id_card: emp.id_card || "", id_date: emp.id_date || "", 
       id_front_url: emp.id_front_url || "", id_back_url: emp.id_back_url || "", 
       current_address: emp.current_address || "", bank_account: emp.bank_account || "", 
-      bank_owner: emp.bank_owner || "", bank_name: emp.bank_name || "", start_date: emp.start_date || "", 
+      bank_owner: emp.bank_owner || "", bank_name: emp.bank_name || "", bank_branch: emp.bank_branch || "", start_date: emp.start_date || "", 
       facebook_url: emp.facebook_url || "", total_leave_days: emp.total_leave_days || 12, 
       used_leave_days: emp.used_leave_days || 0, profile_info: emp.profile_info || "", 
       record_status: emp.record_status || "Thiếu thông tin", contract_status: emp.contract_status || "Thử việc", 
@@ -1077,6 +1077,29 @@ export default function EmployeesPage() {
                       />
                     </div>
                     <div className="form-group">
+                      <label className="form-label">Chi nhánh ngân hàng</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Hà Nội, CN Đống Đa..."
+                        value={formData.bank_branch}
+                        onChange={(e) => setFormData({...formData, bank_branch: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Số tài khoản</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="1903..."
+                        value={formData.bank_account}
+                        onChange={(e) => setFormData({...formData, bank_account: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
                       <label className="form-label">Tên chủ tài khoản</label>
                       <input 
                         type="text" 
@@ -1086,17 +1109,6 @@ export default function EmployeesPage() {
                         onChange={(e) => setFormData({...formData, bank_owner: e.target.value})}
                       />
                     </div>
-                  </div>
-                  
-                  <div className="form-group">
-                    <label className="form-label">Số tài khoản</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="1903..."
-                      value={formData.bank_account}
-                      onChange={(e) => setFormData({...formData, bank_account: e.target.value})}
-                    />
                   </div>
                 </>
               )}

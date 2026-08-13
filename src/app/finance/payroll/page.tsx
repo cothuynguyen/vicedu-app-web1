@@ -149,7 +149,7 @@ export default function PayrollPage() {
     }
 
     // Fetch users for branch
-    let usersQuery = supabase.from("users").select("id, full_name, nickname, branch_id, department, position, role, status, base_salary, insurance_salary");
+    let usersQuery = supabase.from("users").select("id, full_name, nickname, branch_id, department, position, role, status, base_salary, insurance_salary, bank_account, bank_owner, bank_name, bank_branch");
     if (branchToFilter.includes(",")) {
       const branches = branchToFilter.split(",").map(b => b.trim()).filter(Boolean);
       usersQuery = usersQuery.or(branches.map(b => `branch_id.ilike.%${b}%`).join(','));
@@ -777,10 +777,11 @@ export default function PayrollPage() {
                 {slipData.status === 'Đã duyệt' && slipData.user_id && (
                   <div style={{ marginTop: '2rem', padding: '1.25rem', background: '#f8fafc', borderRadius: '8px', border: '2px dashed var(--primary)' }}>
                     <h3 style={{ margin: '0 0 1rem 0', color: 'var(--primary)', fontSize: '1.1rem', textTransform: 'uppercase' }}>Thông Tin Chuyển Khoản (Dành cho Kế toán HO)</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', fontSize: '1.05rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', fontSize: '1.05rem' }}>
                       <div><span style={{ color: 'var(--text-muted)' }}>Chủ tài khoản:</span><br/><strong>{users.find(u => u.id === slipData.user_id)?.bank_owner || 'Chưa cập nhật'}</strong></div>
                       <div><span style={{ color: 'var(--text-muted)' }}>Số tài khoản:</span><br/><strong style={{ fontSize: '1.3rem', color: 'var(--primary)' }}>{users.find(u => u.id === slipData.user_id)?.bank_account || 'Chưa cập nhật'}</strong></div>
                       <div><span style={{ color: 'var(--text-muted)' }}>Ngân hàng:</span><br/><strong>{users.find(u => u.id === slipData.user_id)?.bank_name || 'Chưa cập nhật'}</strong></div>
+                      <div><span style={{ color: 'var(--text-muted)' }}>Chi nhánh NH:</span><br/><strong>{users.find(u => u.id === slipData.user_id)?.bank_branch || 'Chưa cập nhật'}</strong></div>
                     </div>
                   </div>
                 )}
