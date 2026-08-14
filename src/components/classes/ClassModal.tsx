@@ -160,7 +160,7 @@ export default function ClassModal({
 
   const fetchClassDetails = async (id: string, branchId: string) => {
     // 1. Fetch class students
-    const { data: csData } = await supabase.from("class_students").select("*, students(*), enrollments(remaining_hours)").eq("class_id", id);
+    const { data: csData } = await supabase.from("class_students").select("*, students(*, remaining_hours), enrollments(id, registered_hours)").eq("class_id", id);
     setClassStudents(csData || []);
     
     // 2. Fetch class sessions
@@ -186,8 +186,8 @@ export default function ClassModal({
 
     // 4. Fetch available students in branch
     const { data: availEnrs } = await supabase.from("enrollments")
-      .select("id, remaining_hours, tuition_fee, registered_hours, students!inner(id, full_name, nickname)")
-      .gt("remaining_hours", 0)
+      .select("id, tuition_fee, registered_hours, students!inner(id, full_name, nickname, remaining_hours)")
+      .gt("students.remaining_hours", 0)
       .eq("branch_id", branchId)
       .eq("status", "Active");
       
@@ -317,8 +317,8 @@ export default function ClassModal({
         
         // Fetch available students right after creation
         const { data: availEnrs } = await supabase.from("enrollments")
-          .select("id, remaining_hours, tuition_fee, registered_hours, students!inner(id, full_name, nickname)")
-          .gt("remaining_hours", 0)
+          .select("id, tuition_fee, registered_hours, students!inner(id, full_name, nickname, remaining_hours)")
+          .gt("students.remaining_hours", 0)
           .eq("branch_id", data.branch_id)
           .eq("status", "Active");
         setAvailableStudents(availEnrs || []);
@@ -1043,7 +1043,7 @@ export default function ClassModal({
                         const searchStr = `${e.students?.id || ''} ${e.students?.full_name || ''} ${e.students?.nickname || ''}`.toLowerCase();
                         return searchStr.includes(studentSearchTerm.toLowerCase());
                       }).map(e => (
-                        <option key={e.id} value={e.id}>[{e.students?.id}] {e.students?.full_name} {e.students?.nickname ? `(${e.students.nickname})` : ''} - Gói: {e.id.substring(0,8)} (Dư {e.remaining_hours}h)</option>
+                        <option key={e.id} value={e.id}>[{e.students?.id}] {e.students?.full_name} {e.students?.nickname ? `(${e.students.nickname})` : ''} - Gói: {e.id.substring(0,8)} (Tổng quỹ giờ dư: {e.students?.remaining_hours}h)</option>
                       ))}
                     </select>
                   </div>
@@ -1104,11 +1104,11 @@ export default function ClassModal({
                             <div style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '2px' }}>📅 Nhập học: {cs.students?.created_at ? new Date(cs.students.created_at).toLocaleDateString('vi-VN') : '---'}</div>
                           </td>
                           <td style={{ padding: '0.75rem' }}>
-                            <div style={{ fontWeight: 700, fontSize: '1rem', color: (cs.enrollments?.remaining_hours || 0) < 48 ? '#ef4444' : (cs.enrollments?.remaining_hours || 0) <= 96 ? '#9333ea' : '#16a34a' }}>
-                              {cs.enrollments?.remaining_hours || 0}h
+                            <div style={{ fontWeight: 700, fontSize: '1rem', color: (cs.students?.remaining_hours || 0) < 48 ? '#ef4444' : (cs.students?.remaining_hours || 0) <= 96 ? '#9333ea' : '#16a34a' }}>
+                              {cs.students?.remaining_hours || 0}h
                             </div>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: (cs.enrollments?.remaining_hours || 0) < 48 ? '#ef4444' : (cs.enrollments?.remaining_hours || 0) <= 96 ? '#9333ea' : '#16a34a', opacity: 0.8, marginTop: '2px' }}>
-                              ~ {Math.round(((cs.enrollments?.remaining_hours || 0) / 16) * 2) / 2} tháng
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: (cs.students?.remaining_hours || 0) < 48 ? '#ef4444' : (cs.students?.remaining_hours || 0) <= 96 ? '#9333ea' : '#16a34a', opacity: 0.8, marginTop: '2px' }}>
+                              ~ {Math.round(((cs.students?.remaining_hours || 0) / 16) * 2) / 2} tháng
                             </div>
                           </td>
                           <td style={{ padding: '0.75rem' }}>
