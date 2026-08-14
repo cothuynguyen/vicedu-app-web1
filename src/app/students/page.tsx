@@ -221,13 +221,10 @@ export default function StudentsPage() {
       const XLSX = await import("xlsx");
 
       const exportData = data.map((stu: any) => {
-        let remaining_hours = 0;
-        if (stu.enrollments && stu.enrollments.length > 0) {
-          remaining_hours = stu.enrollments.reduce((sum: number, e: any) => sum + (e.remaining_hours || 0), 0);
-        }
+        const remaining_hours = stu.remaining_hours || 0;
         
         const totalRegistered = stu.total_registered_hours || 0;
-        const studiedHours = totalRegistered - remaining_hours;
+        const studiedHours = stu.total_studied_hours || (totalRegistered - remaining_hours);
 
         const totalRegisteredCost = stu.total_registered_cost || 0;
         const totalPaid = stu.total_paid || 0;
@@ -368,13 +365,11 @@ export default function StudentsPage() {
     const { data, count, error } = await query;
     if (!error && data) {
       const enhancedData = data.map((stu: any) => {
-        let remaining_hours = 0;
         let student_type = "Mới";
         if (stu.enrollments && stu.enrollments.length > 0) {
-          remaining_hours = stu.enrollments.reduce((sum: number, e: any) => sum + (e.remaining_hours || 0), 0);
           student_type = stu.enrollments.length > 1 ? "Tái tục" : "Mới";
         }
-        return { ...stu, remaining_hours, student_type };
+        return { ...stu, student_type };
       });
 
       if (reset) {
