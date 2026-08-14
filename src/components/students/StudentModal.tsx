@@ -31,6 +31,7 @@ const defaultFormData = {
   sale_employee_id: "", vn_teacher: "", foreign_teacher: "",
   total_registered_hours: 0, total_registered_cost: 0, 
   total_studied_hours: 0, total_studied_cost: 0,
+  migrated_studied_hours: 0,
   remaining_hours: 0, remaining_cost: 0,
   total_paid: 0,
   internal_note: "",
@@ -624,6 +625,10 @@ export default function StudentModal({
     delete payload.total_studied_hours;
     delete payload.total_studied_cost;
     delete payload.total_paid;
+    delete payload.total_registered_hours;
+    delete payload.total_registered_cost;
+    delete payload.remaining_hours;
+    delete payload.remaining_cost;
 
     // Lớp phòng thủ 1: Kiểm tra trùng lặp Tên + SĐT
     if (payload.full_name && payload.parent_phone) {
@@ -906,6 +911,18 @@ export default function StudentModal({
                     <option value="Nghỉ học">Nghỉ học</option>
                   </select>
                 </div>
+                {activeRole === "Super Admin" && (
+                  <div className="form-group">
+                    <label style={{ color: '#d97706' }}>Giờ đã học (Hệ thống cũ)</label>
+                    <input 
+                      type="number" 
+                      value={formData.migrated_studied_hours || 0} 
+                      onChange={e => setFormData({ ...formData, migrated_studied_hours: Number(e.target.value) || 0 })} 
+                      style={{ border: '1px solid #fde68a', background: '#fffbeb' }}
+                      title="Chỉ Super Admin mới có quyền sửa số liệu chuyển giao này"
+                    />
+                  </div>
+                )}
                 <div className="form-group">
                   <label>Trường đang học</label>
                   <input type="text" value={formData.school} onChange={e => setFormData({ ...formData, school: e.target.value })} placeholder="VD: Tiểu học Việt Trì" />
@@ -1308,7 +1325,7 @@ export default function StudentModal({
             {/* TAB: FINANCE */}
             {activeTab === 'finance' && studentId && (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                   {(() => {
                     const enrollments = studentEnrollments.filter(t => t.is_contract);
                     const receipts = studentEnrollments.filter(t => !t.is_contract);
@@ -1317,24 +1334,19 @@ export default function StudentModal({
                       ? enrollments.reduce((sum, enr) => sum + (enr.registered_hours || 0), 0)
                       : (formData.total_registered_hours || 0);
 
-                    const totalRemHours = enrollments.length > 0
-                      ? enrollments.reduce((sum, enr) => sum + (enr.remaining_hours ?? (enr.registered_hours || 0)), 0)
-                      : (formData.remaining_hours || 0);
+                    const totalRemHours = formData.remaining_hours || 0;
 
-                    const totalStudiedHours = totalRegHours - totalRemHours;
+                    const totalStudiedHours = formData.total_studied_hours || 0;
 
                     const totalPaid = studentEnrollments.length > 0
                       ? receipts.reduce((sum, rec) => rec.status === 'Đã duyệt' ? sum + (rec.amount || 0) : sum, 0)
                       : (formData.total_paid || 0);
+                      
+                    const totalRegCost = enrollments.length > 0
+                      ? enrollments.reduce((sum, enr) => sum + (enr.tuition_fee || 0), 0)
+                      : (formData.total_registered_cost || 0);
 
-                    const totalRemainingCost = enrollments.length > 0
-                      ? enrollments.reduce((sum, enr) => {
-                          const regHours = enr.registered_hours || 0;
-                          const remHours = enr.remaining_hours ?? regHours;
-                          const rate = regHours > 0 ? (enr.tuition_fee || 0) / regHours : 0;
-                          return sum + (remHours * rate);
-                        }, 0)
-                      : (formData.remaining_cost || 0);
+                    const totalRemainingCost = formData.remaining_cost || 0;
 
                     return (
                       <>
@@ -1350,9 +1362,14 @@ export default function StudentModal({
                           <div style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '0.25rem' }}>Giờ còn lại</div>
                           <strong style={{ fontSize: '1.2rem', color: '#ef4444' }}>{totalRemHours}h</strong>
                         </div>
+                        
                         <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                          <div style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '0.25rem' }}>Đã đóng học phí</div>
-                          <strong style={{ fontSize: '1.1rem', color: '#1e3a8a' }}>{(Math.round(totalPaid / 1000) * 1000).toLocaleString('vi-VN')} đ</strong>
+                          <div style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '0.25rem' }}>Học phí dự tính</div>
+                          <strong style={{ fontSize: '1.1rem', color: '#1e3a8a' }}>{(Math.round(totalRegCost / 1000) * 1000).toLocaleString('vi-VN')} đ</strong>
+                        </div>
+                        <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                          <div style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '0.25rem' }}>Học phí thực thu</div>
+                          <strong style={{ fontSize: '1.1rem', color: '#10b981' }}>{(Math.round(totalPaid / 1000) * 1000).toLocaleString('vi-VN')} đ</strong>
                         </div>
                         <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                           <div style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '0.25rem' }}>Giá trị còn lại</div>
@@ -1378,8 +1395,6 @@ export default function StudentModal({
                           <th style={{ padding: '0.75rem' }}>Nội dung/Khóa học</th>
                           <th style={{ padding: '0.75rem' }}>Số tiền</th>
                           <th style={{ padding: '0.75rem' }}>Số giờ</th>
-                          <th style={{ padding: '0.75rem' }}>Giờ đã học</th>
-                          <th style={{ padding: '0.75rem' }}>Số tiền còn lại</th>
                           <th style={{ padding: '0.75rem' }}>Người tạo</th>
                         </tr>
                       </thead>
@@ -1415,18 +1430,6 @@ export default function StudentModal({
                             <td style={{ padding: '0.75rem' }}>{t.is_contract ? (t.note || t.transaction_type || 'Ký Hợp đồng') : `Đóng học phí (${t.payment_method})`}</td>
                             <td style={{ padding: '0.75rem', fontWeight: 600 }}>{t.is_contract ? (Math.round((t.tuition_fee || 0) / 1000) * 1000).toLocaleString('vi-VN') : (Math.round((t.amount || 0) / 1000) * 1000).toLocaleString('vi-VN')} đ</td>
                             <td style={{ padding: '0.75rem' }}>{t.is_contract ? `${t.registered_hours}h` : "---"}</td>
-                            <td style={{ padding: '0.75rem' }}>
-                              {t.is_contract ? `${(t.registered_hours || 0) - (t.remaining_hours ?? (t.registered_hours || 0))}h` : "---"}
-                            </td>
-                            <td style={{ padding: '0.75rem', fontWeight: 600 }}>
-                              {t.is_contract ? (() => {
-                                const regHours = t.registered_hours || 0;
-                                const remHours = t.remaining_hours ?? regHours;
-                                const rate = regHours > 0 ? (t.tuition_fee || 0) / regHours : 0;
-                                const remainingCost = remHours * rate;
-                                return `${(Math.round(remainingCost / 1000) * 1000).toLocaleString('vi-VN')} đ`;
-                              })() : "---"}
-                            </td>
                             <td style={{ padding: '0.75rem', color: '#64748b' }}>{t.created_by}</td>
                           </tr>
                         ))}
