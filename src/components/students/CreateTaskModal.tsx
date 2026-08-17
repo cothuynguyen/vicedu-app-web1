@@ -120,6 +120,19 @@ export default function CreateTaskModal({ isOpen, onClose, filters, activeBranch
       query = query.or(`full_name.ilike.%${filters.searchTerm}%,id.ilike.%${filters.searchTerm}%,parent_phone.ilike.%${filters.searchTerm}%`);
     }
 
+    // Birth Years Filter
+    if (filters.filterBirthYears && filters.filterBirthYears.length > 0) {
+      let orClauses = [];
+      for (const year of filters.filterBirthYears) {
+        if (year === "null") {
+          orClauses.push("dob.is.null");
+        } else {
+          orClauses.push(`and(dob.gte.${year}-01-01,dob.lte.${year}-12-31)`);
+        }
+      }
+      query = query.or(orClauses.join(','));
+    }
+
     // Since we need ALL matching students and Supabase has a 1000 limit by default on some queries, 
     // but usually range is required for pagination. Without range, it defaults to max limit.
     const { data, error } = await query.limit(10000); // Set high limit to ensure we get all

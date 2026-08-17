@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Users, Phone, MapPin, Calendar, Clock, DollarSign, BookOpen, Upload, Download, AlertCircle , LayoutGrid, List} from "lucide-react";
+import { Plus, Search, Users, Phone, MapPin, Calendar, Clock, DollarSign, BookOpen, Upload, Download, AlertCircle, LayoutGrid, List, ChevronDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import StudentModal from "@/components/students/StudentModal";
@@ -44,6 +44,10 @@ export default function StudentsPage() {
   // Birth Month Filter
   const [filterBirthMonth, setFilterBirthMonth] = useState("Tất cả");
 
+  // Birth Year Filter
+  const [filterBirthYears, setFilterBirthYears] = useState<string[]>([]);
+  const [showBirthYearDropdown, setShowBirthYearDropdown] = useState(false);
+
   // Modals States
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -74,7 +78,7 @@ export default function StudentsPage() {
   useEffect(() => {
     fetchData(true);
     fetchRedFlags();
-  }, [activeBranch, activeRole, filterBranch, filterStatus, filterType, filterHours, searchTerm, showRedFlagsOnly, filterTeacher, filterBirthMonth]);
+  }, [activeBranch, activeRole, filterBranch, filterStatus, filterType, filterHours, searchTerm, showRedFlagsOnly, filterTeacher, filterBirthMonth, filterBirthYears]);
 
   useEffect(() => {
     supabase
@@ -186,6 +190,18 @@ export default function StudentsPage() {
           const monthStr = targetMonth.toString().padStart(2, '0');
           const lastDay = new Date(year, targetMonth, 0).getDate();
           orClauses.push(`and(dob.gte.${year}-${monthStr}-01,dob.lte.${year}-${monthStr}-${lastDay})`);
+        }
+        query = query.or(orClauses.join(','));
+      }
+
+      if (filterBirthYears.length > 0) {
+        let orClauses = [];
+        for (const year of filterBirthYears) {
+          if (year === "null") {
+            orClauses.push("dob.is.null");
+          } else {
+            orClauses.push(`and(dob.gte.${year}-01-01,dob.lte.${year}-12-31)`);
+          }
         }
         query = query.or(orClauses.join(','));
       }
@@ -333,6 +349,18 @@ export default function StudentsPage() {
         const monthStr = targetMonth.toString().padStart(2, '0');
         const lastDay = new Date(year, targetMonth, 0).getDate();
         orClauses.push(`and(dob.gte.${year}-${monthStr}-01,dob.lte.${year}-${monthStr}-${lastDay})`);
+      }
+      query = query.or(orClauses.join(','));
+    }
+
+    if (filterBirthYears.length > 0) {
+      let orClauses = [];
+      for (const year of filterBirthYears) {
+        if (year === "null") {
+          orClauses.push("dob.is.null");
+        } else {
+          orClauses.push(`and(dob.gte.${year}-01-01,dob.lte.${year}-12-31)`);
+        }
       }
       query = query.or(orClauses.join(','));
     }
@@ -548,6 +576,58 @@ export default function StudentsPage() {
             <option key={m} value={`Tháng ${m}`}>Tháng {m}</option>
           ))}
         </select>
+
+        <div style={{ position: 'relative' }}>
+          <button 
+            className="form-input" 
+            style={{ width: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', background: '#fff', cursor: 'pointer' }}
+            onClick={() => setShowBirthYearDropdown(!showBirthYearDropdown)}
+          >
+            <span>{filterBirthYears.length > 0 ? `Đã chọn: ${filterBirthYears.length} năm` : "Tất cả Năm sinh"}</span>
+            <ChevronDown size={16} style={{ color: '#64748b' }} />
+          </button>
+          
+          {showBirthYearDropdown && (
+            <div style={{ 
+              position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: '#fff', 
+              border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+              zIndex: 50, minWidth: '200px', maxHeight: '300px', overflowY: 'auto'
+            }}>
+              <div style={{ padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>
+                <button 
+                  style={{ fontSize: '0.8rem', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0' }}
+                  onClick={() => setFilterBirthYears([])}
+                >
+                  Bỏ chọn tất cả
+                </button>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}>
+                <input 
+                  type="checkbox" 
+                  checked={filterBirthYears.includes("null")}
+                  onChange={(e) => {
+                    if (e.target.checked) setFilterBirthYears(prev => [...prev, "null"]);
+                    else setFilterBirthYears(prev => prev.filter(y => y !== "null"));
+                  }}
+                />
+                <span style={{ fontSize: '0.9rem', color: '#ef4444', fontWeight: 500 }}>Chưa cập nhật (Trống)</span>
+              </label>
+              {Array.from({length: new Date().getFullYear() - 1999}, (_, i) => new Date().getFullYear() - i).map(year => (
+                <label key={year} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={filterBirthYears.includes(year.toString())}
+                    onChange={(e) => {
+                      if (e.target.checked) setFilterBirthYears(prev => [...prev, year.toString()]);
+                      else setFilterBirthYears(prev => prev.filter(y => y !== year.toString()));
+                    }}
+                  />
+                  <span style={{ fontSize: '0.9rem', color: '#334155' }}>Năm {year}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
 
         <select className="form-input" style={{ width: 'auto' }} value={filterTeacher} onChange={e => setFilterTeacher(e.target.value)}>
           <option value="Tất cả">Tất cả giáo viên</option>
@@ -882,7 +962,7 @@ export default function StudentsPage() {
         <CreateTaskModal 
           isOpen={showTaskModal}
           onClose={() => setShowTaskModal(false)}
-          filters={{ filterBranch, filterStatus, filterType, filterHours, filterBirthMonth, searchTerm }}
+          filters={{ filterBranch, filterStatus, filterType, filterHours, filterBirthMonth, filterBirthYears, searchTerm }}
           activeBranch={activeBranch}
           isGlobalRole={isGlobalRole}
         />
