@@ -28,7 +28,8 @@ import {
   Megaphone,
   ClipboardCheck,
   PhoneCall,
-  Presentation
+  Presentation,
+  BarChart3
 } from "lucide-react";
 
 const commonMenu = [
@@ -42,6 +43,7 @@ const internalMenu = [
 const trainingMenu = [
   { name: "Học viên", path: "/students", icon: Users },
   { name: "Quản lý Lớp học", path: "/classes", icon: BookOpen },
+  { name: "Báo cáo KPI", path: "/academic-kpis", icon: BarChart3 },
   { name: "Khung chương trình", path: "/curriculum", icon: BookMarked },
   { name: "Bài giảng", path: "/lectures", icon: Presentation },
 ];

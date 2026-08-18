@@ -21,6 +21,7 @@
     "react-dom": "19.2.4",
     "react-quill-new": "^3.8.3",
     "react-select": "^5.10.2",
+    "recharts": "^3.10.1",
     "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   },

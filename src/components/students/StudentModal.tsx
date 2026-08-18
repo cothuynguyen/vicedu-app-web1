@@ -290,9 +290,9 @@ export default function StudentModal({
           branch_id: initialStudent?.branch_id || activeBranch
         });
       }
-      setActiveTab("general");
+      setActiveTab(initialTab);
     }
-  }, [isOpen, studentId, initialStudent]);
+  }, [isOpen, studentId, initialStudent, initialTab]);
 
   useEffect(() => {
     if (isOpen && formData.branch_id) {
