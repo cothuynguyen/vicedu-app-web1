@@ -1,0 +1,31 @@
+name: Daily Academic KPI Sync
+
+on:
+  schedule:
+    # Chạy vào 19:00 UTC mỗi ngày (Tương đương 02:00 AM sáng giờ Việt Nam)
+    - cron: '0 19 * * *'
+  workflow_dispatch: # Cho phép kích hoạt bằng tay từ giao diện GitHub
+
+jobs:
+  sync_padlet:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        # Cài đặt supabase-js cho script chạy độc lập
+        run: npm install @supabase/supabase-js
+
+      - name: Run Academic Sync Script
+        env:
+          PROJECT1_SUPABASE_URL: ${{ secrets.PROJECT1_SUPABASE_URL }}
+          PROJECT1_SERVICE_ROLE_KEY: ${{ secrets.PROJECT1_SERVICE_ROLE_KEY }}
+          PADLET_API_KEY: ${{ secrets.PADLET_API_KEY }}
+        run: node scripts/academic-sync.mjs
