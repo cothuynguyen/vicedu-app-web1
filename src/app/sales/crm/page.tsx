@@ -379,6 +379,8 @@ export default function CRMPage() {
       let matchIdle = true;
       if (filterIdle === ">7") {
         matchIdle = idleDays > 7;
+      } else if (filterIdle === ">30") {
+        matchIdle = idleDays > 30;
       }
       
       const matchBranch = filterBranch === "Tất cả" || c.branch_id === filterBranch;
@@ -589,6 +591,7 @@ export default function CRMPage() {
           <select value={filterIdle} onChange={e => setFilterIdle(e.target.value)} style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid #cbd5e1" }}>
             <option value="Tất cả">Tất cả KH</option>
             <option value=">7">Bỏ quên &gt; 7 ngày</option>
+            <option value=">30">Bỏ quên &gt; 30 ngày</option>
           </select>
         </div>
 
