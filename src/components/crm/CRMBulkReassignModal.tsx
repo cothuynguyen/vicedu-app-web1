@@ -112,13 +112,17 @@ export default function CRMBulkReassignModal({
         return;
       }
 
-      // 2. Chuyển giao hàng loạt
-      const { error: updateErr } = await supabase
-        .from("crm_customers")
-        .update({ assigned_to: toUserId })
-        .in("id", targetIds);
+      // 2. Chuyển giao hàng loạt (đã băm nhỏ gói update để tránh lỗi URL quá dài)
+      const updateChunkSize = 500;
+      for (let i = 0; i < targetIds.length; i += updateChunkSize) {
+        const chunkIds = targetIds.slice(i, i + updateChunkSize);
+        const { error: updateErr } = await supabase
+          .from("crm_customers")
+          .update({ assigned_to: toUserId })
+          .in("id", chunkIds);
 
-      if (updateErr) throw updateErr;
+        if (updateErr) throw updateErr;
+      }
 
       // 3. Ghi log tương tác hàng loạt
       const toName = users.find(u => u.id === toUserId)?.full_name || "Unknown";
