@@ -20,8 +20,8 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        # Cài đặt supabase-js cho script chạy độc lập
-        run: npm install @supabase/supabase-js
+        # Cài đặt toàn bộ dependencies để tránh lỗi xung đột (peer deps)
+        run: npm install --legacy-peer-deps
 
       - name: Run Academic Sync Script
         env:
