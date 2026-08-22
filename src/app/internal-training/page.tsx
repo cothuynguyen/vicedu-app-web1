@@ -8,6 +8,49 @@ import InternalTrainingModal, { InternalTraining } from "@/components/training/I
 
 const ALL_TABS = ["Sale", "Kế toán", "Đào tạo", "Media Team", "Quản lý", "Tài liệu Mật"];
 
+const ExpandableText = ({ text }: { text: string }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  // Nếu text dài hơn 150 ký tự HOẶC có nhiều hơn 3 dòng (\n) thì cho phép thu gọn
+  const isLong = text.length > 150 || (text.match(/\n/g) || []).length > 2;
+
+  return (
+    <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: "4px" }}>
+      <div
+        style={{
+          whiteSpace: "pre-wrap",
+          display: isExpanded ? "block" : "-webkit-box",
+          WebkitLineClamp: isExpanded ? "unset" : 3,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+          transition: "all 0.2s ease"
+        }}
+      >
+        {text}
+      </div>
+      {isLong && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--primary)",
+            cursor: "pointer",
+            padding: 0,
+            marginTop: "6px",
+            fontWeight: 600,
+            fontSize: "0.8rem",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px"
+          }}
+        >
+          {isExpanded ? "Thu gọn ▴" : "Xem thêm ▾"}
+        </button>
+      )}
+    </div>
+  );
+};
+
 export default function InternalTrainingPage() {
   const { user } = useAuth();
   const currentUser = user || { id: "", role: "User", branch_id: "", full_name: "" };
@@ -192,7 +235,7 @@ export default function InternalTrainingPage() {
                       <td style={{ padding: "1rem", color: "#64748b" }}>{idx + 1}</td>
                       <td style={{ padding: "1rem" }}>
                         <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>{t.title}</div>
-                        {t.description && <div style={{ fontSize: "0.85rem", color: "#64748b", whiteSpace: "pre-wrap" }}>{t.description}</div>}
+                        {t.description && <ExpandableText text={t.description} />}
                       </td>
                       <td style={{ padding: "1rem" }}>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
