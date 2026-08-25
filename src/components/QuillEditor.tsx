@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
 
@@ -7,19 +7,72 @@ import 'react-quill-new/dist/quill.snow.css';
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 export default function QuillEditor({ value, onChange }: { value: string, onChange: (content: string) => void }) {
+  const quillRef = useRef<any>(null);
+
+  // Custom handler để tự động upload ảnh lên Cloudflare Images thay vì nhúng Base64
+  const imageHandler = () => {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        // Tạm thời hiển thị trạng thái chờ trong editor
+        const quill = quillRef.current?.getEditor();
+        if (!quill) return;
+        const range = quill.getSelection(true);
+        quill.insertText(range.index, '[Đang tải ảnh lên...]');
+        
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        const result = await res.json();
+        
+        // Xóa dòng trạng thái chờ
+        quill.deleteText(range.index, '[Đang tải ảnh lên...]'.length);
+
+        if (result.success) {
+          // Chèn thẻ ảnh với link Cloudflare vào đúng vị trí con trỏ
+          quill.insertEmbed(range.index, 'image', result.url);
+          quill.setSelection(range.index + 1);
+        } else {
+          alert('Lỗi tải ảnh lên Cloudflare: ' + result.error);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Đã xảy ra lỗi khi kết nối API tải ảnh.');
+      }
+    };
+  };
+
   const modules = useMemo(() => ({
-    toolbar: [
-      [{ 'header': [1, 2, 3, false] }],
-      ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-      [{'list': 'ordered'}, {'list': 'bullet'}],
-      ['link', 'image', 'video'],
-      ['clean']
-    ],
+    toolbar: {
+      container: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike', 'blockquote'],
+        [{'list': 'ordered'}, {'list': 'bullet'}],
+        ['link', 'image', 'video'],
+        ['clean']
+      ],
+      handlers: {
+        image: imageHandler
+      }
+    }
   }), []);
 
   return (
     <div className="bg-white rounded-lg border border-gray-300">
       <ReactQuill 
+        {...({ ref: quillRef } as any)}
         theme="snow" 
         value={value} 
         onChange={onChange}
