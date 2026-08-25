@@ -152,22 +152,30 @@ async function runSync() {
 
       // TOÁN HỌC: Đánh giá 3 Chiều
       const activeDays = activeDaysSet.size;
-      const cappedRaz = Math.min(razCount, 7);
       const cappedBtvn = Math.min(btvnCount, 2);
       
-      // Chiều 1: Điểm tuyệt đối (Max 100đ)
-      let score = (cappedBtvn / 2 * 60) + (cappedRaz / 7 * 40);
+      // Chiều 1: Điểm tuyệt đối
+      // Đã gỡ trần điểm Razkids để khuyến khích Vượt chỉ tiêu
+      let score = (cappedBtvn / 2 * 60) + (razCount / 7 * 40);
 
       // Chiều 2: Tính Đều đặn (Consistency)
       if (score >= 90 && activeDays <= 2) {
         score = score * 0.8; // Phạt 20% tội học nhồi
       }
 
-      // Gắn nhãn Chân dung Hành vi
+      // Gắn nhãn Chân dung Hành vi đa chiều
       let label = 'Bình thường';
-      if (score < 30) label = 'Tàng hình';
-      else if (score >= 50 && activeDays <= 2) label = 'Nước rút';
-      else if (score >= 50 && activeDays >= 4) label = 'Bền bỉ';
+      if (activeDays === 0 || (activeDays === 1 && score < 10)) {
+        label = 'Tàng hình';
+      } else if (score > 100) {
+        label = 'Vượt chỉ tiêu';
+      } else if (score < 30) {
+        label = 'Cưỡi ngựa xem hoa';
+      } else if (score >= 40 && activeDays <= 2) {
+        label = 'Nước rút';
+      } else if (score >= 40 && activeDays >= 4) {
+        label = 'Bền bỉ';
+      }
 
       // Chiều 3: Tính Streak
       let streak = 0;

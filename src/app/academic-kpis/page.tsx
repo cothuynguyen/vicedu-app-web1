@@ -23,8 +23,9 @@ const MomentumBadge = ({ value }: { value: number }) => {
 const BehaviorBadge = ({ label }: { label: string }) => {
   switch (label) {
     case 'Bền bỉ': return <span className="badge-behavior badge-marathon">🐢 Bền bỉ</span>;
-    case 'Chim sớm': return <span className="badge-behavior badge-early">🦅 Chim sớm</span>;
+    case 'Vượt chỉ tiêu': return <span className="badge-behavior badge-early">🌟 Vượt chỉ tiêu</span>;
     case 'Nước rút': return <span className="badge-behavior badge-crammer">⚡ Nước rút</span>;
+    case 'Cưỡi ngựa xem hoa': return <span className="badge-behavior badge-low-effort">🐌 Cưỡi ngựa xem hoa</span>;
     case 'Tàng hình': return <span className="badge-behavior badge-ghost">👻 Tàng hình</span>;
     case 'Thiếu Padlet': return <span className="badge-behavior badge-missing">🛠️ Thiếu Padlet</span>;
     default: return <span className="badge-behavior badge-missing">{label}</span>;
@@ -478,15 +479,17 @@ export default function AcademicKpiDashboard() {
           )}
 
           {activeTab === 'hanh-vi' && (() => {
+            const starCount = filteredKpis.filter(k => k.behavior_label === 'Vượt chỉ tiêu').length;
             const marathonCount = filteredKpis.filter(k => k.behavior_label === 'Bền bỉ').length;
             const crammerCount = filteredKpis.filter(k => k.behavior_label === 'Nước rút').length;
-            const earlyCount = filteredKpis.filter(k => k.behavior_label === 'Chim sớm').length;
+            const lowEffortCount = filteredKpis.filter(k => k.behavior_label === 'Cưỡi ngựa xem hoa').length;
             const ghostCount = filteredKpis.filter(k => k.behavior_label === 'Tàng hình').length;
             
             const pieData = [
+              { name: 'Vượt chỉ tiêu (Star)', value: starCount, color: '#7C3AED' },
               { name: 'Bền bỉ (Marathon)', value: marathonCount, color: '#2563EB' },
               { name: 'Nước rút (Sprinter)', value: crammerCount, color: '#D97706' },
-              { name: 'Chim sớm (Early Bird)', value: earlyCount, color: '#7C3AED' },
+              { name: 'Cưỡi ngựa xem hoa', value: lowEffortCount, color: '#DB2777' },
               { name: 'Tàng hình (Ghost)', value: ghostCount, color: '#DC2626' },
             ].filter(d => d.value > 0);
 
@@ -533,15 +536,15 @@ export default function AcademicKpiDashboard() {
                 <div className="behavior-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '2rem' }}>
                   
                   <div 
-                    className={`stat-box early-bird ${selectedBehavior === 'Chim sớm' ? 'selected' : ''}`}
-                    onClick={() => setSelectedBehavior('Chim sớm')}
-                    style={{ cursor: 'pointer', border: selectedBehavior === 'Chim sớm' ? '2px solid #7C3AED' : '1px solid transparent', padding: '1.5rem', background: 'rgba(124, 58, 237, 0.05)', borderRadius: '12px' }}
+                    className={`stat-box early-bird ${selectedBehavior === 'Vượt chỉ tiêu' ? 'selected' : ''}`}
+                    onClick={() => setSelectedBehavior('Vượt chỉ tiêu')}
+                    style={{ cursor: 'pointer', border: selectedBehavior === 'Vượt chỉ tiêu' ? '2px solid #7C3AED' : '1px solid transparent', padding: '1.5rem', background: 'rgba(124, 58, 237, 0.05)', borderRadius: '12px' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <h3 style={{ margin: 0, color: '#6D28D9', fontSize: '1.1rem' }}>🦅 Chim sớm</h3>
-                      <span style={{ fontSize: '2rem', fontWeight: 'bold', color: '#7C3AED' }}>{earlyCount}</span>
+                      <h3 style={{ margin: 0, color: '#6D28D9', fontSize: '1.1rem' }}>🌟 Vượt chỉ tiêu</h3>
+                      <span style={{ fontSize: '2rem', fontWeight: 'bold', color: '#7C3AED' }}>{starCount}</span>
                     </div>
-                    <p style={{ fontSize: '0.85rem', color: '#5B21B6', margin: 0 }}>Nộp bài siêu tốc đầu tuần. Rất đáng khen ngợi.</p>
+                    <p style={{ fontSize: '0.85rem', color: '#5B21B6', margin: 0 }}>Đọc nhiều gấp đôi chuẩn & nộp bài đầy đủ.</p>
                   </div>
 
                   <div 
@@ -568,6 +571,18 @@ export default function AcademicKpiDashboard() {
                     <p style={{ fontSize: '0.85rem', color: '#92400E', margin: 0 }}>Làm dồn dập vào 1-2 ngày bất kỳ. Cần đôn đốc rải rác.</p>
                   </div>
                   
+                  <div 
+                    className={`stat-box low-effort ${selectedBehavior === 'Cưỡi ngựa xem hoa' ? 'selected' : ''}`}
+                    onClick={() => setSelectedBehavior('Cưỡi ngựa xem hoa')}
+                    style={{ cursor: 'pointer', border: selectedBehavior === 'Cưỡi ngựa xem hoa' ? '2px solid #DB2777' : '1px solid transparent', padding: '1.5rem', background: 'rgba(236, 72, 153, 0.05)', borderRadius: '12px' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <h3 style={{ margin: 0, color: '#BE185D', fontSize: '1.1rem' }}>🐌 Cưỡi ngựa</h3>
+                      <span style={{ fontSize: '2rem', fontWeight: 'bold', color: '#DB2777' }}>{lowEffortCount}</span>
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: '#9D174D', margin: 0 }}>Có mở app nhưng học chiếu lệ, lười làm BTVN.</p>
+                  </div>
+
                   <div 
                     className={`stat-box ghost ${selectedBehavior === 'Tàng hình' ? 'selected' : ''}`}
                     onClick={() => setSelectedBehavior('Tàng hình')}

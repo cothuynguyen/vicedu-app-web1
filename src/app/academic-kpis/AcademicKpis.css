@@ -79,6 +79,7 @@
 .badge-marathon { background: rgba(59, 130, 246, 0.1); color: #2563EB; }
 .badge-crammer { background: rgba(245, 158, 11, 0.1); color: #D97706; }
 .badge-ghost { background: rgba(239, 68, 68, 0.1); color: #DC2626; }
+.badge-low-effort { background: rgba(236, 72, 153, 0.1); color: #DB2777; }
 .badge-missing { background: rgba(100, 116, 139, 0.1); color: #475569; }
 
 .badge-momentum {
