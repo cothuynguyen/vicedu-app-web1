@@ -2,6 +2,7 @@
 import React, { useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
+import { compressImage } from '@/utils/imageCompressor';
 
 // Load động (dynamic import) để tránh lỗi window is not defined khi render trên server (SSR)
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
@@ -20,25 +21,40 @@ export default function QuillEditor({ value, onChange }: { value: string, onChan
       const file = input.files?.[0];
       if (!file) return;
 
-      const formData = new FormData();
-      formData.append('file', file);
+      const quill = quillRef.current?.getEditor();
+      if (!quill) return;
+      const range = quill.getSelection(true);
+
+      // Tạm thời hiển thị trạng thái chờ trong editor
+      quill.insertText(range.index, '[Đang tải ảnh lên...]');
 
       try {
-        // Tạm thời hiển thị trạng thái chờ trong editor
-        const quill = quillRef.current?.getEditor();
-        if (!quill) return;
-        const range = quill.getSelection(true);
-        quill.insertText(range.index, '[Đang tải ảnh lên...]');
+        // Nén ảnh chèn trong bài viết về kích thước tối đa 1000px để tránh vượt quá giới hạn 4.5MB của Vercel
+        const compressedFile = await compressImage(file, 1000, 1000, 0.8);
+
+        const formData = new FormData();
+        formData.append('file', compressedFile);
         
         const res = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
         });
         
-        const result = await res.json();
-        
         // Xóa dòng trạng thái chờ
         quill.deleteText(range.index, '[Đang tải ảnh lên...]'.length);
+
+        if (!res.ok) {
+          const errText = await res.text();
+          let parsedErr = errText;
+          try {
+            const errObj = JSON.parse(errText);
+            parsedErr = errObj.error || errText;
+          } catch(e) {}
+          alert(`Lỗi từ máy chủ (Mã ${res.status}): ${parsedErr}`);
+          return;
+        }
+
+        const result = await res.json();
 
         if (result.success) {
           // Chèn thẻ ảnh với link Cloudflare vào đúng vị trí con trỏ
@@ -47,9 +63,14 @@ export default function QuillEditor({ value, onChange }: { value: string, onChan
         } else {
           alert('Lỗi tải ảnh lên Cloudflare: ' + result.error);
         }
-      } catch (err) {
+      } catch (err: any) {
+        // Xóa dòng trạng thái chờ nếu bị lỗi trong catch block
+        try {
+          quill.deleteText(range.index, '[Đang tải ảnh lên...]'.length);
+        } catch(e) {}
+        
         console.error(err);
-        alert('Đã xảy ra lỗi khi kết nối API tải ảnh.');
+        alert('Đã xảy ra lỗi khi kết nối API tải ảnh: ' + (err.message || 'Lỗi kết nối/Mạng'));
       }
     };
   };
