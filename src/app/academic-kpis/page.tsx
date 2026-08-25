@@ -89,7 +89,19 @@ export default function AcademicKpiDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: kpiData, error: kpiErr } = await supabase
+      // Tìm tuần mới nhất có trong DB để không bị trùng lặp học sinh ở các tuần cũ
+      const { data: latestWeekData } = await supabase
+        .from('student_academic_kpis')
+        .select('week_start')
+        .order('week_start', { ascending: false })
+        .limit(1);
+
+      let currentWeekFilter = '';
+      if (latestWeekData && latestWeekData.length > 0) {
+        currentWeekFilter = latestWeekData[0].week_start;
+      }
+
+      let query = supabase
         .from('student_academic_kpis')
         .select(`
           *,
@@ -97,8 +109,13 @@ export default function AcademicKpiDashboard() {
             *,
             class_students(status, classes(class_name, status))
           )
-        `)
-        .order('diligence_score', { ascending: false });
+        `);
+
+      if (currentWeekFilter) {
+        query = query.eq('week_start', currentWeekFilter);
+      }
+
+      const { data: kpiData, error: kpiErr } = await query.order('diligence_score', { ascending: false });
 
       if (kpiErr) throw kpiErr;
 
