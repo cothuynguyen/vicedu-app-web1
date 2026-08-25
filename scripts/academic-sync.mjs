@@ -163,18 +163,28 @@ async function runSync() {
         score = score * 0.8; // Phạt 20% tội học nhồi
       }
 
-      // Gắn nhãn Chân dung Hành vi đa chiều
+      // Gắn nhãn Chân dung Hành vi đa chiều (Time-aware Logic)
+      const vnNow = new Date(Date.now() + VN_OFFSET);
+      let dayOfWeek = vnNow.getUTCDay(); 
+      dayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 0: Thứ 2, ..., 6: Chủ Nhật
+
       let label = 'Bình thường';
-      if (activeDays === 0 || (activeDays === 1 && score < 10)) {
+      
+      if (activeDays === 0) {
         label = 'Tàng hình';
       } else if (score > 100) {
         label = 'Vượt chỉ tiêu';
-      } else if (score < 30) {
-        label = 'Cưỡi ngựa xem hoa';
-      } else if (score >= 40 && activeDays <= 2) {
-        label = 'Nước rút';
-      } else if (score >= 40 && activeDays >= 4) {
-        label = 'Bền bỉ';
+      } else if (dayOfWeek >= 3) { 
+        // Từ Thứ 5 đến Chủ Nhật (dayOfWeek >= 3): Siết chặt kỷ luật
+        if (activeDays === 1 && score < 10) {
+          label = 'Tàng hình';
+        } else if (score < 30) {
+          label = 'Cưỡi ngựa xem hoa';
+        } else if (score >= 40 && activeDays <= 2) {
+          label = 'Nước rút';
+        } else if (score >= 40 && activeDays >= 4) {
+          label = 'Bền bỉ';
+        }
       }
 
       // Chiều 3: Tính Streak

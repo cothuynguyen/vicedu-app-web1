@@ -856,23 +856,37 @@ export default function AcademicKpiDashboard() {
                   <p style={{ lineHeight: 1.6, color: 'var(--text-main)' }}>Hệ thống tự động quét dữ liệu nộp bài trong tuần để phân loại tính cách học viên, giúp giáo viên có chiến lược tương tác phù hợp:</p>
                   <div style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #7C3AED' }}>
-                      <strong>🦅 Chim sớm (Early Bird):</strong> Nộp bài siêu tốc ngay đầu tuần. Những học sinh rất chăm, bố mẹ sát sao.
+                      <strong>🌟 Vượt chỉ tiêu (Overachiever):</strong> Tổng điểm vượt mốc 100đ (đọc nhiều gấp đôi chuẩn & nộp bài đầy đủ). Rất đáng khen ngợi.
                     </div>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #2563EB' }}>
-                      <strong>🐢 Bền bỉ (Marathon):</strong> Nộp bài rải đều hơn 4 ngày trong tuần. Có thói quen ngôn ngữ xuất sắc.
+                      <strong>🐢 Bền bỉ (Marathon):</strong> Điểm đạt chuẩn (>=40đ) và tương tác rải đều >= 4 ngày trong tuần. Có thói quen ngôn ngữ xuất sắc.
                     </div>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #D97706' }}>
-                      <strong>⚡ Nước rút (Sprinter):</strong> Nộp rất nhiều bài nhưng dồn cục vào 1-2 ngày. Cần gọi điện nhắc nhở phụ huynh chia nhỏ thời gian để con không bị "bội thực".
+                      <strong>⚡ Nước rút (Sprinter):</strong> Điểm đạt chuẩn (>=40đ) nhưng dồn cục vào 1-2 ngày. Cần gọi điện nhắc nhở phụ huynh chia nhỏ thời gian để con không bị "bội thực".
+                    </div>
+                    <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #DB2777' }}>
+                      <strong>🐌 Cưỡi ngựa xem hoa (Low Effort):</strong> Có mở app nhưng học chiếu lệ (Tổng điểm < 30đ, lười làm BTVN). Cần đôn đốc thêm.
                     </div>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #DC2626' }}>
-                      <strong>👻 Tàng hình (Ghost):</strong> Không làm hoặc làm cực ít (0-1 bài). Đây là báo động đỏ cần liên hệ phụ huynh ngay lập tức.
+                      <strong>👻 Tàng hình (Ghost):</strong> Không học ngày nào, hoặc 1 ngày nhưng điểm cực thấp (<10đ). Đây là báo động đỏ cần liên hệ phụ huynh.
                     </div>
                   </div>
                 </div>
 
                 <div style={{ marginBottom: '2rem' }}>
                   <h3 style={{ fontSize: '1.25rem', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-                    3. Chỉ số Động lượng (Mũi tên Tăng/Giảm)
+                    3. Lưu ý: Thuật toán Thời gian thực (Time-aware)
+                  </h3>
+                  <p style={{ lineHeight: 1.6, color: 'var(--text-main)' }}>Hệ thống được thiết kế thông minh để co giãn sự nghiêm khắc tùy thuộc vào ngày trong tuần:</p>
+                  <ul style={{ paddingLeft: '1.5rem', lineHeight: 1.8, color: 'var(--text-muted)' }}>
+                    <li><strong>Thứ 2 đến Thứ 4:</strong> Hệ thống ưu tiên sự động viên. Miễn là học viên có mở app học bài, hệ thống sẽ giữ nhãn <strong>"Bình thường"</strong> để tránh tình trạng báo động giả.</li>
+                    <li><strong>Thứ 5 đến Chủ Nhật:</strong> Hệ thống bắt đầu siết chặt kỷ luật. Nếu học viên vẫn có điểm số thấp hoặc số ngày học ít, hệ thống sẽ tự động giáng cấp xuống thành <strong>"Cưỡi ngựa xem hoa"</strong>, <strong>"Nước rút"</strong> hoặc <strong>"Tàng hình"</strong>.</li>
+                  </ul>
+                </div>
+
+                <div style={{ marginBottom: '2rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+                    4. Chỉ số Động lượng (Mũi tên Tăng/Giảm)
                   </h3>
                   <p style={{ lineHeight: 1.6, color: 'var(--text-main)' }}>So sánh học sinh với chính bản thân chúng ở tuần trước. Sự tiến bộ của bản thân mới là công bằng nhất.</p>
                   <ul style={{ paddingLeft: '1.5rem', lineHeight: 1.8, color: 'var(--text-muted)' }}>
