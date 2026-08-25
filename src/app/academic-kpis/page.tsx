@@ -27,7 +27,8 @@ const BehaviorBadge = ({ label }: { label: string }) => {
     case 'Nước rút': return <span className="badge-behavior badge-crammer">⚡ Nước rút</span>;
     case 'Cưỡi ngựa xem hoa': return <span className="badge-behavior badge-low-effort">🐌 Cưỡi ngựa xem hoa</span>;
     case 'Tàng hình': return <span className="badge-behavior badge-ghost">👻 Tàng hình</span>;
-    case 'Thiếu Padlet': return <span className="badge-behavior badge-missing">🛠️ Thiếu Padlet</span>;
+    case 'Bình thường': return <span className="badge-behavior badge-normal" style={{background: '#F3F4F6', color: '#4B5563'}}>✅ Bình thường</span>;
+    case 'Thiếu Padlet': return <span className="badge-behavior badge-missing">⚠️ Thiếu Padlet</span>;
     default: return <span className="badge-behavior badge-missing">{label}</span>;
   }
 };
@@ -501,10 +502,12 @@ export default function AcademicKpiDashboard() {
             const crammerCount = filteredKpis.filter(k => k.behavior_label === 'Nước rút').length;
             const lowEffortCount = filteredKpis.filter(k => k.behavior_label === 'Cưỡi ngựa xem hoa').length;
             const ghostCount = filteredKpis.filter(k => k.behavior_label === 'Tàng hình').length;
+            const normalCount = filteredKpis.filter(k => k.behavior_label === 'Bình thường').length;
             
             const pieData = [
               { name: 'Vượt chỉ tiêu (Star)', value: starCount, color: '#7C3AED' },
               { name: 'Bền bỉ (Marathon)', value: marathonCount, color: '#2563EB' },
+              { name: 'Bình thường (Normal)', value: normalCount, color: '#9CA3AF' },
               { name: 'Nước rút (Sprinter)', value: crammerCount, color: '#D97706' },
               { name: 'Cưỡi ngựa xem hoa', value: lowEffortCount, color: '#DB2777' },
               { name: 'Tàng hình (Ghost)', value: ghostCount, color: '#DC2626' },
@@ -567,13 +570,33 @@ export default function AcademicKpiDashboard() {
                   <div 
                     className={`stat-box marathon ${selectedBehavior === 'Bền bỉ' ? 'selected' : ''}`}
                     onClick={() => setSelectedBehavior('Bền bỉ')}
-                    style={{ cursor: 'pointer', border: selectedBehavior === 'Bền bỉ' ? '2px solid #2563EB' : '1px solid transparent', padding: '1.5rem', background: 'rgba(37, 99, 235, 0.05)', borderRadius: '12px' }}
+                    style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '1rem', background: selectedBehavior === 'Bền bỉ' ? 'rgba(37, 99, 235, 0.1)' : 'var(--surface)', border: selectedBehavior === 'Bền bỉ' ? '2px solid #2563EB' : '1px solid var(--border)', borderRadius: '12px' }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <h3 style={{ margin: 0, color: '#1D4ED8', fontSize: '1.1rem' }}>🐢 Bền bỉ</h3>
-                      <span style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2563EB' }}>{marathonCount}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <span style={{ fontWeight: 600, color: '#2563EB', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        🐢 Bền bỉ
+                      </span>
+                      <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#2563EB' }}>{marathonCount}</span>
                     </div>
-                    <p style={{ fontSize: '0.85rem', color: '#1E40AF', margin: 0 }}>Tương tác rải đều &gt;4 ngày/tuần. Giữ thói quen rất tốt.</p>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                      Tương tác rải đều &gt;4 ngày/tuần. Giữ thói quen rất tốt.
+                    </div>
+                  </div>
+
+                  <div 
+                    className={`stat-box normal ${selectedBehavior === 'Bình thường' ? 'selected' : ''}`}
+                    onClick={() => setSelectedBehavior('Bình thường')}
+                    style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '1rem', background: selectedBehavior === 'Bình thường' ? 'rgba(156, 163, 175, 0.1)' : 'var(--surface)', border: selectedBehavior === 'Bình thường' ? '2px solid #9CA3AF' : '1px solid var(--border)', borderRadius: '12px' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <span style={{ fontWeight: 600, color: '#4B5563', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        ✅ Bình thường
+                      </span>
+                      <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#4B5563' }}>{normalCount}</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                      Đang duy trì tiến độ ổn định trong tuần.
+                    </div>
                   </div>
 
                   <div 
