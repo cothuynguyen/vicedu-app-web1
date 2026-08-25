@@ -859,16 +859,16 @@ export default function AcademicKpiDashboard() {
                       <strong>🌟 Vượt chỉ tiêu (Overachiever):</strong> Tổng điểm vượt mốc 100đ (đọc nhiều gấp đôi chuẩn & nộp bài đầy đủ). Rất đáng khen ngợi.
                     </div>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #2563EB' }}>
-                      <strong>🐢 Bền bỉ (Marathon):</strong> Điểm đạt chuẩn (>=40đ) và tương tác rải đều >= 4 ngày trong tuần. Có thói quen ngôn ngữ xuất sắc.
+                      <strong>🐢 Bền bỉ (Marathon):</strong> Điểm đạt chuẩn (&gt;=40đ) và tương tác rải đều &gt;= 4 ngày trong tuần. Có thói quen ngôn ngữ xuất sắc.
                     </div>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #D97706' }}>
-                      <strong>⚡ Nước rút (Sprinter):</strong> Điểm đạt chuẩn (>=40đ) nhưng dồn cục vào 1-2 ngày. Cần gọi điện nhắc nhở phụ huynh chia nhỏ thời gian để con không bị "bội thực".
+                      <strong>⚡ Nước rút (Sprinter):</strong> Điểm đạt chuẩn (&gt;=40đ) nhưng dồn cục vào 1-2 ngày. Cần gọi điện nhắc nhở phụ huynh chia nhỏ thời gian để con không bị "bội thực".
                     </div>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #DB2777' }}>
-                      <strong>🐌 Cưỡi ngựa xem hoa (Low Effort):</strong> Có mở app nhưng học chiếu lệ (Tổng điểm < 30đ, lười làm BTVN). Cần đôn đốc thêm.
+                      <strong>🐌 Cưỡi ngựa xem hoa (Low Effort):</strong> Có mở app nhưng học chiếu lệ (Tổng điểm &lt; 30đ, lười làm BTVN). Cần đôn đốc thêm.
                     </div>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #DC2626' }}>
-                      <strong>👻 Tàng hình (Ghost):</strong> Không học ngày nào, hoặc 1 ngày nhưng điểm cực thấp (<10đ). Đây là báo động đỏ cần liên hệ phụ huynh.
+                      <strong>👻 Tàng hình (Ghost):</strong> Không học ngày nào, hoặc 1 ngày nhưng điểm cực thấp (&lt;10đ). Đây là báo động đỏ cần liên hệ phụ huynh.
                     </div>
                   </div>
                 </div>
