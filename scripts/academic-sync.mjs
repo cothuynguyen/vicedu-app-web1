@@ -201,6 +201,7 @@ async function runSync() {
       record.behavior_label = label;
       record.momentum_trend = momentum;
       record.streak_weeks = streak;
+      record.updated_at = new Date().toISOString(); // Bắt buộc cập nhật timestamp để làm Heartbeat
 
       return record;
     });
