@@ -881,19 +881,33 @@ export default function AcademicKpiDashboard() {
                   <p style={{ lineHeight: 1.6, color: 'var(--text-main)' }}>Khắc phục nhược điểm của việc đếm số lượng đơn thuần, tạo ra sự công bằng và chống học đối phó.</p>
                   <ul style={{ paddingLeft: '1.5rem', lineHeight: 1.8, color: 'var(--text-muted)' }}>
                     <li><strong>Chiều 1 (Khối lượng):</strong> Thang 100 điểm. 1 BTVN = 30đ. 1 bài Razkids = 5.7đ.</li>
-                    <li><strong>Chiều 2 (Đều đặn):</strong> Nếu nộp dồn dập vào 1-2 ngày bất kỳ (dấu hiệu học nhồi, học đối phó), hệ thống tự động <strong>phạt trừ 20%</strong> tổng điểm.</li>
+                    <li><strong>Chiều 2 (Đều đặn):</strong> Nếu nộp dồn dập vào 1-2 ngày bất kỳ (dấu hiệu học nhồi, học đối phó), hệ thống tự động <strong>phạt trừ 20%</strong> tổng điểm. <em>(Lưu ý: Chỉ phạt nếu tổng số bài &gt; 3 bài. Nếu học rải đều từ 3 ngày trở lên sẽ được bảo toàn điểm)</em>.</li>
                     <li><strong>Chiều 3 (Chuỗi/Streak):</strong> Nếu học viên đạt điểm xuất sắc (&gt;80đ) liên tiếp các tuần, hệ thống sẽ thắp lên một ngọn lửa <Flame size={14} style={{ display: 'inline', color: '#D97706' }}/> để vinh danh sự bền bỉ.</li>
                   </ul>
                 </div>
 
                 <div style={{ marginBottom: '2rem' }}>
                   <h3 style={{ fontSize: '1.25rem', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-                    2. Từ điển "Chân dung Hành vi"
+                    2. Bảng Vàng Giáo Viên
+                  </h3>
+                  <p style={{ lineHeight: 1.6, color: 'var(--text-main)' }}>Hệ thống xếp hạng hiệu suất đôn đốc của Giáo viên, đảm bảo sự công bằng tuyệt đối dù phụ trách nhiều hay ít lớp.</p>
+                  <ul style={{ paddingLeft: '1.5rem', lineHeight: 1.8, color: 'var(--text-muted)' }}>
+                    <li><strong>Điểm xếp hạng (Trung bình cộng):</strong> Hệ thống tính tổng Điểm chăm chỉ của tất cả học viên mà giáo viên đang phụ trách, sau đó chia đều cho số lượng học viên. Giáo viên dạy 10 hay 100 học sinh đều được đánh giá công bằng trên cùng một hệ quy chiếu.</li>
+                    <li><strong>Chỉ số phụ (Học viên giữ lửa 🔥):</strong> Số lượng học viên của giáo viên đó đang duy trì được chuỗi phong độ xuất sắc liên tiếp để vinh danh thêm.</li>
+                  </ul>
+                </div>
+
+                <div style={{ marginBottom: '2rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+                    3. Từ điển "Chân dung Hành vi"
                   </h3>
                   <p style={{ lineHeight: 1.6, color: 'var(--text-main)' }}>Hệ thống tự động quét dữ liệu nộp bài trong tuần để phân loại tính cách học viên, giúp giáo viên có chiến lược tương tác phù hợp:</p>
                   <div style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
+                    <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #9CA3AF' }}>
+                      <strong>✅ Bình thường (Normal):</strong> Trạng thái đang duy trì tiến độ ổn định trong tuần, chưa có biểu hiện đặc biệt.
+                    </div>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #7C3AED' }}>
-                      <strong>🌟 Vượt chỉ tiêu (Overachiever):</strong> Tổng điểm vượt mốc 100đ (đọc nhiều gấp đôi chuẩn & nộp bài đầy đủ). Rất đáng khen ngợi.
+                      <strong>🌟 Vượt chỉ tiêu (Overachiever):</strong> Tổng điểm vượt mốc 100đ (Luyện nói nhiều hơn 7 bài/tuần &amp; nộp BTVN đầy đủ). Rất đáng khen ngợi.
                     </div>
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #2563EB' }}>
                       <strong>🐢 Bền bỉ (Marathon):</strong> Điểm đạt chuẩn (&gt;=40đ) và tương tác rải đều &gt;= 4 ngày trong tuần. Có thói quen ngôn ngữ xuất sắc.
@@ -912,7 +926,7 @@ export default function AcademicKpiDashboard() {
 
                 <div style={{ marginBottom: '2rem' }}>
                   <h3 style={{ fontSize: '1.25rem', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-                    3. Lưu ý: Thuật toán Thời gian thực (Time-aware)
+                    4. Lưu ý: Thuật toán Thời gian thực (Time-aware)
                   </h3>
                   <p style={{ lineHeight: 1.6, color: 'var(--text-main)' }}>Hệ thống được thiết kế thông minh để co giãn sự nghiêm khắc tùy thuộc vào ngày trong tuần:</p>
                   <ul style={{ paddingLeft: '1.5rem', lineHeight: 1.8, color: 'var(--text-muted)' }}>
@@ -923,7 +937,7 @@ export default function AcademicKpiDashboard() {
 
                 <div style={{ marginBottom: '2rem' }}>
                   <h3 style={{ fontSize: '1.25rem', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-                    4. Chỉ số Động lượng (Mũi tên Tăng/Giảm)
+                    5. Chỉ số Động lượng (Mũi tên Tăng/Giảm)
                   </h3>
                   <p style={{ lineHeight: 1.6, color: 'var(--text-main)' }}>So sánh học sinh với chính bản thân chúng ở tuần trước. Sự tiến bộ của bản thân mới là công bằng nhất.</p>
                   <ul style={{ paddingLeft: '1.5rem', lineHeight: 1.8, color: 'var(--text-muted)' }}>
