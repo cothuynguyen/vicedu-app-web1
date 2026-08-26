@@ -262,6 +262,15 @@ export default function AcademicKpiDashboard() {
     return list.sort((a, b) => a.momentum_trend - b.momentum_trend);
   }, [filteredKpis, momentumFilter]);
 
+  const lastUpdated = useMemo(() => {
+    if (!kpis || kpis.length === 0) return null;
+    const latestDate = kpis.reduce((max, k) => {
+      const current = new Date(k.updated_at).getTime();
+      return current > max ? current : max;
+    }, 0);
+    return dayjs(latestDate).format('HH:mm DD/MM');
+  }, [kpis]);
+
   return (
     <>
       <div className="animate-fade-in" style={{ paddingBottom: '3rem' }}>
@@ -273,10 +282,15 @@ export default function AcademicKpiDashboard() {
             Phân tích đa chiều về độ chăm chỉ và thói quen học tập của học viên.
           </p>
         </div>
-        <div className="header-actions">
+        <div className="header-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
           <button onClick={fetchData} className="btn btn-secondary">
             <Clock size={18} /> Làm mới dữ liệu
           </button>
+          {lastUpdated && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              Update time: {lastUpdated}
+            </span>
+          )}
         </div>
       </div>
 
