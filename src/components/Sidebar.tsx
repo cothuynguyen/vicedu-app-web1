@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { countPendingTasks } from "@/app/actions/events";
 import ChangePasswordModal from './ChangePasswordModal';
 import OnlineWidget from './OnlineWidget';
 import "./Sidebar.css";
@@ -34,6 +35,7 @@ import {
 
 const commonMenu = [
   { name: "Tổng quan", path: "/", icon: LayoutDashboard },
+  { name: "Sự kiện & Checklist", path: "/events", icon: CheckSquare },
 ];
 
 const internalMenu = [
@@ -77,10 +79,20 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [pendingTasksCount, setPendingTasksCount] = useState(0);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      countPendingTasks(user.id)
+        .then(count => setPendingTasksCount(count))
+        .catch(console.error);
+    }
+  }, [user?.id, pathname]);
+
   
   if (!isMounted) return <aside className={`sidebar ${isOpen ? "open" : ""}`}></aside>;
   if (pathname === '/login') return null;
@@ -136,7 +148,20 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
             onClick={onClose}
           >
             <Icon className="nav-icon" size={20} />
-            <span>{item.name}</span>
+            <span style={{ flex: 1 }}>{item.name}</span>
+            {item.path === "/events" && pendingTasksCount > 0 && (
+              <span className="animate-pulse" style={{
+                background: '#ef4444',
+                color: 'white',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)'
+              }}>
+                {pendingTasksCount}
+              </span>
+            )}
             {isActive && <div className="active-indicator" />}
           </Link>
         );
