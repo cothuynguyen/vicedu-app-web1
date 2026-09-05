@@ -21,7 +21,7 @@ export default function ArticlesListPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('marketing_articles')
-      .select('*')
+      .select('id, title, slug, category, status, facebook_pixel_id, views_count, created_at')
       .order('created_at', { ascending: false });
     
     if (error) {
