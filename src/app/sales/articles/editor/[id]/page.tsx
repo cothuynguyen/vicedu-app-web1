@@ -261,6 +261,7 @@ export default function ArticleEditorPage({ params }: { params: Promise<{ id: st
                 <option value="Phương pháp Giáo dục">Phương pháp Giáo dục</option>
                 <option value="Học thuật">Học thuật</option>
                 <option value="Định hướng nghề nghiệp">Định hướng nghề nghiệp</option>
+                <option value="Âm nhạc">Âm nhạc</option>
               </select>
             </div>
             
