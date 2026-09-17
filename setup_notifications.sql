@@ -1,7 +1,6 @@
--- 1. Tạo bảng notifications
 CREATE TABLE IF NOT EXISTS public.notifications (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id text REFERENCES public.users(id) ON DELETE CASCADE,
     title text NOT NULL,
     content text NOT NULL,
     is_read boolean DEFAULT false,
@@ -13,9 +12,9 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 -- Chính sách: Mỗi người chỉ xem được thông báo của riêng mình
-CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT USING (auth.uid()::text = user_id);
 -- Chính sách: Mỗi người chỉ có thể cập nhật thông báo của mình (đánh dấu đã đọc)
-CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE USING (auth.uid()::text = user_id);
 -- Cho phép thêm mới (Trigger dùng bypass nên không cần thiết, nhưng đề phòng)
 CREATE POLICY "Enable insert for authenticated users" ON public.notifications FOR INSERT WITH CHECK (true);
 

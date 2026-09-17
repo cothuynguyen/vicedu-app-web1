@@ -121,7 +121,7 @@ export default function NotificationBell() {
   return (
     <div ref={dropdownRef} style={{ position: "relative" }}>
       {/* Nút Chuông */}
-      <button
+        <button
         onClick={() => setShowDropdown(!showDropdown)}
         style={{
           width: "40px",
@@ -130,17 +130,17 @@ export default function NotificationBell() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "rgba(255, 255, 255, 0.1)",
-          border: "none",
+          background: unreadCount > 0 ? "rgba(239, 68, 68, 0.1)" : "rgba(255, 255, 255, 0.1)",
+          border: unreadCount > 0 ? "1px solid rgba(239, 68, 68, 0.3)" : "none",
           cursor: "pointer",
           position: "relative",
-          color: "var(--text-main)",
-          transition: "background 0.2s"
+          color: unreadCount > 0 ? "#ef4444" : "var(--text-main)",
+          transition: "all 0.2s"
         }}
-        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.2)"}
-        onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"}
+        onMouseEnter={(e) => e.currentTarget.style.background = unreadCount > 0 ? "rgba(239, 68, 68, 0.2)" : "rgba(255, 255, 255, 0.2)"}
+        onMouseLeave={(e) => e.currentTarget.style.background = unreadCount > 0 ? "rgba(239, 68, 68, 0.1)" : "rgba(255, 255, 255, 0.1)"}
       >
-        <Bell size={20} />
+        <Bell size={20} className={unreadCount > 0 ? "animate-bounce" : ""} style={{ animationIterationCount: 2 }} />
         {unreadCount > 0 && (
           <span
             className="animate-pulse"
