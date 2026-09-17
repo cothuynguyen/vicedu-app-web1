@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { Plus, Search, FileText, Phone, Mail, Edit, Trash2, Calculator, User, ArrowLeftRight, Upload, Users } from "lucide-react";
+import { Plus, Search, FileText, Phone, Mail, Edit, Trash2, Calculator, User, ArrowLeftRight, Upload, Users, ChevronDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import CRMAddModal from "@/components/crm/CRMAddModal";
 import CRMDetailModal from "@/components/crm/CRMDetailModal";
@@ -104,6 +104,7 @@ export default function CRMPage() {
   const [showBulkReassignModal, setShowBulkReassignModal] = useState(false);
   const [callLogCustomer, setCallLogCustomer] = useState<CRMCustomer | null>(null);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [showSelectDropdown, setShowSelectDropdown] = useState(false);
 
   // Tab chính
   const [mainTab, setMainTab] = useState<"list" | "report">("list");
