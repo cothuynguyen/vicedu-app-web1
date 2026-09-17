@@ -741,15 +741,69 @@ export default function CRMPage() {
           <table className="crm-table">
             <thead>
               <tr>
-                <th style={{ width: 40, textAlign: "center" }}>
-                  <input type="checkbox" 
-                    checked={sortedCustomers.length > 0 && selectedCustomerIds.length === sortedCustomers.length}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedCustomerIds(sortedCustomers.map(c => c.id));
-                      else setSelectedCustomerIds([]);
-                    }}
-                    style={{ cursor: "pointer" }}
-                  />
+                <th style={{ width: 60, textAlign: "center", position: "relative" }}
+                    onMouseEnter={() => setShowSelectDropdown(true)}
+                    onMouseLeave={() => setShowSelectDropdown(false)}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", height: "100%" }}>
+                    <input type="checkbox" 
+                      checked={paginatedCustomers.length > 0 && selectedCustomerIds.length > 0}
+                      readOnly
+                      style={{ cursor: "pointer", pointerEvents: "none", accentColor: "#0f766e" }}
+                    />
+                    <ChevronDown size={14} style={{ marginLeft: 2, color: "#64748b" }} />
+                  </div>
+                  {showSelectDropdown && (
+                    <div style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      background: "white",
+                      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "6px",
+                      zIndex: 100,
+                      padding: "4px 0",
+                      minWidth: "180px",
+                      textAlign: "left"
+                    }}>
+                      <div 
+                        style={{ padding: "8px 16px", fontSize: "0.85rem", cursor: "pointer", fontWeight: 500, color: "#334155" }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f1f5f9"}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                        onClick={() => {
+                          const newIds = new Set(selectedCustomerIds);
+                          paginatedCustomers.forEach(c => newIds.add(c.id));
+                          setSelectedCustomerIds(Array.from(newIds));
+                          setShowSelectDropdown(false);
+                        }}
+                      >
+                        Chọn trang này ({paginatedCustomers.length})
+                      </div>
+                      <div 
+                        style={{ padding: "8px 16px", fontSize: "0.85rem", cursor: "pointer", fontWeight: 500, color: "#334155" }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f1f5f9"}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                        onClick={() => {
+                          setSelectedCustomerIds(sortedCustomers.map(c => c.id));
+                          setShowSelectDropdown(false);
+                        }}
+                      >
+                        Chọn tất cả ({sortedCustomers.length})
+                      </div>
+                      <div 
+                        style={{ padding: "8px 16px", fontSize: "0.85rem", cursor: "pointer", fontWeight: 500, color: "#ef4444", borderTop: "1px solid #f1f5f9" }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#fef2f2"}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                        onClick={() => {
+                          setSelectedCustomerIds([]);
+                          setShowSelectDropdown(false);
+                        }}
+                      >
+                        Bỏ chọn tất cả
+                      </div>
+                    </div>
+                  )}
                 </th>
                 <th>Khách hàng</th>
                 <th>Liên hệ</th>
