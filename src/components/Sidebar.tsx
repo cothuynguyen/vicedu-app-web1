@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { countPendingTasks } from "@/app/actions/events";
 import ChangePasswordModal from './ChangePasswordModal';
 import OnlineWidget from './OnlineWidget';
+import NotificationBell from './NotificationBell';
 import "./Sidebar.css";
 import { 
   LayoutDashboard, 
@@ -204,6 +205,9 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
             <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.full_name || "Đang tải..."}</span>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.role} - {user?.branch_id}</span>
+          </div>
+          <div onClick={(e) => { e.stopPropagation(); /* Prevent profile menu from opening when clicking bell */ }}>
+            <NotificationBell />
           </div>
           <ChevronRight size={16} style={{ transform: showProfileMenu ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s', color: 'var(--text-muted)' }} />
         </div>
