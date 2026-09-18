@@ -58,16 +58,35 @@ export default function Dashboard() {
         const isGlobalRole = ['Super Admin', 'Giám đốc', 'Kế toán HO'].includes(user.role);
         const actualBranch = isGlobalRole ? filterBranch : (user.branch_id || "Tất cả");
 
-        const { data: statsData, error: statsError } = await supabase.rpc('get_dashboard_stats', { p_branch_id: actualBranch });
+        // Hỗ trợ xử lý Quản lý nhiều chi nhánh (VD: "Việt Trì 1, Việt Trì 2")
+        const actualBranchList = actualBranch === 'Tất cả' ? [] : actualBranch.split(',').map((s: string) => s.trim());
+
+        let finalStatsData = { totalEnrolled: 0, totalClasses: 0, totalLeads: 0, neglectedStudents: [] as any[] };
         
-        if (statsError) {
-          console.error("RPC Error:", statsError);
-        } else if (statsData) {
-          setTotalEnrolled(statsData.totalEnrolled || 0);
-          setTotalClasses(statsData.totalClasses || 0);
-          setTotalLeads(statsData.totalLeads || 0);
-          setNeglectedStudents(statsData.neglectedStudents || []);
+        if (actualBranchList.length > 1) {
+          // Nếu có nhiều chi nhánh, gọi RPC cho từng chi nhánh và cộng dồn
+          for (const b of actualBranchList) {
+            const { data } = await supabase.rpc('get_dashboard_stats', { p_branch_id: b });
+            if (data) {
+              finalStatsData.totalEnrolled += (data.totalEnrolled || 0);
+              finalStatsData.totalClasses += (data.totalClasses || 0);
+              finalStatsData.totalLeads += (data.totalLeads || 0);
+              if (data.neglectedStudents) {
+                finalStatsData.neglectedStudents = [...finalStatsData.neglectedStudents, ...data.neglectedStudents];
+              }
+            }
+          }
+        } else {
+          // Một chi nhánh hoặc Tất cả
+          const { data, error: statsError } = await supabase.rpc('get_dashboard_stats', { p_branch_id: actualBranch });
+          if (statsError) console.error("RPC Error:", statsError);
+          if (data) finalStatsData = data;
         }
+
+        setTotalEnrolled(finalStatsData.totalEnrolled);
+        setTotalClasses(finalStatsData.totalClasses);
+        setTotalLeads(finalStatsData.totalLeads);
+        setNeglectedStudents(finalStatsData.neglectedStudents);
 
         // Fetch Alerts (for absent students - keep existing logic if it relies on a different RPC)
         const { data: flags, error } = await supabase.rpc('get_red_flags');
@@ -80,7 +99,7 @@ export default function Dashboard() {
              flags.forEach((f: any) => {
                const stuInfo = students.find((s: any) => s.id === f.student_id);
                if (stuInfo && f.reason === 'Nghỉ 2 buổi liên tiếp') {
-                 if (actualBranch === 'Tất cả' || stuInfo.branch_id === actualBranch) {
+                 if (actualBranch === 'Tất cả' || actualBranchList.includes(stuInfo.branch_id)) {
                     absent.push(stuInfo);
                  }
                }
@@ -99,7 +118,7 @@ export default function Dashboard() {
           .neq('status', 'Nghỉ hẳn');
           
         if (actualBranch !== 'Tất cả') {
-          studentsQuery = studentsQuery.eq('branch_id', actualBranch);
+          studentsQuery = studentsQuery.in('branch_id', actualBranchList);
         }
         
         const { data: studentsData, error: stuError } = await studentsQuery;
@@ -121,7 +140,7 @@ export default function Dashboard() {
           // Filter by branch if needed
           let filteredFeedbacks = feedbacksData;
           if (actualBranch !== 'Tất cả') {
-            filteredFeedbacks = feedbacksData.filter((log: any) => log.students.branch_id === actualBranch);
+            filteredFeedbacks = feedbacksData.filter((log: any) => actualBranchList.includes(log.students.branch_id));
           }
           setParentFeedbacks(filteredFeedbacks);
         }
