@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Bell, Check, ArrowRight } from "lucide-react";
+import { Bell, Check, ArrowRight, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -107,6 +107,18 @@ export default function NotificationBell() {
       .update({ is_read: true })
       .eq("user_id", user?.id)
       .eq("is_read", false);
+  };
+
+  const deleteNotification = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Ngăn sự kiện click lan ra ngoài
+    
+    const notif = notifications.find(n => n.id === id);
+    if (notif && !notif.is_read) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    }
+    
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    await supabase.from("notifications").delete().eq("id", id);
   };
 
   // Format thời gian đơn giản
@@ -246,12 +258,34 @@ export default function NotificationBell() {
                   onMouseLeave={(e) => (e.currentTarget.style.background = n.is_read ? "transparent" : "#eff6ff")}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
-                    <div style={{ fontWeight: n.is_read ? 500 : 600, color: "#0f172a", fontSize: "14px", lineHeight: 1.4 }}>
+                    <div style={{ fontWeight: n.is_read ? 500 : 600, color: "#0f172a", fontSize: "14px", lineHeight: 1.4, flex: 1 }}>
                       {n.title}
                     </div>
-                    {!n.is_read && (
-                      <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3b82f6", flexShrink: 0, marginTop: "6px" }} />
-                    )}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                      {!n.is_read && (
+                        <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3b82f6", flexShrink: 0, marginTop: "6px" }} />
+                      )}
+                      <button
+                        onClick={(e) => deleteNotification(e, n.id)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: "2px",
+                          color: "#94a3b8",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: "4px",
+                          marginTop: "2px"
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                        title="Xóa thông báo này"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div style={{ color: "#475569", fontSize: "13px", lineHeight: 1.4 }}>
                     {n.content}
