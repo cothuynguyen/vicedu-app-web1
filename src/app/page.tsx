@@ -41,10 +41,24 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (user) {
+      if (!['Super Admin', 'Giám đốc', 'Kế toán HO'].includes(user.role)) {
+        setFilterBranch(user.branch_id || "Tất cả");
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
     const fetchData = async () => {
+      if (!user) return; // Đợi user load xong mới chạy
+
       setLoading(true);
       try {
-        const { data: statsData, error: statsError } = await supabase.rpc('get_dashboard_stats', { p_branch_id: filterBranch });
+        // Bảo mật ép buộc (Lớp 2): Bắt buộc lấy branch_id của user nếu không phải role quản lý toàn hệ thống
+        const isGlobalRole = ['Super Admin', 'Giám đốc', 'Kế toán HO'].includes(user.role);
+        const actualBranch = isGlobalRole ? filterBranch : (user.branch_id || "Tất cả");
+
+        const { data: statsData, error: statsError } = await supabase.rpc('get_dashboard_stats', { p_branch_id: actualBranch });
         
         if (statsError) {
           console.error("RPC Error:", statsError);
@@ -66,7 +80,7 @@ export default function Dashboard() {
              flags.forEach((f: any) => {
                const stuInfo = students.find((s: any) => s.id === f.student_id);
                if (stuInfo && f.reason === 'Nghỉ 2 buổi liên tiếp') {
-                 if (filterBranch === 'Tất cả' || stuInfo.branch_id === filterBranch) {
+                 if (actualBranch === 'Tất cả' || stuInfo.branch_id === actualBranch) {
                     absent.push(stuInfo);
                  }
                }
@@ -84,8 +98,8 @@ export default function Dashboard() {
           .not('dob', 'is', null)
           .neq('status', 'Nghỉ hẳn');
           
-        if (filterBranch !== 'Tất cả') {
-          studentsQuery = studentsQuery.eq('branch_id', filterBranch);
+        if (actualBranch !== 'Tất cả') {
+          studentsQuery = studentsQuery.eq('branch_id', actualBranch);
         }
         
         const { data: studentsData, error: stuError } = await studentsQuery;
@@ -106,8 +120,8 @@ export default function Dashboard() {
         if (!feedError && feedbacksData) {
           // Filter by branch if needed
           let filteredFeedbacks = feedbacksData;
-          if (filterBranch !== 'Tất cả') {
-            filteredFeedbacks = feedbacksData.filter((log: any) => log.students.branch_id === filterBranch);
+          if (actualBranch !== 'Tất cả') {
+            filteredFeedbacks = feedbacksData.filter((log: any) => log.students.branch_id === actualBranch);
           }
           setParentFeedbacks(filteredFeedbacks);
         }
@@ -119,7 +133,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, [filterBranch]);
+  }, [filterBranch, user]);
 
   return (
     <div className="animate-fade-in">
