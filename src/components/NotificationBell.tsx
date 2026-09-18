@@ -112,13 +112,25 @@ export default function NotificationBell() {
   const deleteNotification = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // Ngăn sự kiện click lan ra ngoài
     
+    // Lưu lại trạng thái cũ để revert nếu lỗi
+    const previousNotifications = [...notifications];
+    const previousUnreadCount = unreadCount;
+
     const notif = notifications.find(n => n.id === id);
     if (notif && !notif.is_read) {
       setUnreadCount((prev) => Math.max(0, prev - 1));
     }
     
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-    await supabase.from("notifications").delete().eq("id", id);
+    
+    const { error } = await supabase.from("notifications").delete().eq("id", id);
+    if (error) {
+      console.error("Delete notification error:", error);
+      alert("Lỗi không thể xóa thông báo: " + error.message);
+      // Hoàn tác lại giao diện nếu lỗi
+      setNotifications(previousNotifications);
+      setUnreadCount(previousUnreadCount);
+    }
   };
 
   // Format thời gian đơn giản
