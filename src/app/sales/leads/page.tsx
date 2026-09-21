@@ -298,7 +298,12 @@ export default function LeadsCRM() {
     try {
       let finalBranchId = selectedLead.branch_id;
       if (!finalBranchId || finalBranchId === "Chỉ Admin được dùng" || finalBranchId === "NONE") {
-        finalBranchId = user?.branch_id ? user.branch_id.split(',')[0].trim() : "Việt Trì";
+        finalBranchId = user?.branch_id ? user.branch_id.split(',')[0].trim() : "Việt Trì 1";
+      }
+
+      // Ép dữ liệu chung "Việt Trì" (từ Landing Page) thành "Việt Trì 1" để tương thích với phân quyền CRM
+      if (finalBranchId === "Việt Trì") {
+        finalBranchId = "Việt Trì 1";
       }
 
       const { data: newCustomer, error } = await supabase.from("crm_customers").insert({
