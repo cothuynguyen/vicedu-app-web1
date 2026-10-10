@@ -18,6 +18,15 @@ export default function LoginPage() {
   // FIX: Xóa bỏ margin-left 260px của Sidebar để form ra giữa màn hình
   useEffect(() => {
     document.body.classList.add('login-page-active');
+    
+    // Kiểm tra thông báo lỗi từ URL nếu bị force redirect
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("error") === "account_disabled") {
+        setError("⛔ Tài khoản của bạn đã bị khóa do trạng thái [Nghỉ việc]. Vui lòng liên hệ Ban Giám Đốc.");
+      }
+    }
+
     return () => document.body.classList.remove('login-page-active');
   }, []);
 
@@ -25,6 +34,18 @@ export default function LoginPage() {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        const { data: profile } = await supabase
+          .from("users")
+          .select("status")
+          .or(`auth_id.eq.${session.user.id},email.eq.${session.user.email}`)
+          .maybeSingle();
+
+        if (profile?.status === "Nghỉ việc") {
+          await supabase.auth.signOut();
+          setError("⛔ Tài khoản của bạn đã bị khóa do trạng thái [Nghỉ việc]. Vui lòng liên hệ Ban Giám Đốc.");
+          return;
+        }
+
         router.push("/");
       }
     };
@@ -36,7 +57,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -44,6 +65,20 @@ export default function LoginPage() {
     if (error) {
       setLoading(false);
       setError("Tài khoản hoặc mật khẩu không chính xác.");
+      return;
+    }
+
+    // CHỐT CHẶN BẢO MẬT: Kiểm tra trạng thái làm việc của nhân sự
+    const { data: userProfile } = await supabase
+      .from("users")
+      .select("status")
+      .or(`email.eq.${email},auth_id.eq.${signInData.user?.id}`)
+      .maybeSingle();
+
+    if (userProfile?.status === "Nghỉ việc") {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setError("⛔ Tài khoản của bạn đã bị khóa do trạng thái [Nghỉ việc]. Vui lòng liên hệ Ban Giám Đốc.");
       return;
     }
 

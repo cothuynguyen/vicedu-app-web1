@@ -5,7 +5,7 @@ import { Plus, Search, UserCircle, Briefcase, MapPin, Mail, AlertCircle, Edit2, 
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import { createAuthUser, updateAuthUserPassword, deleteAuthUser } from "@/app/actions/employee";
+import { createAuthUser, updateAuthUserPassword, deleteAuthUser, banOrUnbanAuthUser } from "@/app/actions/employee";
 import { compressImage } from "@/utils/imageCompressor";
 import { uploadImageToCloudflare } from "@/utils/uploadImage";
 import "./Employees.css";
@@ -200,6 +200,14 @@ export default function EmployeesPage() {
         alert("Lỗi khi cập nhật nhân sự: " + error.message);
         return;
       }
+
+      // Khóa/Mở tài khoản Auth đồng bộ theo trạng thái nhân sự
+      if (payload.status === "Nghỉ việc") {
+        await banOrUnbanAuthUser(payload.email, true);
+      } else {
+        await banOrUnbanAuthUser(payload.email, false);
+      }
+
       alert(`Đã cập nhật nhân sự ${payload.full_name} thành công!`);
     } else {
       const initPass = payload.password && payload.password.trim() !== '' ? payload.password : 'vicedu123';
@@ -216,6 +224,12 @@ export default function EmployeesPage() {
         alert("Lỗi khi lưu thông tin nhân sự: " + error.message);
         return;
       }
+
+      // Nếu tạo mới nhưng trạng thái là Nghỉ việc, tiến hành khóa Auth ngay
+      if (payload.status === "Nghỉ việc") {
+        await banOrUnbanAuthUser(payload.email, true);
+      }
+
       alert(`Đã thêm nhân sự ${payload.full_name} thành công!\n\nTài khoản: ${payload.email}\nMật khẩu: ${initPass}`);
     }
 
@@ -260,6 +274,10 @@ export default function EmployeesPage() {
           if (updateError) {
             alert("Lỗi khi chuyển trạng thái: " + updateError.message);
           } else {
+            const emp = employees.find(e => e.id === id);
+            if (emp && emp.email) {
+              await banOrUnbanAuthUser(emp.email, true);
+            }
             fetchData();
           }
         }
@@ -291,6 +309,10 @@ export default function EmployeesPage() {
       } else if (!data || data.length === 0) {
         alert("Lỗi khi khôi phục: Không có quyền thực hiện hoặc nhân sự không tồn tại.");
       } else {
+        const emp = employees.find(e => e.id === id);
+        if (emp && emp.email) {
+          await banOrUnbanAuthUser(emp.email, false);
+        }
         alert("Khôi phục thành công!");
         fetchData();
       }

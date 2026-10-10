@@ -11,6 +11,7 @@ type AuthUser = {
   department: string;
   full_name: string;
   position?: string;
+  status?: string;
 };
 
 type AuthContextType = {
@@ -46,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchProfile = async (authId: string, email: string): Promise<AuthUser | null> => {
     const { data } = await supabase
       .from("users")
-      .select("id, email, role, branch_id, department, full_name, position")
+      .select("id, email, role, branch_id, department, full_name, position, status")
       .eq("auth_id", authId)
       .maybeSingle();
 
@@ -55,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Fallback bằng email nếu auth_id chưa sync
     const { data: fallback } = await supabase
       .from("users")
-      .select("id, email, role, branch_id, department, full_name, position")
+      .select("id, email, role, branch_id, department, full_name, position, status")
       .eq("email", email)
       .maybeSingle();
 
@@ -89,6 +90,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (authUser && mounted) {
           const profile = await fetchProfile(authUser.id, authUser.email || "");
+          if (profile?.status === "Nghỉ việc") {
+            console.warn("[AuthContext] Tài khoản đã nghỉ việc, tiến hành đăng xuất bắt buộc.");
+            await supabase.auth.signOut();
+            if (mounted) setUser(null);
+            if (typeof window !== "undefined") {
+              window.location.href = "/login?error=account_disabled";
+            }
+            return;
+          }
           if (mounted) setUser(profile);
         } else if (mounted) {
           setUser(null);
@@ -114,6 +124,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (session?.user && mounted) {
         const profile = await fetchProfile(session.user.id, session.user.email || "");
+        if (profile?.status === "Nghỉ việc") {
+          console.warn("[AuthContext] Tài khoản đã nghỉ việc trong onAuthStateChange, đăng xuất.");
+          await supabase.auth.signOut();
+          if (mounted) setUser(null);
+          if (typeof window !== "undefined") {
+            window.location.href = "/login?error=account_disabled";
+          }
+          return;
+        }
         if (mounted && profile) setUser(profile);
         if (mounted) setLoading(false);
       }

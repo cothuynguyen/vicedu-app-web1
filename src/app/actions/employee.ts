@@ -114,3 +114,26 @@ export async function deleteAuthUser(email: string) {
     return { success: false, error: err.message }
   }
 }
+
+export async function banOrUnbanAuthUser(email: string, shouldBan: boolean) {
+  try {
+    const supabaseAdmin = getAdminClient()
+
+    const { data: users, error: searchError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+    if (searchError) return { success: false, error: searchError.message }
+
+    const targetUser = users?.users.find((u: any) => u.email === email)
+    if (!targetUser) return { success: true }
+
+    // Khoá vĩnh viễn (876000h = 100 năm) hoặc mở khoá ('none')
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(targetUser.id, {
+      ban_duration: shouldBan ? '876000h' : 'none'
+    })
+
+    if (error) return { success: false, error: error.message }
+    return { success: true, data }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
+
