@@ -14,6 +14,7 @@ const defaultItemData = {
   unit: "chiếc",
   import_price: 0,
   export_price: 0,
+  star_points: 0,
   note: "",
   image_url: ""
 };
@@ -160,6 +161,7 @@ export default function InventoryPage() {
 
       const payload = {
         ...itemData,
+        star_points: Number(itemData.star_points) || 0,
         branch_id: branchToSave
       };
 
@@ -495,7 +497,14 @@ export default function InventoryPage() {
                               <Package size={18} />
                             </div>
                           )}
-                          <span>{item.name}</span>
+                          <div>
+                            <div>{item.name}</div>
+                            {item.star_points > 0 && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', borderRadius: '4px', padding: '1px 6px', fontSize: '0.75rem', fontWeight: 700, marginTop: '2px' }}>
+                                ⭐ {item.star_points} Sao
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td>{item.unit}</td>
@@ -622,7 +631,14 @@ export default function InventoryPage() {
                             </div>
                           )}
                           <div>
-                            <div>{item.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>{item.name}</span>
+                              {item.star_points > 0 && (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', borderRadius: '4px', padding: '1px 6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                                  ⭐ {item.star_points} Sao
+                                </span>
+                              )}
+                            </div>
                             {item.note && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>{item.note}</div>}
                           </div>
                         </div>
@@ -641,6 +657,7 @@ export default function InventoryPage() {
                                 unit: item.unit, 
                                 import_price: item.import_price, 
                                 export_price: item.export_price, 
+                                star_points: item.star_points || 0,
                                 note: item.note || "",
                                 image_url: item.image_url || ""
                               });
@@ -722,6 +739,27 @@ export default function InventoryPage() {
                   )}
                 </div>
               </div>
+
+              <div className="form-group" style={{ backgroundColor: '#fffbeb', border: '1px solid #fef3c7', padding: '12px', borderRadius: '8px' }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#b45309', fontWeight: 600 }}>
+                  <span>⭐</span> Số Sao đổi thưởng (Dành cho Học viên)
+                </label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  min="0" 
+                  placeholder="VD: 50, 80, 100... (Để 0 nếu không đổi sao)" 
+                  value={itemData.star_points || ""} 
+                  onChange={e => setItemData({...itemData, star_points: Number(e.target.value) || 0})} 
+                  onWheel={(e) => (e.target as HTMLInputElement).blur()} 
+                />
+                <small className="text-muted" style={{ display: 'block', marginTop: '0.25rem', color: '#92400e', fontSize: '0.8rem' }}>
+                  {itemData.star_points > 0 
+                    ? `🎁 Món này sẽ tự động xuất hiện trong Kho Quà Tặng của học viên chi nhánh này với giá ${itemData.star_points} Sao.` 
+                    : "💡 Nhập số Sao nếu món hàng này dùng làm quà tặng cho học viên đổi thưởng. Để 0 nếu là hàng bán/vật tư thông thường."}
+                </small>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Ghi chú</label>
                 <textarea className="form-input" rows={2} value={itemData.note} onChange={e => setItemData({...itemData, note: e.target.value})} />
