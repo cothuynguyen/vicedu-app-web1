@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Search, FileText, UploadCloud, Trash2, Edit } from "lucide-react";
+import { Plus, Search, FileText, UploadCloud, Trash2, Edit, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { uploadImageToCloudflare } from "@/utils/uploadImage";
+import { compressDocumentImage } from "@/utils/imageCompressor";
 import "./Enrollments.css";
 
 const getTodayDateString = () => {
@@ -33,6 +34,18 @@ export default function EnrollmentsPage() {
   
   const [formData, setFormData] = useState(defaultFormData);
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
+
+  // Lightbox xem ảnh chứng từ / biên lai
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = (images: string[], index = 0) => {
+    if (!images || images.length === 0) return;
+    setLightboxImages(images);
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
   
   // Lọc hiển thị
   const [searchTerm, setSearchTerm] = useState("");
@@ -153,47 +166,27 @@ export default function EnrollmentsPage() {
     return `ENR-${Date.now().toString().slice(-8)}`;
   };
 
-  // Nén ảnh chứng từ
-  const compressImage = (file: File): Promise<Blob> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const MAX_WIDTH = 2048; // Chứng từ sắc nét (2048px)
-          const scaleSize = img.width > MAX_WIDTH ? (MAX_WIDTH / img.width) : 1;
-          canvas.width = img.width * scaleSize;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = "high";
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          }
-          canvas.toBlob((blob) => {
-            resolve(blob as Blob);
-          }, "image/jpeg", 0.88); 
-        };
-      };
-    });
-  };
-
   const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+
+    const currentImages = formData.receipt_images || [];
+    if (currentImages.length + files.length > 10) {
+      alert("Mỗi phiếu đăng ký chỉ được lưu tối đa 10 ảnh chứng từ/biên lai!");
+      e.target.value = "";
+      return;
+    }
     
     setUploadingReceipt(true);
     try {
-      const newImages = [...formData.receipt_images];
+      const newImages = [...currentImages];
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const compressedBlob = await compressImage(file);
+        const compressedFile = await compressDocumentImage(file);
         
         // Sử dụng Cloudflare Images
-        const imageUrl = await uploadImageToCloudflare(compressedBlob);
+        const imageUrl = await uploadImageToCloudflare(compressedFile);
         newImages.push(imageUrl);
       }
       
@@ -202,6 +195,7 @@ export default function EnrollmentsPage() {
       alert("Lỗi upload ảnh chứng từ: " + err.message);
     } finally {
       setUploadingReceipt(false);
+      e.target.value = "";
     }
   };
 
@@ -557,6 +551,40 @@ export default function EnrollmentsPage() {
                       Chi nhánh: {enr.branch_id} • Ngày: {new Date(enr.created_at).toLocaleDateString('vi-VN')}
                     </p>
                     {enr.note && <p style={{ marginTop: '0.25rem', fontStyle: 'italic', fontSize: '0.85rem' }}>Ghi chú: {enr.note}</p>}
+                    {enr.receipt_images && enr.receipt_images.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginRight: '2px' }}>
+                          Chứng từ ({enr.receipt_images.length}):
+                        </span>
+                        {enr.receipt_images.map((imgUrl: string, imgIdx: number) => (
+                          <div 
+                            key={imgIdx}
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '6px',
+                              overflow: 'hidden',
+                              border: '1px solid var(--border)',
+                              cursor: 'pointer',
+                              background: '#f1f5f9',
+                              position: 'relative',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openLightbox(enr.receipt_images, imgIdx);
+                            }}
+                            title="Bấm để xem ảnh chứng từ phóng to"
+                          >
+                            <img 
+                              src={imgUrl} 
+                              alt="Chứng từ" 
+                              style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="enrollment-financials">
@@ -869,20 +897,59 @@ export default function EnrollmentsPage() {
                     <span style={{ fontWeight: 500, color: uploadingReceipt ? 'var(--primary)' : 'var(--text)' }}>
                       {uploadingReceipt ? 'Đang nén và tải lên...' : 'Bấm vào đây để tải ảnh lên'}
                     </span>
-                    <span className="text-muted" style={{ fontSize: '0.85rem' }}>Tối đa 5 ảnh. Hỗ trợ JPG, PNG.</span>
+                    <span className="text-muted" style={{ fontSize: '0.85rem' }}>Tối đa 10 ảnh. Hỗ trợ JPG, PNG.</span>
                   </label>
                 </div>
                 
                 {/* Image Preview Grid */}
                 {formData.receipt_images.length > 0 && (
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '1rem' }}>
                     {formData.receipt_images.map((url, idx) => (
-                      <div key={idx} style={{ position: 'relative', width: '80px', height: '80px' }}>
-                        <img src={url} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }} />
+                      <div 
+                        key={idx} 
+                        style={{ 
+                          position: 'relative', 
+                          width: '84px', 
+                          height: '84px', 
+                          borderRadius: '8px', 
+                          overflow: 'hidden', 
+                          border: '1px solid var(--border)',
+                          background: '#f8fafc',
+                          cursor: 'pointer',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                        }}
+                        onClick={() => openLightbox(formData.receipt_images, idx)}
+                        title="Bấm để xem ảnh phóng to"
+                      >
+                        <img 
+                          src={url} 
+                          alt="Receipt" 
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                        />
                         <button 
                           type="button" 
-                          onClick={() => removeImage(idx)}
-                          style={{ position: 'absolute', top: '-8px', right: '-8px', background: 'var(--danger)', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeImage(idx);
+                          }}
+                          style={{ 
+                            position: 'absolute', 
+                            top: '4px', 
+                            right: '4px', 
+                            background: 'rgba(239, 68, 68, 0.9)', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '50%', 
+                            width: '20px', 
+                            height: '20px', 
+                            cursor: 'pointer', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            fontSize: '13px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                          }}
+                          title="Xóa ảnh này"
                         >
                           &times;
                         </button>
@@ -899,6 +966,158 @@ export default function EnrollmentsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Viewer cho Chứng từ / Biên lai */}
+      {lightboxOpen && lightboxImages.length > 0 && (
+        <div 
+          className="lightbox-overlay" 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(15, 23, 42, 0.95)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 99999,
+            backdropFilter: 'blur(8px)',
+          }}
+          onClick={() => setLightboxOpen(false)}
+        >
+          <div 
+            className="lightbox-content" 
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Top Bar Actions */}
+            <div style={{ position: 'absolute', top: '-46px', left: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <a 
+                href={lightboxImages[lightboxIndex]} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  color: '#fff',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '0.88rem',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  textDecoration: 'none',
+                  transition: 'background 0.2s',
+                  backdropFilter: 'blur(4px)'
+                }}
+                title="Mở ảnh gốc trong tab mới để xem kích thước đầy đủ và phóng to"
+              >
+                <ExternalLink size={16} /> Xem ảnh gốc (Full size)
+              </a>
+            </div>
+
+            <button 
+              className="lightbox-close" 
+              style={{
+                position: 'absolute',
+                top: '-50px',
+                right: 0,
+                color: '#cbd5e1',
+                background: 'none',
+                border: 'none',
+                fontSize: '2.5rem',
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+              onClick={() => setLightboxOpen(false)}
+            >
+              &times;
+            </button>
+            
+            <img 
+              src={lightboxImages[lightboxIndex]} 
+              alt={`Chứng từ ${lightboxIndex + 1}`} 
+              className="lightbox-image" 
+              style={{
+                maxWidth: '100%',
+                maxHeight: '80vh',
+                objectFit: 'contain',
+                borderRadius: '12px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+              }}
+            />
+
+            {lightboxImages.length > 1 && (
+              <>
+                <button 
+                  className="lightbox-nav prev" 
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    border: 'none',
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    left: '-70px',
+                  }}
+                  onClick={() => setLightboxIndex(prev => (prev - 1 + lightboxImages.length) % lightboxImages.length)}
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <button 
+                  className="lightbox-nav next" 
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    border: 'none',
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    right: '-70px',
+                  }}
+                  onClick={() => setLightboxIndex(prev => (prev + 1) % lightboxImages.length)}
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </>
+            )}
+
+            <div 
+              className="lightbox-indicator" 
+              style={{
+                color: '#94a3b8',
+                marginTop: '16px',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+              }}
+            >
+              {lightboxIndex + 1} / {lightboxImages.length}
+            </div>
           </div>
         </div>
       )}
