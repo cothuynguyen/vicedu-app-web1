@@ -266,6 +266,9 @@ export default function EmployeesPage() {
       return;
     }
 
+    const targetEmp = employees.find(e => e.id === id);
+    const empEmail = targetEmp?.email;
+
     const { error } = await supabase.from("users").delete().eq("id", id);
     if (error) {
       if (error.message.includes('foreign key constraint') || error.code === '23503') {
@@ -274,9 +277,8 @@ export default function EmployeesPage() {
           if (updateError) {
             alert("Lỗi khi chuyển trạng thái: " + updateError.message);
           } else {
-            const emp = employees.find(e => e.id === id);
-            if (emp && emp.email) {
-              await banOrUnbanAuthUser(emp.email, true);
+            if (empEmail) {
+              await banOrUnbanAuthUser(empEmail, true);
             }
             fetchData();
           }
@@ -288,9 +290,8 @@ export default function EmployeesPage() {
     }
     
     // Nếu xóa DB thành công (chưa có dữ liệu liên kết), tiến hành xóa luôn tài khoản Auth
-    const emp = employees.find(e => e.id === id);
-    if (emp && emp.email) {
-      const authRes = await deleteAuthUser(emp.email);
+    if (empEmail) {
+      const authRes = await deleteAuthUser(empEmail);
       if (!authRes.success) {
         alert("Đã xóa dữ liệu nhân sự, nhưng có lỗi khi xóa tài khoản Đăng nhập Auth: " + authRes.error);
         // Không return ở đây để vẫn load lại data

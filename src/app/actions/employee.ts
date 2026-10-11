@@ -13,16 +13,55 @@ const getAdminClient = () => {
 export async function createAuthUser(email: string, password: string, fullName: string) {
   try {
     const supabaseAdmin = getAdminClient()
+    const cleanEmail = email.trim().toLowerCase()
 
     // Cấp tài khoản Auth cho nhân sự mới
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: cleanEmail,
       password,
       email_confirm: true, // Bỏ qua bước xác nhận qua Email
       user_metadata: { full_name: fullName }
     })
 
     if (error) {
+      // XỬ LÝ THÔNG MINH: Nếu email đã tồn tại ở tầng Auth
+      if (error.message.includes('already registered') || (error as any).status === 422) {
+        // 1. Kiểm tra xem trong bảng hồ sơ public.users có ai ĐANG DÙNG email này không
+        const { data: existingEmp } = await supabaseAdmin
+          .from('users')
+          .select('id, full_name, email')
+          .ilike('email', cleanEmail)
+          .maybeSingle()
+
+        if (existingEmp) {
+          return {
+            success: false,
+            error: `Email [${cleanEmail}] đã được đăng ký cho nhân sự [${existingEmp.full_name}] (${existingEmp.id}). Vui lòng kiểm tra lại.`
+          }
+        }
+
+        // 2. Nếu trong public.users KHÔNG CÓ AI dùng email này (tài khoản mồ côi từ hồ sơ cũ đã xóa)
+        // -> Tự động tái sử dụng tài khoản Auth cũ, cập nhật lại mật khẩu và metadata
+        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+        const orphanUser = usersData?.users.find((u: any) => u.email?.trim().toLowerCase() === cleanEmail)
+
+        if (orphanUser) {
+          const { data: updatedData, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(orphanUser.id, {
+            password,
+            email_confirm: true,
+            user_metadata: { full_name: fullName },
+            ban_duration: 'none' // Gỡ khóa nếu trước đó bị khóa
+          })
+
+          if (updateError) {
+            return { success: false, error: updateError.message }
+          }
+
+          // Tái sử dụng thành công, trả về auth_id cũ để liên kết với hồ sơ mới
+          return { success: true, data: updatedData, auth_id: orphanUser.id }
+        }
+      }
+
       return { success: false, error: error.message }
     }
 
@@ -99,9 +138,10 @@ export async function verifyAndChangePassword(email: string, oldPassword: string
 export async function deleteAuthUser(email: string) {
   try {
     const supabaseAdmin = getAdminClient()
+    const cleanEmail = email.trim().toLowerCase()
 
     const { data: users } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
-    const targetUser = users?.users.find((u: any) => u.email === email)
+    const targetUser = users?.users.find((u: any) => u.email?.trim().toLowerCase() === cleanEmail)
     
     // Nếu không có trong Auth thì thôi, bỏ qua
     if (!targetUser) return { success: true } 
@@ -118,11 +158,12 @@ export async function deleteAuthUser(email: string) {
 export async function banOrUnbanAuthUser(email: string, shouldBan: boolean) {
   try {
     const supabaseAdmin = getAdminClient()
+    const cleanEmail = email.trim().toLowerCase()
 
     const { data: users, error: searchError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
     if (searchError) return { success: false, error: searchError.message }
 
-    const targetUser = users?.users.find((u: any) => u.email === email)
+    const targetUser = users?.users.find((u: any) => u.email?.trim().toLowerCase() === cleanEmail)
     if (!targetUser) return { success: true }
 
     // Khoá vĩnh viễn (876000h = 100 năm) hoặc mở khoá ('none')
