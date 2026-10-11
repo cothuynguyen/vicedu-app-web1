@@ -162,16 +162,19 @@ export default function EnrollmentsPage() {
         const img = new Image();
         img.src = event.target?.result as string;
         img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 800; // Chứng từ nên để nét một chút (800px)
+          const MAX_WIDTH = 2048; // Chứng từ sắc nét (2048px)
           const scaleSize = img.width > MAX_WIDTH ? (MAX_WIDTH / img.width) : 1;
           canvas.width = img.width * scaleSize;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          }
           canvas.toBlob((blob) => {
             resolve(blob as Blob);
-          }, "image/jpeg", 0.75); 
+          }, "image/jpeg", 0.88); 
         };
       };
     });

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { syncStudentAuthAccount } from "@/app/actions/studentAuth";
 import { X, Upload, Trash2, Edit, Clock, DollarSign, PlusCircle, ExternalLink, Camera, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { compressImage } from "@/utils/imageCompressor";
+import { compressImage, compressDocumentImage } from "@/utils/imageCompressor";
 import { uploadImageToCloudflare } from "@/utils/uploadImage";
 
 interface StudentModalProps {
@@ -314,36 +314,12 @@ export default function StudentModal({
 
   if (!isOpen) return null;
 
-  // Image compression
-  const compressImage = (file: File): Promise<Blob> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 400;
-          const scaleSize = img.width > MAX_WIDTH ? (MAX_WIDTH / img.width) : 1;
-          canvas.width = img.width * scaleSize;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext("2d");
-          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((blob) => {
-            resolve(blob as Blob);
-          }, "image/jpeg", 0.7);
-        };
-      };
-    });
-  };
-
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingAvatar(true);
     try {
-      const compressedBlob = await compressImage(file);
+      const compressedBlob = await compressImage(file, 400, 400, 0.75);
       const imageUrl = await uploadImageToCloudflare(compressedBlob);
       setFormData({ ...formData, avatar_url: imageUrl });
     } catch (err: any) {
@@ -562,7 +538,7 @@ export default function StudentModal({
       const uploadedList = [...currentImages];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const compressedFile = await compressImage(file);
+        const compressedFile = await compressDocumentImage(file);
         const imageUrl = await uploadImageToCloudflare(compressedFile);
 
         const newImage = {
@@ -1273,7 +1249,8 @@ export default function StudentModal({
                               left: 0,
                               width: '100%',
                               height: '100%',
-                              objectFit: 'cover'
+                              objectFit: 'contain',
+                              background: '#f1f5f9'
                             }}
                           />
 
@@ -1607,6 +1584,31 @@ export default function StudentModal({
             }}
             onClick={e => e.stopPropagation()}
           >
+            <div style={{ position: 'absolute', top: '-46px', left: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <a 
+                href={lightboxImages[lightboxIndex]} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  color: '#fff',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '0.88rem',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  textDecoration: 'none',
+                  transition: 'background 0.2s',
+                  backdropFilter: 'blur(4px)'
+                }}
+                title="Mở ảnh gốc trong tab mới để xem kích thước đầy đủ và phóng to"
+              >
+                <ExternalLink size={16} /> Xem ảnh gốc (Full size)
+              </a>
+            </div>
+
             <button 
               className="lightbox-close" 
               style={{
@@ -2041,6 +2043,31 @@ export default function StudentModal({
             }}
             onClick={e => e.stopPropagation()}
           >
+            <div style={{ position: 'absolute', top: '-46px', left: 0, display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <a 
+                href={selectedTransaction.receipt_images[txLightboxIndex]} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  color: '#fff',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '0.88rem',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  textDecoration: 'none',
+                  transition: 'background 0.2s',
+                  backdropFilter: 'blur(4px)'
+                }}
+                title="Mở ảnh chứng từ gốc trong tab mới để xem kích thước đầy đủ và phóng to"
+              >
+                <ExternalLink size={16} /> Xem ảnh gốc (Full size)
+              </a>
+            </div>
+
             <button 
               className="lightbox-close" 
               style={{

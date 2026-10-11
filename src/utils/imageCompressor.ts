@@ -1,9 +1,14 @@
 /**
  * Hàm nén ảnh ngay tại trình duyệt bằng HTML5 Canvas.
- * Giúp thu nhỏ dung lượng ảnh (đặc biệt là ảnh chụp từ điện thoại) xuống dưới 100KB - 300KB
- * trước khi upload lên Supabase Storage, tiết kiệm băng thông và dung lượng cực kỳ hiệu quả.
+ * Giúp thu nhỏ dung lượng ảnh trước khi upload lên Cloudflare / Supabase Storage,
+ * tiết kiệm băng thông và dung lượng cực kỳ hiệu quả mà vẫn đảm bảo độ sắc nét cao.
  */
-export const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<File> => {
+export const compressImage = (
+  file: File, 
+  maxWidth = 1920, 
+  maxHeight = 1920, 
+  quality = 0.85
+): Promise<File> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -36,6 +41,8 @@ export const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quali
           return reject(new Error("Không thể khởi tạo Canvas"));
         }
 
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, width, height);
 
         canvas.toBlob(
@@ -59,4 +66,11 @@ export const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quali
     };
     reader.onerror = (err) => reject(err);
   });
+};
+
+/**
+ * Hàm nén tài liệu, hợp đồng, bảng biểu A4 với độ nét cao (2K / 2400px, quality 0.9).
+ */
+export const compressDocumentImage = (file: File): Promise<File> => {
+  return compressImage(file, 2400, 2400, 0.9);
 };
