@@ -15,6 +15,7 @@ const defaultItemData = {
   import_price: 0,
   export_price: 0,
   star_points: 0,
+  min_stock: 5,
   note: "",
   image_url: ""
 };
@@ -51,13 +52,24 @@ export default function InventoryPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   
-  // Filters
+  // Filters & Sorting
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("Tất cả");
   const [stockStatusFilter, setStockStatusFilter] = useState("Tất cả");
+  const [minStockFilter, setMinStockFilter] = useState("");
+  const [maxStockFilter, setMaxStockFilter] = useState("");
+  const [stockSortOrder, setStockSortOrder] = useState<"none" | "asc" | "desc">("none");
   const [transSearchTerm, setTransSearchTerm] = useState("");
   const [transTypeFilter, setTransTypeFilter] = useState("Tất cả");
   const [transCategoryFilter, setTransCategoryFilter] = useState("Tất cả");
+
+  const toggleStockSort = () => {
+    setStockSortOrder(prev => {
+      if (prev === "none") return "asc";
+      if (prev === "asc") return "desc";
+      return "none";
+    });
+  };
 
   const { user, loading: authLoading } = useAuth();
   const [activeBranch, setActiveBranch] = useState("Việt Trì 1");
@@ -159,9 +171,10 @@ export default function InventoryPage() {
         return;
       }
 
-      const payload = {
+      const payload: any = {
         ...itemData,
         star_points: Number(itemData.star_points) || 0,
+        min_stock: Number(itemData.min_stock) >= 0 ? Number(itemData.min_stock) : 5,
         branch_id: branchToSave
       };
 
@@ -174,10 +187,20 @@ export default function InventoryPage() {
           return;
         }
 
-        const { error } = await supabase.from("inventory_items").update(payload).eq("id", editingItemId);
+        let { error } = await supabase.from("inventory_items").update(payload).eq("id", editingItemId);
+        if (error && (error as any).code === "PGRST204") {
+          delete payload.min_stock;
+          const retry = await supabase.from("inventory_items").update(payload).eq("id", editingItemId);
+          error = retry.error;
+        }
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("inventory_items").insert([payload]);
+        let { error } = await supabase.from("inventory_items").insert([payload]);
+        if (error && (error as any).code === "PGRST204") {
+          delete payload.min_stock;
+          const retry = await supabase.from("inventory_items").insert([payload]);
+          error = retry.error;
+        }
         if (error) throw error;
       }
       setShowItemModal(false);
@@ -303,28 +326,70 @@ export default function InventoryPage() {
   };
 
   // DATA PROCESSING
-  const inventoryData = items.map(item => {
+  const allInventoryData = items.map(item => {
     const itemTrans = transactions.filter(t => t.item_id === item.id);
     const totalIn = itemTrans.filter(t => t.type === "Nhập").reduce((s, t) => s + t.quantity, 0);
     const totalOut = itemTrans.filter(t => t.type === "Xuất").reduce((s, t) => s + t.quantity, 0);
+    const balance = totalIn - totalOut;
+    const minStockThreshold = item.min_stock !== undefined && item.min_stock !== null ? Number(item.min_stock) : 5;
+
+    let stockStatus: "negative" | "out" | "low" | "safe" = "safe";
+    if (balance < 0) {
+      stockStatus = "negative";
+    } else if (balance === 0) {
+      stockStatus = "out";
+    } else if (balance <= minStockThreshold) {
+      stockStatus = "low";
+    } else {
+      stockStatus = "safe";
+    }
+
     return {
       ...item,
+      minStockThreshold,
+      stockStatus,
       totalIn,
       totalOut,
-      balance: totalIn - totalOut
+      balance
     };
-  }).filter(item => {
+  });
+
+  const stockSummary = {
+    total: allInventoryData.length,
+    safe: allInventoryData.filter(i => i.stockStatus === "safe").length,
+    low: allInventoryData.filter(i => i.stockStatus === "low").length,
+    out: allInventoryData.filter(i => i.stockStatus === "out").length,
+    negative: allInventoryData.filter(i => i.stockStatus === "negative").length,
+  };
+
+  const inventoryData = allInventoryData.filter(item => {
     const matchSearch = searchTerm === "" || item.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchCat = categoryFilter === "Tất cả" || item.category === categoryFilter;
     
     let matchStockStatus = true;
     if (stockStatusFilter === "Còn hàng") {
       matchStockStatus = item.balance > 0;
+    } else if (stockStatusFilter === "Đủ hàng") {
+      matchStockStatus = item.stockStatus === "safe";
+    } else if (stockStatusFilter === "Sắp hết") {
+      matchStockStatus = item.stockStatus === "low";
     } else if (stockStatusFilter === "Hết hàng") {
-      matchStockStatus = item.balance <= 0;
+      matchStockStatus = item.stockStatus === "out";
+    } else if (stockStatusFilter === "Lệch kho (Âm)") {
+      matchStockStatus = item.stockStatus === "negative";
     }
     
-    return matchSearch && matchCat && matchStockStatus;
+    // Min / Max filter
+    const minVal = minStockFilter !== "" ? Number(minStockFilter) : null;
+    const maxVal = maxStockFilter !== "" ? Number(maxStockFilter) : null;
+    const matchMin = minVal === null || isNaN(minVal) || item.balance >= minVal;
+    const matchMax = maxVal === null || isNaN(maxVal) || item.balance <= maxVal;
+
+    return matchSearch && matchCat && matchStockStatus && matchMin && matchMax;
+  }).sort((a, b) => {
+    if (stockSortOrder === "asc") return a.balance - b.balance;
+    if (stockSortOrder === "desc") return b.balance - a.balance;
+    return 0;
   });
 
   const filteredTransactions = transactions.filter(t => {
@@ -384,6 +449,90 @@ export default function InventoryPage() {
         )}
       </div>
 
+      {activeTab === "Tồn Kho" && (
+        <div className="kpi-cards-grid no-print">
+          <div 
+            className={`kpi-card ${stockStatusFilter === "Tất cả" ? "active" : ""}`}
+            onClick={() => setStockStatusFilter("Tất cả")}
+            title="Click để hiển thị tất cả mặt hàng"
+          >
+            <div className="kpi-card-header">
+              <span>📦 Tổng Mặt Hàng</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tất cả</span>
+            </div>
+            <div className="kpi-card-value" style={{ color: 'var(--primary)' }}>
+              {stockSummary.total}
+            </div>
+            <div className="kpi-card-desc">Tất cả mặt hàng trong kho</div>
+          </div>
+
+          <div 
+            className={`kpi-card ${stockStatusFilter === "Đủ hàng" ? "active" : ""}`}
+            onClick={() => setStockStatusFilter(prev => prev === "Đủ hàng" ? "Tất cả" : "Đủ hàng")}
+            title="Click để lọc các mặt hàng còn nhiều và đủ an toàn"
+          >
+            <div className="kpi-card-header">
+              <span>✅ Đủ Hàng An Toàn</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>&gt; Định mức</span>
+            </div>
+            <div className="kpi-card-value" style={{ color: 'var(--success)' }}>
+              {stockSummary.safe}
+            </div>
+            <div className="kpi-card-desc">Tồn kho vượt mức tối thiểu</div>
+          </div>
+
+          <div 
+            className={`kpi-card ${stockStatusFilter === "Sắp hết" ? "active" : ""}`}
+            onClick={() => setStockStatusFilter(prev => prev === "Sắp hết" ? "Tất cả" : "Sắp hết")}
+            style={{ borderLeft: stockSummary.low > 0 ? '3px solid #f59e0b' : undefined }}
+            title="Click để lọc các mặt hàng sắp hết cần dự trù nhập thêm"
+          >
+            <div className="kpi-card-header">
+              <span>⚠️ Sắp Hết Hàng</span>
+              <span style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 700 }}>&le; Định mức</span>
+            </div>
+            <div className="kpi-card-value" style={{ color: '#d97706' }}>
+              {stockSummary.low}
+            </div>
+            <div className="kpi-card-desc">Cần dự trù nhập bổ sung</div>
+          </div>
+
+          <div 
+            className={`kpi-card ${stockStatusFilter === "Hết hàng" ? "active" : ""}`}
+            onClick={() => setStockStatusFilter(prev => prev === "Hết hàng" ? "Tất cả" : "Hết hàng")}
+            style={{ borderLeft: stockSummary.out > 0 ? '3px solid #ef4444' : undefined }}
+            title="Click để lọc các mặt hàng đã hết tồn kho"
+          >
+            <div className="kpi-card-header">
+              <span>❌ Đã Hết Hàng</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--danger)', fontWeight: 700 }}>Tồn = 0</span>
+            </div>
+            <div className="kpi-card-value" style={{ color: 'var(--danger)' }}>
+              {stockSummary.out}
+            </div>
+            <div className="kpi-card-desc">Không còn hàng để xuất</div>
+          </div>
+
+          {stockSummary.negative > 0 && (
+            <div 
+              className={`kpi-card ${stockStatusFilter === "Lệch kho (Âm)" ? "active" : ""}`}
+              onClick={() => setStockStatusFilter(prev => prev === "Lệch kho (Âm)" ? "Tất cả" : "Lệch kho (Âm)")}
+              style={{ borderLeft: '3px solid #b91c1c', backgroundColor: '#fef2f2' }}
+              title="Click để lọc các mặt hàng bị âm kho"
+            >
+              <div className="kpi-card-header">
+                <span style={{ color: '#b91c1c' }}>🚨 Cảnh Báo Âm Kho</span>
+                <span style={{ fontSize: '0.75rem', color: '#b91c1c', fontWeight: 700 }}>Tồn &lt; 0</span>
+              </div>
+              <div className="kpi-card-value" style={{ color: '#b91c1c' }}>
+                {stockSummary.negative}
+              </div>
+              <div className="kpi-card-desc" style={{ color: '#b91c1c' }}>Xuất vượt nhập - Cần kiểm kê!</div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="filters-bar glass-panel no-print" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
         {isGlobalRole && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -407,7 +556,7 @@ export default function InventoryPage() {
         
         {activeTab !== "Lịch Sử" && (
           <>
-            <div className="search-box" style={{ flex: 1, minWidth: '250px' }}>
+            <div className="search-box" style={{ flex: 1, minWidth: '220px' }}>
               <Search size={20} className="text-muted" />
               <input 
                 type="text" 
@@ -421,11 +570,53 @@ export default function InventoryPage() {
               {uniqueCategories.map(cat => <option key={cat} value={cat}>{cat === "Tất cả" ? "Tất cả nhóm hàng" : cat}</option>)}
             </select>
             {activeTab === "Tồn Kho" && (
-              <select className="form-input" style={{ width: 'auto' }} value={stockStatusFilter} onChange={e => setStockStatusFilter(e.target.value)}>
-                <option value="Tất cả">Tất cả trạng thái</option>
-                <option value="Còn hàng">Còn hàng (Tồn &gt; 0)</option>
-                <option value="Hết hàng">Hết hàng (Tồn = 0)</option>
-              </select>
+              <>
+                <select 
+                  className="form-input" 
+                  style={{ width: 'auto' }} 
+                  value={stockStatusFilter} 
+                  onChange={e => setStockStatusFilter(e.target.value)}
+                >
+                  <option value="Tất cả">Tất cả trạng thái tồn</option>
+                  <option value="Đủ hàng">✅ Đủ hàng (&gt; Định mức)</option>
+                  <option value="Sắp hết">⚠️ Sắp hết (&le; Định mức)</option>
+                  <option value="Hết hàng">❌ Hết hàng (= 0)</option>
+                  {stockSummary.negative > 0 && <option value="Lệch kho (Âm)">🚨 Lệch kho / Âm (&lt; 0)</option>}
+                  <option value="Còn hàng">Còn hàng (&gt; 0)</option>
+                </select>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>Tồn từ:</span>
+                  <input 
+                    type="number" 
+                    placeholder="Min" 
+                    className="form-input" 
+                    style={{ width: '70px', padding: '0.4rem 0.5rem', textAlign: 'center' }}
+                    value={minStockFilter}
+                    onChange={e => setMinStockFilter(e.target.value)}
+                  />
+                  <span style={{ color: 'var(--text-muted)' }}>-</span>
+                  <input 
+                    type="number" 
+                    placeholder="Max" 
+                    className="form-input" 
+                    style={{ width: '70px', padding: '0.4rem 0.5rem', textAlign: 'center' }}
+                    value={maxStockFilter}
+                    onChange={e => setMaxStockFilter(e.target.value)}
+                  />
+                  {(minStockFilter !== "" || maxStockFilter !== "") && (
+                    <button 
+                      type="button" 
+                      className="btn btn-sm" 
+                      title="Xóa bộ lọc số lượng" 
+                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', background: '#f1f5f9', color: '#64748b' }}
+                      onClick={() => { setMinStockFilter(""); setMaxStockFilter(""); }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </>
         )}
@@ -469,7 +660,20 @@ export default function InventoryPage() {
                     <th>ĐVT</th>
                     <th className="number-col no-print">Tổng Nhập</th>
                     <th className="number-col no-print">Tổng Xuất</th>
-                    <th className="number-col" style={{ width: '120px' }}>Tồn Hệ Thống</th>
+                    <th 
+                      className="number-col no-print" 
+                      style={{ width: '150px', cursor: 'pointer', userSelect: 'none' }}
+                      onClick={toggleStockSort}
+                      title="Click để sắp xếp tồn kho (Ít nhất / Nhiều nhất)"
+                    >
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end', width: '100%' }}>
+                        <span>Tồn Hệ Thống</span>
+                        <span style={{ fontSize: '0.8rem', color: stockSortOrder !== 'none' ? 'var(--primary)' : '#94a3b8', fontWeight: 'bold' }}>
+                          {stockSortOrder === 'asc' ? '▲ (Ít)' : stockSortOrder === 'desc' ? '▼ (Nhiều)' : '↕'}
+                        </span>
+                      </div>
+                    </th>
+                    <th className="number-col print-only-cell" style={{ width: '120px' }}>Tồn Hệ Thống</th>
                     <th className="print-only-cell" style={{ width: '120px', textAlign: 'center' }}>Thực Tế</th>
                     <th className="print-only-cell" style={{ width: '120px', textAlign: 'center' }}>Chênh Lệch</th>
                     <th className="print-only-cell" style={{ width: '150px' }}>Ghi Chú</th>
@@ -511,9 +715,26 @@ export default function InventoryPage() {
                       <td className="number-col no-print">{item.totalIn > 0 ? item.totalIn : '-'}</td>
                       <td className="number-col no-print">{item.totalOut > 0 ? item.totalOut : '-'}</td>
                       <td className="number-col">
-                        <span className={item.balance > 0 ? 'stock-positive' : item.balance === 0 ? 'text-muted' : 'stock-zero'}>
-                          {item.balance}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                          <span className={item.balance > 0 ? (item.stockStatus === 'low' ? 'stock-low' : 'stock-positive') : item.balance === 0 ? 'text-muted' : 'stock-zero'} style={{ fontSize: '1rem', fontWeight: 700 }}>
+                            {item.balance}
+                          </span>
+                          {item.stockStatus === 'negative' && (
+                            <span style={{ fontSize: '0.7rem', color: '#ef4444', backgroundColor: '#fee2e2', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }}>
+                              🚨 Âm kho
+                            </span>
+                          )}
+                          {item.stockStatus === 'out' && (
+                            <span style={{ fontSize: '0.7rem', color: '#ef4444', backgroundColor: '#fee2e2', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }}>
+                              Hết hàng
+                            </span>
+                          )}
+                          {item.stockStatus === 'low' && (
+                            <span style={{ fontSize: '0.7rem', color: '#b45309', backgroundColor: '#fef3c7', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }} title={`Định mức an toàn: ≤ ${item.minStockThreshold} ${item.unit}`}>
+                              ⚠️ Sắp hết (&le;{item.minStockThreshold})
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="print-only-cell"></td>
                       <td className="print-only-cell"></td>
@@ -603,6 +824,7 @@ export default function InventoryPage() {
                     <th>Nhóm</th>
                     <th>Tên Hàng Hóa</th>
                     <th>ĐVT</th>
+                    <th className="number-col">Mức Báo Sắp Hết</th>
                     <th className="number-col">Giá Nhập</th>
                     <th className="number-col">Giá Bán</th>
                     <th style={{ width: '100px' }}>Thao tác</th>
@@ -644,6 +866,11 @@ export default function InventoryPage() {
                         </div>
                       </td>
                       <td>{item.unit}</td>
+                      <td className="number-col">
+                        <span style={{ fontWeight: 600, color: '#d97706', backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: '4px', fontSize: '0.82rem' }}>
+                          &le; {item.min_stock !== undefined && item.min_stock !== null ? item.min_stock : 5} {item.unit}
+                        </span>
+                      </td>
                       <td className="number-col">{Number(item.import_price).toLocaleString('vi-VN')}</td>
                       <td className="number-col">{Number(item.export_price).toLocaleString('vi-VN')}</td>
                       <td style={{ textAlign: 'right' }}>
@@ -658,6 +885,7 @@ export default function InventoryPage() {
                                 import_price: item.import_price, 
                                 export_price: item.export_price, 
                                 star_points: item.star_points || 0,
+                                min_stock: item.min_stock !== undefined && item.min_stock !== null ? Number(item.min_stock) : 5,
                                 note: item.note || "",
                                 image_url: item.image_url || ""
                               });
@@ -674,7 +902,7 @@ export default function InventoryPage() {
                     </tr>
                   ))}
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <button className="btn btn-secondary" style={{ width: '100%', marginTop: '0.5rem' }} onClick={() => { setEditingItemId(null); setItemData(defaultItemData); setShowItemModal(true); }}>
                         <Plus size={20} /> Thêm Hàng hóa mới
                       </button>
@@ -717,6 +945,23 @@ export default function InventoryPage() {
                 <div className="form-group" style={{ flex: 1 }}>
                   <label className="form-label">Đơn vị tính *</label>
                   <input type="text" className="form-input" required placeholder="VD: chiếc" value={itemData.unit} onChange={e => setItemData({...itemData, unit: e.target.value})} />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label" title="Khi tồn kho bằng hoặc dưới mức này, hệ thống sẽ cảnh báo Sắp hết hàng">
+                    ⚠️ Mức báo sắp hết
+                  </label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    min="0" 
+                    placeholder="VD: 5" 
+                    value={itemData.min_stock} 
+                    onChange={e => setItemData({...itemData, min_stock: Number(e.target.value)})} 
+                    onWheel={(e) => (e.target as HTMLInputElement).blur()} 
+                  />
+                  <small className="text-muted" style={{ fontSize: '0.75rem', marginTop: '2px', display: 'block' }}>
+                    Báo vàng khi tồn &le; {itemData.min_stock || 0} {itemData.unit || 'đơn vị'}
+                  </small>
                 </div>
               </div>
               <div className="form-row">
