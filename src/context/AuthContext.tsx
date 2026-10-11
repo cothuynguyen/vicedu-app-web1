@@ -28,11 +28,20 @@ const AuthContext = createContext<AuthContextType>({
 
 // Singleton supabase client - dùng chung toàn app, tránh session conflict
 let _supabaseClient: ReturnType<typeof createBrowserClient> | null = null;
+const TEN_HOURS = 36000; // 10 tiếng (hết ca làm việc thì phiên tự hết hạn)
+
 const getClient = () => {
   if (!_supabaseClient) {
     _supabaseClient = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookieOptions: {
+          maxAge: TEN_HOURS,
+          sameSite: "lax",
+          path: "/",
+        },
+      }
     );
   }
   return _supabaseClient;
