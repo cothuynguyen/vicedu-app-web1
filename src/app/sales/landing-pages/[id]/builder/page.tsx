@@ -14,13 +14,18 @@ type StepConfig = {
   step3_problem?: string;
   step4_trust?: string;
   step5_story?: string;
+  step5_story_image?: string;
   step6_product_benefits?: string;
+  step6_image_1?: string;
+  step6_image_2?: string;
+  step6_image_3?: string;
   step7_value?: string;
   step8_objections?: string;
   step9_reason_to_buy?: string;
   step10_price_comparison?: string;
   step11_real_price?: string;
   step12_bonuses?: string;
+  step12_bonus_image?: string;
   step13_testimonials?: string;
   step14_scarcity?: string;
   step15_special_price?: string;
@@ -41,8 +46,10 @@ type StepConfig = {
   step18_sub_title?: string;
   step18_before_title?: string;
   step18_before_content?: string;
+  step18_before_image?: string;
   step18_after_title?: string;
   step18_after_content?: string;
+  step18_after_image?: string;
   media_hero_image?: string;
   media_youtube_id?: string;
   facebook_pixel_id?: string;
@@ -72,6 +79,17 @@ export default function BuilderPage() {
       if (fieldKey === "media_hero_image") {
         // Ảnh Banner ưu tiên độ nét cao, kích thước lớn
         compressedFile = await compressImage(file, 1920, 1920, 0.85);
+      } else if (
+        fieldKey === "step5_story_image" ||
+        fieldKey === "step6_image_1" ||
+        fieldKey === "step6_image_2" ||
+        fieldKey === "step6_image_3" ||
+        fieldKey === "step12_bonus_image" ||
+        fieldKey === "step18_before_image" ||
+        fieldKey === "step18_after_image"
+      ) {
+        // Ảnh minh họa hoạt động & nội dung (độ nét cao, tối ưu dung lượng)
+        compressedFile = await compressImage(file, 1200, 1200, 0.82);
       } else {
         // Các ảnh khác (QR Code) giữ nguyên mức nén tiêu chuẩn
         compressedFile = await compressImage(file, 800, 800, 0.7);
@@ -144,11 +162,15 @@ export default function BuilderPage() {
     { id: 5, title: "5. UY TÍN CÁ NHÂN / TỔ CHỨC", fields: [
       { key: "step4_trust", label: "Chứng minh uy tín", placeholder: "Hơn 500+ học viên đã thành công với lộ trình này...", multiline: true }
     ]},
-    { id: 6, title: "6. SỬ DỤNG CÂU CHUYỆN", fields: [
-      { key: "step5_story", label: "Câu chuyện Before-After", placeholder: "Tôi hiểu tâm lý trẻ con. Lúc mới đến rất rụt rè...", multiline: true }
+    { id: 6, title: "6. SỬ DỤNG CÂU CHUYỆN & ẢNH MINH HỌA", fields: [
+      { key: "step5_story", label: "Câu chuyện Before-After", placeholder: "Tôi hiểu tâm lý trẻ con. Lúc mới đến rất rụt rè...", multiline: true },
+      { key: "step5_story_image", label: "Ảnh minh họa câu chuyện / không gian lớp học", placeholder: "https://... (.jpg, .png)", uploadImage: true }
     ]},
-    { id: 7, title: "7. LỢI ÍCH SẢN PHẨM", fields: [
-      { key: "step6_product_benefits", label: "Liệt kê lợi ích", placeholder: "- Lợi ích 1\n- Lợi ích 2", multiline: true }
+    { id: 7, title: "7. LỢI ÍCH SẢN PHẨM & BỘ SƯU TẬP ẢNH HOẠT ĐỘNG", fields: [
+      { key: "step6_product_benefits", label: "Liệt kê lợi ích", placeholder: "- Lợi ích 1\n- Lợi ích 2", multiline: true },
+      { key: "step6_image_1", label: "Ảnh hoạt động 1 (VD: Cắm hoa / Làm vòng tay...)", placeholder: "https://... (.jpg, .png)", uploadImage: true },
+      { key: "step6_image_2", label: "Ảnh hoạt động 2 (VD: Làm thiệp...)", placeholder: "https://... (.jpg, .png)", uploadImage: true },
+      { key: "step6_image_3", label: "Ảnh hoạt động 3 (VD: Trải nghiệm sân khấu...)", placeholder: "https://... (.jpg, .png)", uploadImage: true }
     ]},
     { id: 8, title: "8. TẠO GIÁ TRỊ LỚN", fields: [
       { key: "step7_value", label: "Nhấn mạnh giá trị", placeholder: "Chinh phục trọn vẹn 5 trạm trò chơi nước...", multiline: true }
@@ -163,8 +185,9 @@ export default function BuilderPage() {
       { key: "step11_real_price", label: "Giá thực tế (Bị gạch đi)", placeholder: "500.000Đ" },
       { key: "step10_price_comparison", label: "Bảng giá so sánh (Nếu có)", placeholder: "Bình thường ở ngoài bán 1 triệu...", multiline: true }
     ]},
-    { id: 12, title: "12. QUÀ TẶNG BONUS", fields: [
-      { key: "step12_bonuses", label: "Quà tặng thêm", placeholder: "Tặng kèm 1 buổi test trình độ miễn phí...", multiline: true }
+    { id: 12, title: "12. QUÀ TẶNG BONUS & ẢNH QUÀ THẬT", fields: [
+      { key: "step12_bonuses", label: "Quà tặng thêm", placeholder: "Tặng kèm 1 buổi test trình độ miễn phí...", multiline: true },
+      { key: "step12_bonus_image", label: "Ảnh chụp quà tặng thực tế (Voucher, hộp quà, kỷ niệm chương...)", placeholder: "https://... (.jpg, .png)", uploadImage: true }
     ]},
     { id: 13, title: "13. TESTIMONIAL (Chứng thực)", fields: [
       { key: "step13_testimonials", label: "Nhận xét của khách hàng cũ", placeholder: "Chị Lan: Bé nhà mình học rất vui...", multiline: true }
@@ -218,8 +241,10 @@ export default function BuilderPage() {
       { key: "step18_sub_title", label: "Tiêu đề phụ của Khối", placeholder: "Mặc định: Đừng để con bạn bỏ lỡ..." },
       { key: "step18_before_title", label: "Tiêu đề cột Before (Vấn đề)", placeholder: "VD: Trước đây / Vấn đề hiện tại" },
       { key: "step18_before_content", label: "Nội dung cột Before (Gạch đầu dòng)", placeholder: "- Con nhút nhát...\n- Không có môi trường...", multiline: true },
+      { key: "step18_before_image", label: "Ảnh Before (Trước khi tham gia)", placeholder: "https://... (.jpg, .png)", uploadImage: true },
       { key: "step18_after_title", label: "Tiêu đề cột After (Kết quả)", placeholder: "VD: Sau khi tham gia / Sự lột xác" },
-      { key: "step18_after_content", label: "Nội dung cột After (Gạch đầu dòng)", placeholder: "- Con tự tin giao tiếp...\n- Có bạn mới...", multiline: true }
+      { key: "step18_after_content", label: "Nội dung cột After (Gạch đầu dòng)", placeholder: "- Con tự tin giao tiếp...\n- Có bạn mới...", multiline: true },
+      { key: "step18_after_image", label: "Ảnh After (Sau khi lột xác)", placeholder: "https://... (.jpg, .png)", uploadImage: true }
     ]}
   ];
 
@@ -284,27 +309,42 @@ export default function BuilderPage() {
                           ))}
                         </select>
                       ) : (
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <input
-                            type="text"
-                            value={config[field.key as keyof StepConfig] || ""}
-                            onChange={(e) => updateConfig(field.key as keyof StepConfig, e.target.value)}
-                            className="form-input"
-                            placeholder={field.placeholder}
-                            style={{ flex: 1 }}
-                          />
-                          {(field as any).uploadImage && (
-                            <label className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                              <UploadCloud size={18} />
-                              {uploadingImage ? "Đang tải..." : "Tải lên"}
-                              <input 
-                                type="file" 
-                                accept="image/*" 
-                                style={{ display: 'none' }} 
-                                onChange={(e) => handleImageUpload(e, field.key as keyof StepConfig)}
-                                disabled={uploadingImage}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <input
+                              type="text"
+                              value={config[field.key as keyof StepConfig] || ""}
+                              onChange={(e) => updateConfig(field.key as keyof StepConfig, e.target.value)}
+                              className="form-input"
+                              placeholder={field.placeholder}
+                              style={{ flex: 1 }}
+                            />
+                            {(field as any).uploadImage && (
+                              <label className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <UploadCloud size={18} />
+                                {uploadingImage ? "Đang tải..." : "Tải lên"}
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  style={{ display: 'none' }} 
+                                  onChange={(e) => handleImageUpload(e, field.key as keyof StepConfig)}
+                                  disabled={uploadingImage}
+                                />
+                              </label>
+                            )}
+                          </div>
+                          {(field as any).uploadImage && config[field.key as keyof StepConfig] && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                              <img 
+                                src={config[field.key as keyof StepConfig]} 
+                                alt="Xem trước" 
+                                style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                onError={(e) => (e.currentTarget.style.display = 'none')}
                               />
-                            </label>
+                              <span style={{ fontSize: '0.8rem', color: '#64748b', wordBreak: 'break-all' }}>
+                                Đã liên kết ảnh thành công
+                              </span>
+                            </div>
                           )}
                         </div>
                       )}
