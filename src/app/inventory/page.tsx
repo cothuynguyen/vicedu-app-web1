@@ -392,6 +392,13 @@ export default function InventoryPage() {
     return 0;
   });
 
+  // Dành riêng cho Tab "Danh Mục Hàng Hóa" (Master Data: chỉ lọc theo Tên & Nhóm, không phụ thuộc vào trạng thái tồn)
+  const catalogData = allInventoryData.filter(item => {
+    const matchSearch = searchTerm === "" || item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchCat = categoryFilter === "Tất cả" || item.category === categoryFilter;
+    return matchSearch && matchCat;
+  });
+
   const filteredTransactions = transactions.filter(t => {
     const matchSearch = transSearchTerm === "" || 
       t.inventory_items?.name?.toLowerCase().includes(transSearchTerm.toLowerCase());
@@ -831,7 +838,7 @@ export default function InventoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {inventoryData.map(item => (
+                  {catalogData.map(item => (
                     <tr key={item.id}>
                       <td><span className="badge badge-warning">{item.category}</span></td>
                       <td style={{ fontWeight: 500 }}>
@@ -901,6 +908,9 @@ export default function InventoryPage() {
                       </td>
                     </tr>
                   ))}
+                  {catalogData.length === 0 && (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem' }}>Không tìm thấy hàng hóa trong danh mục</td></tr>
+                  )}
                   <tr>
                     <td colSpan={7}>
                       <button className="btn btn-secondary" style={{ width: '100%', marginTop: '0.5rem' }} onClick={() => { setEditingItemId(null); setItemData(defaultItemData); setShowItemModal(true); }}>
