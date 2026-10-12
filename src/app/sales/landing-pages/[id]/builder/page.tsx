@@ -26,6 +26,10 @@ type StepConfig = {
   step15_special_price?: string;
   step16_cta?: string;
   step16_sub_title?: string;
+  form_custom_title?: string;
+  form_custom_type?: string;
+  form_custom_options?: string;
+  form_custom_required?: string;
   form_bottom_text?: string;
   step17_success_message?: string;
   step17_download_link?: string;
@@ -171,9 +175,34 @@ export default function BuilderPage() {
     { id: 15, title: "15. GIÁ ƯU ĐÃI ĐẶC BIỆT", fields: [
       { key: "step15_special_price", label: "Giá chốt sale (In to đậm)", placeholder: "150.000Đ" }
     ]},
-    { id: 16, title: "16. KÊU GỌI HÀNH ĐỘNG (CTA)", fields: [
+    { id: 16, title: "16. KÊU GỌI HÀNH ĐỘNG (CTA) & KHẢO SÁT CHỌN HOẠT ĐỘNG", fields: [
       { key: "step16_cta", label: "Nút bấm hành động", placeholder: "ĐĂNG KÝ GIỮ CHỖ NGAY" },
       { key: "step16_sub_title", label: "Dòng phụ đề (dưới tiêu đề Form)", placeholder: "Điền thông tin để giữ chỗ ngay trước khi hết ưu đãi" },
+      { key: "form_custom_title", label: "📋 Tiêu đề khảo sát / chọn hoạt động (Bỏ trống nếu không dùng)", placeholder: "VD: Hoạt động bé yêu thích nhất nhân dịp 20/10 (Chọn để tham gia):" },
+      { 
+        key: "form_custom_type", 
+        label: "Hình thức chọn của phụ huynh", 
+        defaultValue: "multiple",
+        selectOptions: [
+          { value: "multiple", label: "☑️ Được chọn nhiều hoạt động (Checkbox)" },
+          { value: "single", label: "🔘 Chỉ được chọn 1 hoạt động duy nhất (Radio)" }
+        ]
+      },
+      { 
+        key: "form_custom_required", 
+        label: "Yêu cầu bắt buộc", 
+        defaultValue: "true",
+        selectOptions: [
+          { value: "true", label: "Bắt buộc phụ huynh phải chọn ít nhất 1 hoạt động" },
+          { value: "false", label: "Không bắt buộc (Tùy chọn)" }
+        ]
+      },
+      { 
+        key: "form_custom_options", 
+        label: "Danh sách các hoạt động / lựa chọn (Mỗi dòng là một hoạt động)", 
+        placeholder: "🎨 Hoạt động 1: Tự tay làm thiệp 3D tặng Mẹ\n🧁 Hoạt động 2: Trải nghiệm làm bánh Cookie cùng Mẹ\n🎤 Hoạt động 3: Sân khấu thuyết trình 'My Super Mom'", 
+        multiline: true 
+      },
       { key: "form_bottom_text", label: "Ghi chú dưới Form (Thời gian, Địa điểm, Lưu ý...)", placeholder: "Thời gian: 08h00-10h30...\nĐịa điểm: Công viên Văn Lang", multiline: true }
     ]},
     { id: 17, title: "17. KẾT QUẢ SAU ĐIỀN FORM (SUCCESS SCREEN)", fields: [
@@ -243,6 +272,17 @@ export default function BuilderPage() {
                           placeholder={field.placeholder}
                           style={{ minHeight: '120px', fontFamily: 'inherit', resize: 'vertical' }}
                         />
+                      ) : (field as any).selectOptions ? (
+                        <select
+                          value={config[field.key as keyof StepConfig] || (field as any).defaultValue || ""}
+                          onChange={(e) => updateConfig(field.key as keyof StepConfig, e.target.value)}
+                          className="form-input"
+                          style={{ fontWeight: 600 }}
+                        >
+                          {(field as any).selectOptions.map((opt: any) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
                       ) : (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <input

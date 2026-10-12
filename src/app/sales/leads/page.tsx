@@ -680,7 +680,32 @@ export default function LeadsCRM() {
                           </div>
                         </div>
                       ) : (
-                        <p style={{ color: 'var(--text-main)', fontSize: '0.9rem', margin: 0, whiteSpace: 'pre-wrap' }}>{act.description}</p>
+                        act.description.includes("[HOẠT ĐỘNG CHỌN]:") ? (
+                          <div>
+                            <p style={{ color: 'var(--text-main)', fontSize: '0.9rem', margin: '0 0 0.5rem 0', fontWeight: 500 }}>
+                              {act.description.split(" | [HOẠT ĐỘNG CHỌN]:")[0]}
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4338ca', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                🎯 Hoạt động / Khảo sát phụ huynh chọn:
+                              </span>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {act.description.split(" | [HOẠT ĐỘNG CHỌN]:")[1]?.split(" | ")[0]?.split(", ").map((item: string, idx: number) => (
+                                  <span key={idx} style={{ fontSize: '0.82rem', fontWeight: 600, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '3px 10px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    ✓ {item}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            {act.description.includes("[KẾT QUẢ TEST]:") && (
+                              <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#b45309', background: '#fef3c7', padding: '4px 8px', borderRadius: '6px' }}>
+                                📊 Kết quả test: {act.description.split("[KẾT QUẢ TEST]:")[1]}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p style={{ color: 'var(--text-main)', fontSize: '0.9rem', margin: 0, whiteSpace: 'pre-wrap' }}>{act.description}</p>
+                        )
                       )}
                       
                       {(act.landing_page || act.user) && (
