@@ -1,10 +1,33 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { Search, Phone, Mail, Clock, MessageSquare, Plus, Users, Filter, Edit2, Trash2, Check, X } from "lucide-react";
+import { Search, Phone, Mail, Clock, MessageSquare, Plus, Users, Filter, Edit2, Trash2, Check, X, BarChart3, FileSpreadsheet } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Select from "react-select";
+import * as XLSX from "xlsx";
+
+export const parseSurveySelections = (description?: string): string[] => {
+  if (!description || !description.includes("[HOẠT ĐỘNG CHỌN]:")) return [];
+  try {
+    const part = description.split("[HOẠT ĐỘNG CHỌN]:")[1];
+    const cleanPart = part.split(" | [")[0];
+    return cleanPart.split(", ").map(s => s.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+export const parseTestResult = (description?: string): string | null => {
+  if (!description || !description.includes("[KẾT QUẢ TEST]:")) return null;
+  try {
+    const part = description.split("[KẾT QUẢ TEST]:")[1];
+    const cleanPart = part.split(" | [")[0];
+    return cleanPart.trim();
+  } catch {
+    return null;
+  }
+};
 
 type Lead = {
   phone: string;
@@ -13,6 +36,9 @@ type Lead = {
   branch_id: string;
   status: string;
   created_at: string;
+  survey_selections?: string[];
+  test_result?: string | null;
+  landing_page_title?: string;
 };
 
 type Activity = {
@@ -47,6 +73,7 @@ export default function LeadsCRM() {
   const [landingPages, setLandingPages] = useState<{id: string, title: string, is_archived: boolean}[]>([]);
   const [selectedLandingPage, setSelectedLandingPage] = useState<string>("");
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>("");
+  const [selectedSurveyFilter, setSelectedSurveyFilter] = useState<string>("");
   
   const BRANCHES = ["Chỉ Admin được dùng", "Việt Trì", "Dân Hòa", "Lâm Thao", "Tuyên Quang"];
   
@@ -125,17 +152,66 @@ export default function LeadsCRM() {
       if (!error && data) {
         // Áp dụng bộ lọc Landing Page (nếu có)
         if (selectedLandingPage) {
-          // Tìm những phone có FORM_SUBMIT của Landing Page này
+          // Tìm những phone có FORM_SUBMIT của Landing Page này kèm description
           const { data: actData } = await supabase
             .from("customer_activities")
-            .select("phone")
+            .select("phone, description, created_at, landing_page:landing_pages(title)")
             .eq("landing_page_id", selectedLandingPage)
-            .eq("activity_type", "FORM_SUBMIT");
+            .eq("activity_type", "FORM_SUBMIT")
+            .order("created_at", { ascending: false });
           
-          const validPhones = new Set<string>(actData?.map((a: any) => a.phone) || []);
-          setLeads(data.filter((l: any) => validPhones.has(l.phone)));
+          const phoneActivityMap = new Map<string, any>();
+          if (actData) {
+            for (const act of actData) {
+              if (!phoneActivityMap.has(act.phone)) {
+                phoneActivityMap.set(act.phone, act);
+              }
+            }
+          }
+          
+          const leadsForLanding = data
+            .filter((l: any) => phoneActivityMap.has(l.phone))
+            .map((l: any) => {
+              const act = phoneActivityMap.get(l.phone);
+              return {
+                ...l,
+                survey_selections: parseSurveySelections(act?.description),
+                test_result: parseTestResult(act?.description),
+                landing_page_title: act?.landing_page?.title || ""
+              };
+            });
+          setLeads(leadsForLanding);
         } else {
-          setLeads(data);
+          // Nạp thông tin FORM_SUBMIT cho tất cả leads
+          const phones = data.map((l: any) => l.phone);
+          const phoneActivityMap = new Map<string, any>();
+          if (phones.length > 0) {
+            const { data: actData } = await supabase
+              .from("customer_activities")
+              .select("phone, description, created_at, landing_page:landing_pages(title)")
+              .in("phone", phones)
+              .eq("activity_type", "FORM_SUBMIT")
+              .order("created_at", { ascending: false });
+
+            if (actData) {
+              for (const act of actData) {
+                if (!phoneActivityMap.has(act.phone)) {
+                  phoneActivityMap.set(act.phone, act);
+                }
+              }
+            }
+          }
+
+          const enrichedLeads = data.map((l: any) => {
+            const act = phoneActivityMap.get(l.phone);
+            return {
+              ...l,
+              survey_selections: parseSurveySelections(act?.description),
+              test_result: parseTestResult(act?.description),
+              landing_page_title: act?.landing_page?.title || ""
+            };
+          });
+          setLeads(enrichedLeads);
         }
       }
     } catch (e) {
@@ -163,7 +239,6 @@ export default function LeadsCRM() {
     }
 
     // 2. Fetch từ crm_interactions (CRM Chính)
-    // Đầu tiên tìm customer_id trong bảng crm_customers dựa vào phone
     const { data: crmCustomer } = await supabase
       .from("crm_customers")
       .select("id")
@@ -201,9 +276,50 @@ export default function LeadsCRM() {
     setActivities(allActivities);
   };
 
-  const filteredLeads = leads.filter(l => 
-    l.phone.includes(searchTerm) || l.full_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Thống kê Khảo sát theo toàn bộ danh sách leads hiện tại của bộ lọc Landing Page/Chi nhánh
+  const surveyStats = useMemo(() => {
+    const optionCountMap: Record<string, number> = {};
+    let totalWithSurvey = 0;
+    let totalWithoutSurvey = 0;
+
+    leads.forEach(lead => {
+      if (lead.survey_selections && lead.survey_selections.length > 0) {
+        totalWithSurvey++;
+        lead.survey_selections.forEach(opt => {
+          optionCountMap[opt] = (optionCountMap[opt] || 0) + 1;
+        });
+      } else {
+        totalWithoutSurvey++;
+      }
+    });
+
+    const totalLeads = leads.length;
+    const options = Object.entries(optionCountMap)
+      .map(([label, count]) => ({
+        label,
+        count,
+        percentage: totalLeads > 0 ? Math.round((count / totalLeads) * 100) : 0
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      totalLeads,
+      totalWithSurvey,
+      unselectedCount: totalWithoutSurvey,
+      options
+    };
+  }, [leads]);
+
+  const filteredLeads = leads.filter(l => {
+    const matchesSearch = l.phone.includes(searchTerm) || l.full_name.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (!selectedSurveyFilter) return true;
+    if (selectedSurveyFilter === "__NONE__") {
+      return !l.survey_selections || l.survey_selections.length === 0;
+    }
+    return l.survey_selections?.includes(selectedSurveyFilter);
+  });
 
   const handleExportExcel = async () => {
     if (filteredLeads.length === 0) {
@@ -247,10 +363,11 @@ export default function LeadsCRM() {
       }
 
       const allTouchpoints = [...(actData || []), ...interData];
-      
-      const headers = ["Họ và Tên", "Số điện thoại", "Email", "Trạng thái", "Chi nhánh", "Ngày điền form", "Lịch sử Tương tác (Touchpoints)"];
-      
-      const rows = filteredLeads.map(lead => {
+      const selectedLpObj = landingPages.find(lp => lp.id === selectedLandingPage);
+      const currentCampaignName = selectedLandingPage ? (selectedLpObj?.title || 'Chiến dịch') : "Tất cả chiến dịch";
+
+      // 1. TẠO SHEET 1: Danh sách chi tiết Leads
+      const sheet1Data = filteredLeads.map((lead, idx) => {
         const leadTouchpoints = allTouchpoints
           .filter(t => t.phone === lead.phone)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -264,29 +381,148 @@ export default function LeadsCRM() {
             return `[${dateStr}] ${prefix} - ${t.description || ''}`;
           })
           .join('\n');
-          
-        return [
-          `"${lead.full_name || ''}"`,
-          `"${lead.phone || ''}"`,
-          `"${lead.email || ''}"`,
-          `"${lead.status || ''}"`,
-          `"${lead.branch_id || ''}"`,
-          `"${new Date(lead.created_at).toLocaleString('vi-VN')}"`,
-          `"${leadTouchpoints.replace(/"/g, '""')}"`
-        ].join(',');
+
+        const surveyText = (lead.survey_selections && lead.survey_selections.length > 0)
+          ? lead.survey_selections.join('; ')
+          : 'Chưa chọn';
+
+        return {
+          "STT": idx + 1,
+          "Họ và Tên": lead.full_name || '',
+          "Số điện thoại": String(lead.phone || ''),
+          "Email": lead.email || '',
+          "Chi nhánh": lead.branch_id || '',
+          "Trạng thái": lead.status || '',
+          "Chiến dịch / Nguồn": lead.landing_page_title || (selectedLandingPage ? (selectedLpObj?.title || '') : '') || '',
+          "Phương án Khảo sát / Hoạt động chọn": surveyText,
+          "Kết quả Test": lead.test_result || '',
+          "Ngày điền form": lead.created_at ? new Date(lead.created_at).toLocaleString('vi-VN') : '',
+          "Lịch sử Tương tác (Touchpoints)": leadTouchpoints
+        };
       });
-      
-      const csvContent = "\uFEFF" + headers.join(',') + "\n" + rows.join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+      const wb = XLSX.utils.book_new();
+      const ws1 = XLSX.utils.json_to_sheet(sheet1Data);
+
+      // Định dạng độ rộng cột cho Sheet 1
+      ws1['!cols'] = [
+        { wch: 6 },   // STT
+        { wch: 22 },  // Họ và Tên
+        { wch: 16 },  // Số điện thoại
+        { wch: 22 },  // Email
+        { wch: 15 },  // Chi nhánh
+        { wch: 15 },  // Trạng thái
+        { wch: 30 },  // Chiến dịch / Nguồn
+        { wch: 45 },  // Phương án khảo sát
+        { wch: 25 },  // Kết quả Test
+        { wch: 20 },  // Ngày điền form
+        { wch: 55 },  // Lịch sử tương tác
+      ];
+
+      // Đảm bảo số điện thoại giữ nguyên số 0 ở đầu (type = 's')
+      filteredLeads.forEach((lead, idx) => {
+        const cellRef = `C${idx + 2}`;
+        if (ws1[cellRef]) {
+          ws1[cellRef].t = 's';
+          ws1[cellRef].v = String(lead.phone || '');
+        }
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws1, "Danh sách Khách hàng");
+
+      // 2. TẠO SHEET 2: Báo cáo Thống kê Tổng quan & Khảo sát
+      const summaryRows: any[][] = [
+        ["BÁO CÁO THỐNG KÊ CHIẾN DỊCH & KHẢO SÁT LANDING PAGE"],
+        ["Thời gian xuất:", new Date().toLocaleString('vi-VN')],
+        ["Chiến dịch / Nguồn:", currentCampaignName],
+        ["Tổng số Leads trong báo cáo:", filteredLeads.length],
+        [],
+        ["1. PHÂN BỔ PHƯƠNG ÁN KHẢO SÁT / HOẠT ĐỘNG PHỤ HUYNH CHỌN"],
+        ["STT", "Phương án / Hoạt động khảo sát", "Số phụ huynh chọn", "Tỷ lệ (%)"]
+      ];
+
+      surveyStats.options.forEach((opt, idx) => {
+        summaryRows.push([
+          idx + 1,
+          opt.label,
+          opt.count,
+          `${opt.percentage}%`
+        ]);
+      });
+
+      if (surveyStats.unselectedCount > 0) {
+        summaryRows.push([
+          surveyStats.options.length + 1,
+          "Không chọn / Không có khảo sát",
+          surveyStats.unselectedCount,
+          `${Math.round((surveyStats.unselectedCount / (filteredLeads.length || 1)) * 100)}%`
+        ]);
+      }
+
+      summaryRows.push([]);
+      summaryRows.push(["2. PHÂN BỔ THEO CHI NHÁNH"]);
+      summaryRows.push(["STT", "Chi nhánh", "Số lượng Lead", "Tỷ lệ (%)"]);
+
+      const branchCounts: Record<string, number> = {};
+      filteredLeads.forEach(l => {
+        const b = l.branch_id || "Chưa xác định";
+        branchCounts[b] = (branchCounts[b] || 0) + 1;
+      });
+      Object.entries(branchCounts).forEach(([branch, cnt], idx) => {
+        summaryRows.push([
+          idx + 1,
+          branch,
+          cnt,
+          `${Math.round((cnt / (filteredLeads.length || 1)) * 100)}%`
+        ]);
+      });
+
+      summaryRows.push([]);
+      summaryRows.push(["3. PHÂN BỔ THEO TRẠNG THÁI CHĂM SÓC"]);
+      summaryRows.push(["STT", "Trạng thái", "Số lượng Lead", "Tỷ lệ (%)"]);
+
+      const statusCounts: Record<string, number> = {};
+      filteredLeads.forEach(l => {
+        const s = l.status || "Chưa phân loại";
+        statusCounts[s] = (statusCounts[s] || 0) + 1;
+      });
+      Object.entries(statusCounts).forEach(([status, cnt], idx) => {
+        summaryRows.push([
+          idx + 1,
+          status,
+          cnt,
+          `${Math.round((cnt / (filteredLeads.length || 1)) * 100)}%`
+        ]);
+      });
+
+      const ws2 = XLSX.utils.aoa_to_sheet(summaryRows);
+      ws2['!cols'] = [
+        { wch: 6 },
+        { wch: 60 },
+        { wch: 22 },
+        { wch: 15 }
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws2, "Báo cáo Thống kê");
+
+      // Tạo buffer và tải file .xlsx
+      const safeCampaignName = (selectedLpObj?.title || 'VicEdu')
+        .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, '_')
+        .substring(0, 30);
+      const fileName = `Leads_${safeCampaignName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `Leads_VicEdu_${new Date().getTime()}.csv`);
+      link.href = url;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert("Lỗi xuất file: " + e.message);
+      alert("Lỗi xuất file Excel: " + e.message);
     } finally {
       setExporting(false);
     }
@@ -476,7 +712,10 @@ export default function LeadsCRM() {
                     }] : [])
                   ]}
                   value={selectedLandingPage ? { value: selectedLandingPage, label: landingPages.find(lp => lp.id === selectedLandingPage)?.title } : null}
-                  onChange={(selected: any) => setSelectedLandingPage(selected ? selected.value : "")}
+                  onChange={(selected: any) => {
+                    setSelectedLandingPage(selected ? selected.value : "");
+                    setSelectedSurveyFilter("");
+                  }}
                   isClearable
                   styles={{
                     control: (base) => ({
@@ -500,32 +739,157 @@ export default function LeadsCRM() {
               <button 
                 onClick={handleExportExcel} 
                 disabled={exporting}
+                title="Xuất file Excel đầy đủ 2 Sheet kèm phân tích Khảo sát"
                 style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '0 1rem', background: '#10b981', color: 'white', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                  padding: '0 1rem', background: '#059669', color: 'white', 
                   borderRadius: '6px', border: 'none', cursor: exporting ? 'not-allowed' : 'pointer',
                   fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap',
-                  opacity: exporting ? 0.7 : 1, transition: 'all 0.2s'
+                  opacity: exporting ? 0.7 : 1, transition: 'all 0.2s',
+                  boxShadow: '0 1px 2px rgba(5, 150, 105, 0.2)'
                 }}
               >
-                {exporting ? "Đang xử lý..." : "📥 Tải Excel"}
+                <FileSpreadsheet size={16} />
+                {exporting ? "Đang xuất..." : "Tải Excel (.xlsx)"}
               </button>
             </div>
           </div>
         </div>
+
+        {/* Campaign Survey Insights Widget: Thống kê nhanh và Bộ lọc 1-Click */}
+        {surveyStats.options.length > 0 && (
+          <div style={{
+            padding: '0.85rem 1.25rem',
+            background: 'linear-gradient(135deg, rgba(238, 242, 255, 0.65) 0%, rgba(243, 232, 255, 0.65) 100%)',
+            borderBottom: '1px solid var(--border)',
+            fontSize: '0.825rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+              <div style={{ fontWeight: 700, color: '#4338ca', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <BarChart3 size={15} color="#4f46e5" />
+                <span>Thống kê Khảo sát / Lựa chọn</span>
+                <span style={{ fontSize: '0.72rem', background: '#e0e7ff', color: '#3730a3', padding: '1px 7px', borderRadius: '10px', fontWeight: 600 }}>
+                  {surveyStats.totalWithSurvey}/{surveyStats.totalLeads} Lead có chọn
+                </span>
+              </div>
+              {selectedSurveyFilter && (
+                <button
+                  onClick={() => setSelectedSurveyFilter("")}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#ef4444',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    padding: 0,
+                    textDecoration: 'underline'
+                  }}
+                >
+                  ✕ Bỏ lọc
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              <button
+                onClick={() => setSelectedSurveyFilter("")}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: '1px solid',
+                  borderColor: selectedSurveyFilter === "" ? '#4f46e5' : '#cbd5e1',
+                  background: selectedSurveyFilter === "" ? '#4f46e5' : '#ffffff',
+                  color: selectedSurveyFilter === "" ? '#ffffff' : '#475569',
+                  transition: 'all 0.15s ease',
+                  boxShadow: selectedSurveyFilter === "" ? '0 1px 3px rgba(79, 70, 229, 0.3)' : 'none'
+                }}
+              >
+                Tất cả ({leads.length})
+              </button>
+
+              {surveyStats.options.map(opt => {
+                const isSelected = selectedSurveyFilter === opt.label;
+                return (
+                  <button
+                    key={opt.label}
+                    onClick={() => setSelectedSurveyFilter(isSelected ? "" : opt.label)}
+                    title={opt.label}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '16px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: '1px solid',
+                      borderColor: isSelected ? '#059669' : '#a7f3d0',
+                      background: isSelected ? '#059669' : '#ecfdf5',
+                      color: isSelected ? '#ffffff' : '#065f46',
+                      transition: 'all 0.15s ease',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      maxWidth: '100%',
+                      textAlign: 'left',
+                      boxShadow: isSelected ? '0 1px 3px rgba(5, 150, 105, 0.3)' : 'none'
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '240px' }}>
+                      {opt.label}
+                    </span>
+                    <span style={{ 
+                      backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : '#d1fae5',
+                      color: isSelected ? '#ffffff' : '#047857',
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      fontSize: '0.7rem'
+                    }}>
+                      {opt.count} ({opt.percentage}%)
+                    </span>
+                  </button>
+                );
+              })}
+
+              {surveyStats.unselectedCount > 0 && (
+                <button
+                  onClick={() => setSelectedSurveyFilter(selectedSurveyFilter === "__NONE__" ? "" : "__NONE__")}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '16px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: '1px solid',
+                    borderColor: selectedSurveyFilter === "__NONE__" ? '#64748b' : '#e2e8f0',
+                    background: selectedSurveyFilter === "__NONE__" ? '#64748b' : '#f8fafc',
+                    color: selectedSurveyFilter === "__NONE__" ? '#ffffff' : '#64748b',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  Chưa chọn ({surveyStats.unselectedCount})
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loading ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải...</div>
           ) : filteredLeads.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Không tìm thấy Lead nào.</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              {selectedSurveyFilter ? "Không có Lead nào khớp với phương án đã chọn." : "Không tìm thấy Lead nào."}
+            </div>
           ) : (
             filteredLeads.map(lead => (
               <div 
                 key={lead.phone}
                 onClick={() => setSelectedLead(lead)}
                 style={{ 
-                  padding: '1rem 1.5rem', 
+                  padding: '1rem 1.25rem', 
                   borderBottom: '1px solid var(--border)', 
                   cursor: 'pointer',
                   background: selectedLead?.phone === lead.phone ? 'rgba(79, 70, 229, 0.05)' : 'transparent',
@@ -535,8 +899,8 @@ export default function LeadsCRM() {
                 onMouseEnter={(e) => { if (selectedLead?.phone !== lead.phone) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
                 onMouseLeave={(e) => { if (selectedLead?.phone !== lead.phone) e.currentTarget.style.background = 'transparent' }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>{lead.full_name}</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem' }}>
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)' }}>{lead.full_name}</h3>
                   <span style={{ 
                     fontSize: '0.75rem', 
                     padding: '2px 8px', 
@@ -547,12 +911,46 @@ export default function LeadsCRM() {
                     {lead.status}
                   </span>
                 </div>
-                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Phone size={14} /> {lead.phone}</span>
+                <div style={{ fontSize: '0.825rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Phone size={13} /> {lead.phone}</span>
                   {isSuperAdmin && (
-                    <span style={{ fontSize: '0.7rem', background: 'rgba(139, 92, 246, 0.1)', color: '#6d28d9', padding: '2px 6px', borderRadius: '4px' }}>{lead.branch_id}</span>
+                    <span style={{ fontSize: '0.7rem', background: 'rgba(139, 92, 246, 0.1)', color: '#6d28d9', padding: '1px 6px', borderRadius: '4px' }}>{lead.branch_id}</span>
                   )}
                 </div>
+
+                {/* Badges hiển thị lựa chọn khảo sát trên từng Lead card */}
+                {lead.survey_selections && lead.survey_selections.length > 0 && (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {lead.survey_selections.map((opt, i) => (
+                      <span
+                        key={i}
+                        title={opt}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          color: '#065f46',
+                          background: '#ecfdf5',
+                          border: '1px solid #a7f3d0',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          maxWidth: '100%',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        ✓ {opt.length > 35 ? opt.substring(0, 35) + '...' : opt}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Kết quả Test nếu có */}
+                {lead.test_result && (
+                  <div style={{ marginTop: '0.35rem', fontSize: '0.72rem', color: '#b45309', background: '#fef3c7', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                    📊 {lead.test_result}
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -586,6 +984,42 @@ export default function LeadsCRM() {
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Phone size={16} /> {selectedLead.phone}</span>
                   {selectedLead.email && <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Mail size={16} /> {selectedLead.email}</span>}
                 </div>
+
+                {/* Hiển thị nhanh các lựa chọn khảo sát của Lead này */}
+                {selectedLead.survey_selections && selectedLead.survey_selections.length > 0 && (
+                  <div style={{ marginTop: '0.65rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4338ca', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      🎯 Hoạt động chọn:
+                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {selectedLead.survey_selections.map((opt, i) => (
+                        <span 
+                          key={i} 
+                          style={{ 
+                            fontSize: '0.8rem', 
+                            fontWeight: 600, 
+                            color: '#065f46', 
+                            background: '#ecfdf5', 
+                            border: '1px solid #a7f3d0', 
+                            padding: '3px 8px', 
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          ✓ {opt}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedLead.test_result && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#b45309', background: '#fef3c7', padding: '3px 8px', borderRadius: '6px', display: 'inline-block' }}>
+                    📊 Kết quả test: <strong>{selectedLead.test_result}</strong>
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                 <select 
