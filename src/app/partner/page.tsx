@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import { getPartnerCourses, PartnerCourse } from "@/app/actions/partner";
+import { getPartnerCourses, getPartnerStudents, PartnerCourse, PartnerStudentItem } from "@/app/actions/partner";
 import { 
   Users, 
   BookOpen, 
@@ -14,7 +14,9 @@ import {
   CheckCircle2, 
   MessageSquare,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  UserPlus,
+  Plus
 } from "lucide-react";
 
 export default function PartnerDashboard() {
@@ -25,41 +27,43 @@ export default function PartnerDashboard() {
   const greetingIcon = isDancesport ? "💃🕺" : "🎓✨";
 
   const [partnerCourses, setPartnerCourses] = useState<PartnerCourse[]>([]);
-  const [loadingCourses, setLoadingCourses] = useState(true);
+  const [partnerStudents, setPartnerStudents] = useState<PartnerStudentItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadCourses() {
+    async function loadData() {
       if (user?.email) {
-        setLoadingCourses(true);
-        const res = await getPartnerCourses(user.email, user.department || user.position);
-        if (res.success && res.data) {
-          setPartnerCourses(res.data);
+        setLoading(true);
+        const [cRes, sRes] = await Promise.all([
+          getPartnerCourses(user.email, user.department || user.position),
+          getPartnerStudents(user.email, user.department || user.position)
+        ]);
+        if (cRes.success && cRes.data) {
+          setPartnerCourses(cRes.data);
         }
-        setLoadingCourses(false);
+        if (sRes.success && sRes.data) {
+          setPartnerStudents(sRes.data);
+        }
+        setLoading(false);
       }
     }
-    loadCourses();
+    loadData();
   }, [user?.email, user?.department, user?.position]);
 
   const primaryCourse = partnerCourses.length > 0 ? partnerCourses[0] : null;
-  const totalStudents = partnerCourses.reduce((acc, c) => acc + (c.student_count || 0), 0);
+  const totalStudents = partnerStudents.length;
 
   const learningUrl = process.env.NEXT_PUBLIC_LEARNING_URL || (typeof window !== "undefined" && window.location.hostname === "localhost" ? "http://localhost:3001/dashboard" : "https://hoc.viceduvn.com/dashboard");
 
   // Dynamic stats
   const stats = [
-    { label: "Khóa học đang mở", value: partnerCourses.length > 0 ? partnerCourses.length.toString() : "1", sub: primaryCourse ? primaryCourse.title : partnerSubject, icon: BookOpen, color: "#4f46e5", bg: "#eef2ff" },
-    { label: "Học viên tham gia", value: totalStudents > 0 ? totalStudents.toString() : "28", sub: "+4 học viên tuần này", icon: Users, color: "#06b6d4", bg: "#ecfeff" },
-    { label: "Tỷ lệ hoàn thành", value: "74%", sub: "Độ gắn kết cao", icon: TrendingUp, color: "#10b981", bg: "#ecfdf5" },
-    { label: "Bài tập cần chấm/nhận xét", value: "5", sub: "Chờ góp ý", icon: Video, color: "#f59e0b", bg: "#fffbeb" },
+    { label: "Khóa học đang mở", value: partnerCourses.length.toString(), sub: primaryCourse ? primaryCourse.title : partnerSubject, icon: BookOpen, color: "#4f46e5", bg: "#eef2ff" },
+    { label: "Học viên tham gia", value: totalStudents.toString(), sub: totalStudents > 0 ? "Đã ghi danh" : "Chưa có học viên", icon: Users, color: "#06b6d4", bg: "#ecfeff" },
+    { label: "Tỷ lệ hoàn thành TB", value: totalStudents > 0 ? `${Math.round(partnerStudents.reduce((acc, s) => acc + s.progress, 0) / totalStudents)}%` : "0%", sub: "Độ hoàn thành bài", icon: TrendingUp, color: "#10b981", bg: "#ecfdf5" },
+    { label: "Bài tập cần chấm/nhận xét", value: "0", sub: "Chờ góp ý", icon: Video, color: "#f59e0b", bg: "#fffbeb" },
   ];
 
-  const recentStudents = [
-    { name: "Cô Nguyễn Thị Mai (56t)", phone: "0912***456", progress: 85, status: "Đang học Bài 4", date: "Hôm nay, 08:30" },
-    { name: "Bác Trần Đình Trọng (62t)", phone: "0983***789", progress: 60, status: "Cần chỉnh động tác", date: "Hôm qua, 19:15" },
-    { name: "Chị Lê Hoàng Yến (45t)", phone: "0904***123", progress: 100, status: "Đã hoàn thành Khóa 1", date: "14/10/2026" },
-    { name: "Cô Phạm Thanh Hà (51t)", phone: "0977***654", progress: 40, status: "Đang học Bài 2", date: "13/10/2026" },
-  ];
+  const recentStudents = partnerStudents.slice(0, 5);
 
   return (
     <div style={{ padding: "1.5rem", maxWidth: "1300px", margin: "0 auto" }}>
@@ -192,7 +196,7 @@ export default function PartnerDashboard() {
             <Link href="/partner/courses" style={{ fontSize: "0.85rem", color: "#4f46e5", fontWeight: 600, textDecoration: "none" }}>Chi tiết giáo trình →</Link>
           </div>
 
-          {loadingCourses ? (
+          {loading ? (
             <div style={{ padding: "2rem", textAlign: "center", color: "#64748b", backgroundColor: "#f8fafc", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
               Đang tải thông tin khóa học...
             </div>
@@ -294,51 +298,85 @@ export default function PartnerDashboard() {
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0, color: "#0f172a" }}>Học viên tập luyện gần đây</h2>
-            <Link href="/partner/students" style={{ fontSize: "0.85rem", color: "#4f46e5", fontWeight: 600, textDecoration: "none" }}>Xem toàn bộ (28) →</Link>
+            <Link href="/partner/students" style={{ fontSize: "0.85rem", color: "#4f46e5", fontWeight: 600, textDecoration: "none" }}>
+              Xem toàn bộ ({totalStudents}) →
+            </Link>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {recentStudents.map((st, i) => (
-              <div key={i} style={{
-                padding: "0.85rem",
-                borderRadius: "10px",
-                border: "1px solid #f1f5f9",
-                backgroundColor: "#fafafa",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "1rem"
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "50%",
-                    backgroundColor: "#e0e7ff",
-                    color: "#4f46e5",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                    fontSize: "0.9rem"
-                  }}>
-                    {st.name.charAt(0)}
+          {loading ? (
+            <div style={{ padding: "2rem", textAlign: "center", color: "#64748b", backgroundColor: "#f8fafc", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
+              Đang tải danh sách học viên...
+            </div>
+          ) : recentStudents.length === 0 ? (
+            <div style={{ padding: "2rem 1.5rem", textAlign: "center", backgroundColor: "#f8fafc", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
+              <div style={{ fontSize: "1.8rem", marginBottom: "0.5rem" }}>👥</div>
+              <div style={{ fontWeight: 600, color: "#334155", fontSize: "0.9rem", marginBottom: "0.25rem" }}>Chưa có học viên nào</div>
+              <p style={{ margin: "0 0 1rem 0", fontSize: "0.8rem", color: "#64748b" }}>
+                Thầy/Cô hãy thêm học viên để bắt đầu theo dõi tiến độ luyện tập.
+              </p>
+              <Link
+                href="/partner/students"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "0.45rem 0.9rem",
+                  backgroundColor: "#4f46e5",
+                  color: "white",
+                  borderRadius: "8px",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  textDecoration: "none"
+                }}
+              >
+                <Plus size={14} />
+                <span>+ Thêm học viên mới</span>
+              </Link>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {recentStudents.map((st) => (
+                <div key={st.id} style={{
+                  padding: "0.85rem",
+                  borderRadius: "10px",
+                  border: "1px solid #f1f5f9",
+                  backgroundColor: "#fafafa",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "1rem"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "50%",
+                      backgroundColor: "#e0e7ff",
+                      color: "#4f46e5",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 700,
+                      fontSize: "0.9rem"
+                    }}>
+                      {st.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#0f172a" }}>{st.name}</div>
+                      <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{st.phone} • {st.lastLesson}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#0f172a" }}>{st.name}</div>
-                    <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{st.phone} • {st.status}</div>
-                  </div>
-                </div>
 
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: st.progress === 100 ? "#10b981" : "#4f46e5" }}>
-                    {st.progress}%
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 700, color: st.progress >= 80 ? "#10b981" : "#4f46e5" }}>
+                      {st.progress}%
+                    </div>
+                    <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{st.joinDate}</div>
                   </div>
-                  <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{st.date}</div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           <Link
             href="/partner/submissions"

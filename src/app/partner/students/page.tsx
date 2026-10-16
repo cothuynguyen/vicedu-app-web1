@@ -1,7 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+import { 
+  getPartnerStudents, 
+  enrollStudentByPartner, 
+  removeStudentByPartner,
+  PartnerStudentItem, 
+  PartnerCourse 
+} from "@/app/actions/partner";
 import { 
   Users, 
   Search, 
@@ -11,47 +19,67 @@ import {
   Clock, 
   MessageCircle, 
   Filter, 
-  Download,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  Trash2,
+  AlertCircle,
+  Loader2,
+  BookOpen
 } from "lucide-react";
 
-interface PartnerStudent {
-  id: string;
-  name: string;
-  age?: number;
-  phone: string;
-  course: string;
-  progress: number;
-  lastLesson: string;
-  joinDate: string;
-  notes: string;
-}
-
-const INITIAL_STUDENTS: PartnerStudent[] = [
-  { id: "1", name: "Cô Nguyễn Thị Mai", age: 56, phone: "0912 345 678", course: "Khiêu vũ Trung Niên", progress: 85, lastLesson: "Bài 4: Bước xoay Rumba căn bản", joinDate: "02/10/2026", notes: "Tiếp thu nhanh, nhịp rất đều" },
-  { id: "2", name: "Bác Trần Đình Trọng", age: 62, phone: "0983 765 432", course: "Khiêu vũ Trung Niên", progress: 60, lastLesson: "Bài 3: Trọng tâm & Đổi hướng", joinDate: "05/10/2026", notes: "Cần chú ý giữ thẳng lưng khi chuyển bước" },
-  { id: "3", name: "Chị Lê Hoàng Yến", age: 45, phone: "0904 123 789", course: "Khiêu vũ Trung Niên", progress: 100, lastLesson: "Bài 8: Tổng kết bài nhảy Chachacha", joinDate: "20/09/2026", notes: "Đã hoàn thành xuất sắc toàn bộ khóa 1" },
-  { id: "4", name: "Cô Phạm Thanh Hà", age: 51, phone: "0977 888 999", course: "Khiêu vũ Trung Niên", progress: 40, lastLesson: "Bài 2: Đếm nhịp và giải phóng khớp hông", joinDate: "08/10/2026", notes: "Tập qua video soi gương thấy rất dễ hiểu" },
-  { id: "5", name: "Bác Vũ Văn Hùng", age: 58, phone: "0915 222 333", course: "Khiêu vũ Trung Niên", progress: 25, lastLesson: "Bài 1: Khởi động cơ và cổ chân", joinDate: "12/10/2026", notes: "Mới đăng ký, đang tập bài khởi động" },
-  { id: "6", name: "Bé Tina Đỗ (12t)", age: 12, phone: "0988 555 444", course: "Dancesport Thanh Thiếu Niên", progress: 90, lastLesson: "Bài 6: Bước trượt Paso Doble", joinDate: "15/09/2026", notes: "Dẻo, năng khiếu tốt" },
-  { id: "7", name: "Cô Đặng Bích Liên", age: 53, phone: "0962 444 111", course: "Khiêu vũ Trung Niên", progress: 70, lastLesson: "Bài 4: Bước xoay Rumba căn bản", joinDate: "01/10/2026", notes: "Đã gửi video bài tập qua Zalo" },
-  { id: "8", name: "Bác Ngô Quốc Bảo", age: 65, phone: "0934 666 777", course: "Khiêu vũ Trung Niên", progress: 50, lastLesson: "Bài 3: Trọng tâm & Đổi hướng", joinDate: "04/10/2026", notes: "Tập dưỡng sinh nhẹ nhàng buổi sáng" }
-];
-
 export default function PartnerStudentsPage() {
-  const [students, setStudents] = useState<PartnerStudent[]>(INITIAL_STUDENTS);
+  const { user } = useAuth();
+  const [students, setStudents] = useState<PartnerStudentItem[]>([]);
+  const [courses, setCourses] = useState<PartnerCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProgress, setFilterProgress] = useState<string>("all");
+  const [filterCourse, setFilterCourse] = useState<string>("all");
+
+  // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [newStudentName, setNewStudentName] = useState("");
   const [newStudentPhone, setNewStudentPhone] = useState("");
   const [newStudentAge, setNewStudentAge] = useState("");
   const [newStudentNote, setNewStudentNote] = useState("");
+  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  // Notification state
+  const [toastMessage, setToastMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const partnerSubject = user?.position || user?.department || "Bộ môn Đối tác";
+
+  const fetchStudents = async () => {
+    if (!user?.email) return;
+    setLoading(true);
+    const res = await getPartnerStudents(user.email, user.department || user.position);
+    if (res.success) {
+      setStudents(res.data || []);
+      setCourses(res.courses || []);
+      if (res.courses && res.courses.length > 0 && !selectedCourseId) {
+        setSelectedCourseId(res.courses[0].id);
+      }
+    } else {
+      setToastMessage({ type: "error", text: res.error || "Không thể tải danh sách học viên" });
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchStudents();
+  }, [user?.email, user?.department, user?.position]);
 
   const filtered = students.filter(st => {
-    const matchesSearch = st.name.toLowerCase().includes(searchTerm.toLowerCase()) || st.phone.includes(searchTerm);
+    const matchesSearch = 
+      st.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      st.phone.includes(searchTerm) ||
+      st.notes.toLowerCase().includes(searchTerm.toLowerCase());
     if (!matchesSearch) return false;
+
+    if (filterCourse !== "all" && st.courseId !== filterCourse) return false;
 
     if (filterProgress === "completed") return st.progress >= 80;
     if (filterProgress === "learning") return st.progress >= 30 && st.progress < 80;
@@ -59,50 +87,118 @@ export default function PartnerStudentsPage() {
     return true;
   });
 
-  const handleAddStudent = (e: React.FormEvent) => {
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStudentName.trim() || !newStudentPhone.trim()) return;
+    if (!newStudentName.trim() || !newStudentPhone.trim()) {
+      setModalError("Vui lòng điền họ tên và số điện thoại.");
+      return;
+    }
 
-    const newSt: PartnerStudent = {
-      id: Date.now().toString(),
-      name: newStudentName.trim(),
-      age: newStudentAge ? parseInt(newStudentAge) : undefined,
-      phone: newStudentPhone.trim(),
-      course: "Khiêu vũ Trung Niên",
-      progress: 0,
-      lastLesson: "Chưa bắt đầu",
-      joinDate: new Date().toLocaleDateString("vi-VN"),
-      notes: newStudentNote.trim() || "Mới kích hoạt tài khoản"
-    };
+    if (!user?.email) {
+      setModalError("Chưa đăng nhập tài khoản giảng viên đối tác.");
+      return;
+    }
 
-    setStudents([newSt, ...students]);
-    setNewStudentName("");
-    setNewStudentPhone("");
-    setNewStudentAge("");
-    setNewStudentNote("");
-    setShowAddModal(false);
+    const courseToEnroll = selectedCourseId || (courses.length > 0 ? courses[0].id : undefined);
+    if (!courseToEnroll) {
+      setModalError("Chưa có khóa học nào để gán học viên vào.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setModalError(null);
+
+    const res = await enrollStudentByPartner({
+      partnerEmail: user.email,
+      partnerDepartment: user.department || user.position,
+      studentName: newStudentName.trim(),
+      studentPhone: newStudentPhone.trim(),
+      studentAge: newStudentAge ? parseInt(newStudentAge) : undefined,
+      notes: newStudentNote.trim(),
+      courseId: courseToEnroll
+    });
+
+    setIsSubmitting(false);
+
+    if (res.success) {
+      setToastMessage({ type: "success", text: res.message || "Thêm học viên thành công!" });
+      setNewStudentName("");
+      setNewStudentPhone("");
+      setNewStudentAge("");
+      setNewStudentNote("");
+      setShowAddModal(false);
+      // Tải lại danh sách từ LMS
+      fetchStudents();
+    } else {
+      setModalError(res.error || "Đã xảy ra lỗi khi cấp tài khoản học viên.");
+    }
+  };
+
+  const handleRemoveStudent = async (st: PartnerStudentItem) => {
+    const ok = window.confirm(`Thầy/Cô có chắc chắn muốn xóa học viên "${st.name}" (${st.phone}) khỏi khóa học "${st.course}"?`);
+    if (!ok) return;
+
+    const res = await removeStudentByPartner(st.courseId, st.id);
+    if (res.success) {
+      setToastMessage({ type: "success", text: `Đã xóa học viên ${st.name} khỏi khóa học.` });
+      fetchStudents();
+    } else {
+      setToastMessage({ type: "error", text: res.error || "Lỗi khi xóa học viên." });
+    }
   };
 
   return (
     <div style={{ padding: "1.5rem", maxWidth: "1300px", margin: "0 auto" }}>
+      {/* Toast alert */}
+      {toastMessage && (
+        <div style={{
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          zIndex: 9999,
+          padding: "1rem 1.25rem",
+          borderRadius: "10px",
+          backgroundColor: toastMessage.type === "success" ? "#10b981" : "#ef4444",
+          color: "white",
+          boxShadow: "0 10px 15px -3px rgba(0,0,0,0.2)",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          fontWeight: 600,
+          fontSize: "0.9rem"
+        }}>
+          {toastMessage.type === "success" ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+          <span>{toastMessage.text}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            style={{ marginLeft: "10px", background: "none", border: "none", color: "white", cursor: "pointer", fontSize: "1.1rem" }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "0.25rem" }}>
             <Link href="/partner" style={{ color: "#64748b", textDecoration: "none", fontSize: "0.85rem" }}>Đối tác</Link>
             <ChevronRight size={14} color="#94a3b8" />
-            <span style={{ color: "#0f172a", fontWeight: 600, fontSize: "0.85rem" }}>Học viên của Thầy</span>
+            <span style={{ color: "#0f172a", fontWeight: 600, fontSize: "0.85rem" }}>Học viên của Thầy/Cô</span>
           </div>
           <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>
-            Quản lý Học viên Khiêu vũ ({students.length})
+            Quản lý Học viên ({partnerSubject}) ({loading ? "..." : students.length})
           </h1>
           <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "0.9rem" }}>
-            Danh sách học viên theo học các khóa học do Giảng viên Đối tác phụ trách.
+            Danh sách học viên theo học các khóa học do Giảng viên Đối tác phụ trách trên Cổng Đào tạo VicEdu.
           </p>
         </div>
 
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setModalError(null);
+            setShowAddModal(true);
+          }}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -137,7 +233,7 @@ export default function PartnerStudentsPage() {
         marginBottom: "1.5rem"
       }}>
         <ShieldCheck size={18} color="#16a34a" />
-        <span>Khu vực bảo mật: Chỉ hiển thị dữ liệu học viên thuộc các khóa do Giảng viên Đối tác phụ trách.</span>
+        <span>Khu vực bảo mật: Chỉ hiển thị dữ liệu học viên thuộc các khóa do Giảng viên Đối tác phụ trách. Dữ liệu đồng bộ trực tiếp với Cổng Học tập LMS.</span>
       </div>
 
       {/* Filters & Search Bar */}
@@ -170,26 +266,52 @@ export default function PartnerStudentsPage() {
           />
         </div>
 
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 600 }}>Tiến độ:</span>
-          <select
-            value={filterProgress}
-            onChange={(e) => setFilterProgress(e.target.value)}
-            style={{
-              padding: "0.45rem 0.85rem",
-              borderRadius: "8px",
-              border: "1px solid #cbd5e1",
-              fontSize: "0.85rem",
-              backgroundColor: "white",
-              outline: "none",
-              cursor: "pointer"
-            }}
-          >
-            <option value="all">Tất cả tiến độ</option>
-            <option value="started">Mới bắt đầu (&lt; 30%)</option>
-            <option value="learning">Đang tập (30% - 79%)</option>
-            <option value="completed">Đã hoàn thành (&gt;= 80%)</option>
-          </select>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+          {courses.length > 1 && (
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 600 }}>Khóa:</span>
+              <select
+                value={filterCourse}
+                onChange={(e) => setFilterCourse(e.target.value)}
+                style={{
+                  padding: "0.45rem 0.85rem",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "0.85rem",
+                  backgroundColor: "white",
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="all">Tất cả khóa học</option>
+                {courses.map(c => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 600 }}>Tiến độ:</span>
+            <select
+              value={filterProgress}
+              onChange={(e) => setFilterProgress(e.target.value)}
+              style={{
+                padding: "0.45rem 0.85rem",
+                borderRadius: "8px",
+                border: "1px solid #cbd5e1",
+                fontSize: "0.85rem",
+                backgroundColor: "white",
+                outline: "none",
+                cursor: "pointer"
+              }}
+            >
+              <option value="all">Tất cả tiến độ</option>
+              <option value="started">Mới bắt đầu (&lt; 30%)</option>
+              <option value="learning">Đang tập (30% - 79%)</option>
+              <option value="completed">Đã hoàn thành (&gt;= 80%)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -201,130 +323,179 @@ export default function PartnerStudentsPage() {
         overflow: "hidden",
         boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
       }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.9rem" }}>
-            <thead>
-              <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                <th style={{ padding: "0.85rem 1.25rem" }}>Học viên</th>
-                <th style={{ padding: "0.85rem 1rem" }}>Độ tuổi</th>
-                <th style={{ padding: "0.85rem 1rem" }}>Số điện thoại</th>
-                <th style={{ padding: "0.85rem 1rem" }}>Khóa học</th>
-                <th style={{ padding: "0.85rem 1rem" }}>Tiến độ bài học</th>
-                <th style={{ padding: "0.85rem 1rem" }}>Bài gần nhất</th>
-                <th style={{ padding: "0.85rem 1.25rem", textAlign: "center" }}>Tương tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: "3rem", textAlign: "center", color: "#94a3b8" }}>
-                    Không tìm thấy học viên nào phù hợp.
-                  </td>
+        {loading ? (
+          <div style={{ padding: "4rem 2rem", textAlign: "center", color: "#64748b" }}>
+            <Loader2 size={32} className="animate-spin" style={{ margin: "0 auto 1rem", color: "#4f46e5" }} />
+            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Đang tải danh sách học viên từ hệ thống LMS...</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.9rem" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <th style={{ padding: "0.85rem 1.25rem" }}>Học viên</th>
+                  <th style={{ padding: "0.85rem 1rem" }}>Số điện thoại</th>
+                  <th style={{ padding: "0.85rem 1rem" }}>Khóa học</th>
+                  <th style={{ padding: "0.85rem 1rem" }}>Tiến độ bài học</th>
+                  <th style={{ padding: "0.85rem 1rem" }}>Bài gần nhất</th>
+                  <th style={{ padding: "0.85rem 1.25rem", textAlign: "center" }}>Tương tác & Quản lý</th>
                 </tr>
-              ) : (
-                filtered.map((st) => (
-                  <tr key={st.id} style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.15s" }}>
-                    <td style={{ padding: "1rem 1.25rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "50%",
-                          backgroundColor: "#e0e7ff",
-                          color: "#4f46e5",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontWeight: 700,
-                          fontSize: "0.9rem",
-                          flexShrink: 0
-                        }}>
-                          {st.name.charAt(0)}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600, color: "#0f172a" }}>{st.name}</div>
-                          <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Tham gia: {st.joinDate}</div>
-                        </div>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: "4rem 2rem", textAlign: "center", color: "#94a3b8" }}>
+                      <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>👥</div>
+                      <div style={{ fontWeight: 700, color: "#334155", fontSize: "1.05rem", marginBottom: "0.25rem" }}>
+                        {searchTerm ? "Không tìm thấy học viên nào phù hợp" : "Chưa có học viên nào trong khóa học"}
                       </div>
-                    </td>
-
-                    <td style={{ padding: "1rem 1rem", color: "#334155" }}>
-                      {st.age ? (
-                        <span style={{
-                          padding: "2px 8px",
-                          borderRadius: "6px",
-                          backgroundColor: st.age >= 50 ? "#fef3c7" : "#e0e7ff",
-                          color: st.age >= 50 ? "#b45309" : "#4338ca",
-                          fontSize: "0.8rem",
-                          fontWeight: 600
-                        }}>
-                          {st.age} tuổi
-                        </span>
-                      ) : "—"}
-                    </td>
-
-                    <td style={{ padding: "1rem 1rem", color: "#334155", fontWeight: 500 }}>
-                      {st.phone}
-                    </td>
-
-                    <td style={{ padding: "1rem 1rem", color: "#0f172a", fontSize: "0.85rem" }}>
-                      {st.course}
-                    </td>
-
-                    <td style={{ padding: "1rem 1rem", minWidth: "160px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div style={{ flex: 1, height: "7px", backgroundColor: "#e2e8f0", borderRadius: "4px", overflow: "hidden" }}>
-                          <div style={{
-                            width: `${st.progress}%`,
-                            height: "100%",
-                            backgroundColor: st.progress >= 80 ? "#10b981" : "#4f46e5"
-                          }} />
-                        </div>
-                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: st.progress >= 80 ? "#10b981" : "#4f46e5", minWidth: "35px" }}>
-                          {st.progress}%
-                        </span>
-                      </div>
-                    </td>
-
-                    <td style={{ padding: "1rem 1rem", color: "#475569", fontSize: "0.82rem" }}>
-                      <div>{st.lastLesson}</div>
-                      {st.notes && (
-                        <div style={{ fontSize: "0.75rem", color: "#94a3b8", fontStyle: "italic", marginTop: "2px" }}>
-                          "{st.notes}"
-                        </div>
+                      <p style={{ margin: "0 0 1.25rem 0", fontSize: "0.85rem", color: "#64748b" }}>
+                        {searchTerm 
+                          ? "Vui lòng thử tìm kiếm bằng số điện thoại hoặc từ khóa khác." 
+                          : "Thầy/Cô hãy nhấn nút \"Thêm Học viên Mới\" ở góc trên để cấp tài khoản vào học ngay!"}
+                      </p>
+                      {!searchTerm && (
+                        <button
+                          onClick={() => {
+                            setModalError(null);
+                            setShowAddModal(true);
+                          }}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "0.5rem 1rem",
+                            backgroundColor: "#4f46e5",
+                            color: "white",
+                            borderRadius: "8px",
+                            fontSize: "0.85rem",
+                            fontWeight: 600,
+                            border: "none",
+                            cursor: "pointer"
+                          }}
+                        >
+                          <Plus size={16} />
+                          <span>+ Cấp tài khoản học viên đầu tiên</span>
+                        </button>
                       )}
                     </td>
-
-                    <td style={{ padding: "1rem 1.25rem", textAlign: "center" }}>
-                      <a
-                        href={`https://zalo.me/${st.phone.replace(/\s+/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "0.45rem 0.85rem",
-                          borderRadius: "8px",
-                          backgroundColor: "#0068ff",
-                          color: "white",
-                          fontSize: "0.8rem",
-                          fontWeight: 600,
-                          textDecoration: "none",
-                          boxShadow: "0 1px 3px rgba(0, 104, 255, 0.3)"
-                        }}
-                        title="Mở Zalo nhắn tin góp ý động tác"
-                      >
-                        <MessageCircle size={14} />
-                        <span>Nhắn Zalo</span>
-                      </a>
-                    </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  filtered.map((st) => (
+                    <tr key={st.id} style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.15s" }}>
+                      <td style={{ padding: "1rem 1.25rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <div style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            backgroundColor: "#e0e7ff",
+                            color: "#4f46e5",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 700,
+                            fontSize: "0.9rem",
+                            flexShrink: 0
+                          }}>
+                            {st.name.charAt(0)}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, color: "#0f172a" }}>{st.name}</div>
+                            <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Ghi danh: {st.joinDate}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td style={{ padding: "1rem 1rem", color: "#334155", fontWeight: 600 }}>
+                        {st.phone}
+                      </td>
+
+                      <td style={{ padding: "1rem 1rem", color: "#0f172a", fontSize: "0.85rem", maxWidth: "200px" }}>
+                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={st.course}>
+                          {st.course}
+                        </div>
+                      </td>
+
+                      <td style={{ padding: "1rem 1rem", minWidth: "160px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <div style={{ flex: 1, height: "7px", backgroundColor: "#e2e8f0", borderRadius: "4px", overflow: "hidden" }}>
+                            <div style={{
+                              width: `${st.progress}%`,
+                              height: "100%",
+                              backgroundColor: st.progress >= 80 ? "#10b981" : "#4f46e5"
+                            }} />
+                          </div>
+                          <span style={{ fontSize: "0.8rem", fontWeight: 700, color: st.progress >= 80 ? "#10b981" : "#4f46e5", minWidth: "35px" }}>
+                            {st.progress}%
+                          </span>
+                        </div>
+                      </td>
+
+                      <td style={{ padding: "1rem 1rem", color: "#475569", fontSize: "0.82rem" }}>
+                        <div style={{ fontWeight: 500 }}>{st.lastLesson}</div>
+                        {st.notes && (
+                          <div style={{ fontSize: "0.75rem", color: "#94a3b8", fontStyle: "italic", marginTop: "2px" }}>
+                            {st.notes}
+                          </div>
+                        )}
+                      </td>
+
+                      <td style={{ padding: "1rem 1.25rem", textAlign: "center" }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                          {st.phone && st.phone !== "—" && (
+                            <a
+                              href={`https://zalo.me/${st.phone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                padding: "0.45rem 0.85rem",
+                                borderRadius: "8px",
+                                backgroundColor: "#0068ff",
+                                color: "white",
+                                fontSize: "0.8rem",
+                                fontWeight: 600,
+                                textDecoration: "none",
+                                boxShadow: "0 1px 3px rgba(0, 104, 255, 0.3)"
+                              }}
+                              title="Mở Zalo nhắn tin góp ý động tác"
+                            >
+                              <MessageCircle size={14} />
+                              <span>Zalo</span>
+                            </a>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveStudent(st)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "0.45rem",
+                              borderRadius: "8px",
+                              backgroundColor: "#fef2f2",
+                              color: "#ef4444",
+                              border: "1px solid #fee2e2",
+                              cursor: "pointer",
+                              transition: "background 0.15s"
+                            }}
+                            title="Xóa học viên khỏi khóa này"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Add Student Modal */}
@@ -353,9 +524,27 @@ export default function PartnerStudentsPage() {
             <h2 style={{ fontSize: "1.3rem", fontWeight: 700, margin: "0 0 0.5rem 0", color: "#0f172a" }}>
               Cấp tài khoản Học viên Mới
             </h2>
-            <p style={{ margin: "0 0 1.5rem 0", fontSize: "0.85rem", color: "#64748b" }}>
-              Học viên sẽ được thêm vào danh sách và có thể đăng nhập bằng Số điện thoại vào Cổng Học tập Web 2.
+            <p style={{ margin: "0 0 1.25rem 0", fontSize: "0.85rem", color: "#64748b" }}>
+              Học viên sẽ được cấp quyền truy cập khóa học LMS và có thể đăng nhập bằng Số điện thoại vào Cổng Học tập Web 2.
             </p>
+
+            {modalError && (
+              <div style={{
+                backgroundColor: "#fef2f2",
+                border: "1px solid #fecaca",
+                color: "#b91c1c",
+                borderRadius: "8px",
+                padding: "0.75rem 1rem",
+                fontSize: "0.85rem",
+                marginBottom: "1rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}>
+                <AlertCircle size={16} />
+                <span>{modalError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleAddStudent} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <div>
@@ -372,20 +561,51 @@ export default function PartnerStudentsPage() {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                  Số điện thoại học viên *
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="0912 345 678"
+                  value={newStudentPhone}
+                  onChange={(e) => setNewStudentPhone(e.target.value)}
+                  style={{ width: "100%", padding: "0.65rem 0.85rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.9rem", outline: "none" }}
+                />
+                <span style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "3px", display: "block" }}>
+                  Số điện thoại này sẽ là tên đăng nhập vào hệ thống học tập.
+                </span>
+              </div>
+
+              {courses.length > 1 ? (
                 <div>
                   <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
-                    Số điện thoại *
+                    Khóa học muốn gán *
                   </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="0912 345 678"
-                    value={newStudentPhone}
-                    onChange={(e) => setNewStudentPhone(e.target.value)}
-                    style={{ width: "100%", padding: "0.65rem 0.85rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.9rem", outline: "none" }}
-                  />
+                  <select
+                    value={selectedCourseId}
+                    onChange={(e) => setSelectedCourseId(e.target.value)}
+                    style={{ width: "100%", padding: "0.65rem 0.85rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.9rem", outline: "none", backgroundColor: "white" }}
+                  >
+                    {courses.map(c => (
+                      <option key={c.id} value={c.id}>{c.title}</option>
+                    ))}
+                  </select>
                 </div>
+              ) : courses.length === 1 ? (
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                    Khóa học được gán
+                  </label>
+                  <div style={{ padding: "0.65rem 0.85rem", backgroundColor: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "0.85rem", color: "#0f172a", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
+                    <BookOpen size={16} color="#4f46e5" />
+                    <span>{courses[0].title}</span>
+                  </div>
+                </div>
+              ) : null}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1rem" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
                     Độ tuổi (Tùy chọn)
@@ -402,11 +622,11 @@ export default function PartnerStudentsPage() {
 
               <div>
                 <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
-                  Ghi chú ban đầu của Thầy
+                  Ghi chú ban đầu của Thầy/Cô (Tùy chọn)
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Ví dụ: Chưa từng học khiêu vũ, bắt đầu từ bài 1"
+                  placeholder="Ví dụ: Đăng ký học từ cơ bản, tập vào buổi tối"
                   value={newStudentNote}
                   onChange={(e) => setNewStudentNote(e.target.value)}
                   style={{ width: "100%", padding: "0.65rem 0.85rem", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.9rem", outline: "none", resize: "none" }}
@@ -416,6 +636,7 @@ export default function PartnerStudentsPage() {
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1rem" }}>
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setShowAddModal(false)}
                   style={{
                     padding: "0.65rem 1.25rem",
@@ -431,17 +652,22 @@ export default function PartnerStudentsPage() {
                 </button>
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
                     padding: "0.65rem 1.25rem",
                     borderRadius: "8px",
                     border: "none",
-                    backgroundColor: "#4f46e5",
+                    backgroundColor: isSubmitting ? "#94a3b8" : "#4f46e5",
                     color: "white",
                     fontWeight: 600,
-                    cursor: "pointer"
+                    cursor: isSubmitting ? "not-allowed" : "pointer"
                   }}
                 >
-                  Xác nhận thêm
+                  {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                  <span>{isSubmitting ? "Đang cấp quyền..." : "Xác nhận cấp quyền"}</span>
                 </button>
               </div>
             </form>
