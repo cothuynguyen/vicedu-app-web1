@@ -97,6 +97,7 @@ export default function EmployeesPage() {
       case 'Lâm Thao': return 'NVLT';
       case 'Tuyên Quang': return 'NVTQ';
       case 'Dân Hòa': return 'NVDH';
+      case 'Đối tác Online': return 'NVĐT';
       default: return 'NVVT';
     }
   };
@@ -522,7 +523,11 @@ export default function EmployeesPage() {
                     </div>
                   </td>
                   <td>{emp.department}</td>
-                  <td><span className={`badge role-badge ${emp.role === 'Admin' ? 'admin' : 'user'}`}>{emp.role}</span></td>
+                  <td>
+                    <span className={`badge role-badge ${emp.role === 'Admin' ? 'admin' : emp.role === 'Partner' ? 'partner' : 'user'}`}>
+                      {emp.role === 'Partner' ? 'Đối tác' : emp.role}
+                    </span>
+                  </td>
                   <td>
                     <span className={`status-text ${emp.status === 'Chính thức' ? 'success' : 'warning'}`}>
                       {emp.status}
@@ -606,13 +611,27 @@ export default function EmployeesPage() {
                         <select 
                           className="form-input"
                           value={formData.role}
-                          onChange={(e) => setFormData({...formData, role: e.target.value})}
+                          onChange={(e) => {
+                            const newRole = e.target.value;
+                            if (newRole === "Partner") {
+                              setFormData(prev => ({
+                                ...prev,
+                                role: newRole,
+                                department: "Đối tác",
+                                branch_id: "Đối tác Online",
+                                position: prev.position || "Đối tác Đào tạo"
+                              }));
+                            } else {
+                              setFormData(prev => ({ ...prev, role: newRole }));
+                            }
+                          }}
                         >
                           {activeRole === "Super Admin" && (
                             <>
                               <option value="Super Admin">Super Admin (Toàn quyền hệ thống)</option>
                               <option value="Kế toán HO">Kế toán HO (Toàn bộ kế toán các chi nhánh)</option>
                               <option value="Admin">Admin Chi nhánh (Quản lý 1 chi nhánh)</option>
+                              <option value="Partner">Đối tác Đào tạo (Partner - Khóa học & Học viên riêng)</option>
                             </>
                           )}
                           <option value="Kế toán Chi nhánh">Kế toán Chi nhánh</option>
@@ -629,7 +648,7 @@ export default function EmployeesPage() {
                       <div className="form-group">
                         <label className="form-label">Chi nhánh *</label>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '0.5rem' }}>
-                          {["Việt Trì 1", "Việt Trì 2", "Lâm Thao", "Tuyên Quang", "Dân Hòa"].map(br => {
+                          {["Việt Trì 1", "Việt Trì 2", "Lâm Thao", "Tuyên Quang", "Dân Hòa", "Đối tác Online"].map(br => {
                             const selectedBranches = formData.branch_id ? formData.branch_id.split(',').map(b => b.trim()).filter(Boolean) : [];
                             const isSelected = selectedBranches.includes(br);
                             return (
@@ -683,17 +702,23 @@ export default function EmployeesPage() {
                           onChange={(e) => {
                             const newDept = e.target.value;
                             let newRole = formData.role;
+                            let newBranch = formData.branch_id;
                             // Tự động map Role theo Department để tránh Admin chọn nhầm
                             if (newDept === "Tư vấn" && newRole === "User") newRole = "Sale";
                             else if (newDept === "Đào tạo" && newRole === "User") newRole = "Giáo viên";
+                            else if (newDept === "Đối tác") {
+                              newRole = "Partner";
+                              newBranch = "Đối tác Online";
+                            }
                             
-                            setFormData({...formData, department: newDept, role: newRole});
+                            setFormData({...formData, department: newDept, role: newRole, branch_id: newBranch});
                           }}
                         >
                           <option value="Đào tạo">Đào tạo (Giáo viên)</option>
                           <option value="Tư vấn">Tư vấn (Tuyển sinh)</option>
                           <option value="Kế toán">Kế toán</option>
                           <option value="Quản lý">Quản lý (Giám đốc)</option>
+                          <option value="Đối tác">Đối tác Đào tạo (Dancesport & Kỹ năng)</option>
                         </select>
                       )}
                     </div>
