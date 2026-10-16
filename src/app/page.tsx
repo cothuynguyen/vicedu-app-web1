@@ -2,6 +2,7 @@
 
 import { Users, BookOpen, GraduationCap, TrendingUp, Calendar, AlertCircle, PhoneOff } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import BirthdayWidget from "@/components/dashboard/BirthdayWidget";
@@ -9,6 +10,7 @@ import StudentModal from "@/components/students/StudentModal";
 import "./Dashboard.css";
 
 export default function Dashboard() {
+  const router = useRouter();
   const [absentStudents, setAbsentStudents] = useState<any[]>([]);
   const [neglectedStudents, setNeglectedStudents] = useState<any[]>([]);
   const [totalEnrolled, setTotalEnrolled] = useState(0);
@@ -39,6 +41,14 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [filterBranch, setFilterBranch] = useState(user?.branch_id || "Tất cả");
   const [loading, setLoading] = useState(true);
+
+  const isPartner = user?.role === 'Partner' || user?.role === 'Đối tác' || user?.position === 'Đối tác Đào tạo';
+
+  useEffect(() => {
+    if (user && isPartner) {
+      router.replace('/partner');
+    }
+  }, [user, isPartner, router]);
 
   useEffect(() => {
     if (user) {

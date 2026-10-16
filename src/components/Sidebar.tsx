@@ -31,12 +31,21 @@ import {
   ClipboardCheck,
   PhoneCall,
   Presentation,
-  BarChart3
+  BarChart3,
+  Video,
+  Award
 } from "lucide-react";
 
 const commonMenu = [
   { name: "Tổng quan", path: "/", icon: LayoutDashboard },
   { name: "Sự kiện & Checklist", path: "/events", icon: CheckSquare },
+];
+
+const partnerMenu = [
+  { name: "Tổng quan Đối tác", path: "/partner", icon: LayoutDashboard },
+  { name: "Khóa học của tôi", path: "/partner/courses", icon: BookOpen },
+  { name: "Học viên của tôi", path: "/partner/students", icon: Users },
+  { name: "Chấm bài & Hướng dẫn", path: "/partner/submissions", icon: ClipboardCheck },
 ];
 
 const internalMenu = [
@@ -100,11 +109,12 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
 
   const activeRole = user?.role || "User";
   const isForeignTeacher = user?.position === "Giáo viên nước ngoài";
+  const isPartner = activeRole === "Partner" || activeRole === "Đối tác" || user?.position === "Đối tác Đào tạo";
 
-  const canSeeTraining = ["Super Admin", "Kế toán HO", "Admin", "Kế toán Chi nhánh", "Giáo viên", "Sale", "User"].includes(activeRole);
-  const canSeeAdmission = ["Super Admin", "Admin", "Sale", "Kế toán HO", "Kế toán Chi nhánh", "Giáo viên"].includes(activeRole) && !isForeignTeacher;
-  const canSeeFinance = ["Super Admin", "Kế toán HO", "Admin", "Kế toán Chi nhánh"].includes(activeRole);
-  const canSeeSystem = ["Super Admin", "Admin", "Kế toán HO", "Kế toán Chi nhánh"].includes(activeRole);
+  const canSeeTraining = !isPartner && ["Super Admin", "Kế toán HO", "Admin", "Kế toán Chi nhánh", "Giáo viên", "Sale", "User"].includes(activeRole);
+  const canSeeAdmission = !isPartner && ["Super Admin", "Admin", "Sale", "Kế toán HO", "Kế toán Chi nhánh", "Giáo viên"].includes(activeRole) && !isForeignTeacher;
+  const canSeeFinance = !isPartner && ["Super Admin", "Kế toán HO", "Admin", "Kế toán Chi nhánh"].includes(activeRole);
+  const canSeeSystem = !isPartner && ["Super Admin", "Admin", "Kế toán HO", "Kế toán Chi nhánh"].includes(activeRole);
 
   let currentTrainingMenu = trainingMenu;
   if (activeRole === "Sale") {
@@ -171,6 +181,8 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
     );
   };
 
+  const learningUrl = process.env.NEXT_PUBLIC_LEARNING_URL || (typeof window !== "undefined" && window.location.hostname === "localhost" ? "http://localhost:3001/dashboard" : "https://hoc.viceduvn.com/dashboard");
+
   return (
     <aside className={`sidebar ${isOpen ? "open" : ""}`}>
       <div className="sidebar-header">
@@ -180,14 +192,52 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
         </div>
       </div>
 
+      {/* Cổng Chuyển đổi Nhanh sang LMS Web 2 */}
+      <div style={{ padding: "0.5rem 1rem 0.75rem", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
+        <a 
+          href={learningUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.6rem 0.85rem",
+            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+            color: "white",
+            borderRadius: "10px",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            textDecoration: "none",
+            boxShadow: "0 2px 8px rgba(79, 70, 229, 0.25)",
+            transition: "all 0.2s ease"
+          }}
+          title="Mở Cổng Học tập & Đào tạo trực tuyến"
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "1rem" }}>🎓</span>
+            <span>{isPartner ? "Vào Phòng Học Thử" : "Cổng Học Tập & Đào Tạo"}</span>
+          </div>
+          <span style={{ opacity: 0.85, fontSize: "0.75rem" }}>↗</span>
+        </a>
+      </div>
+
       <nav className="sidebar-nav">
-          {renderMenu(commonMenu)}
-          {canSeeAdmission && renderMenu(currentAdmissionMenu, "TUYỂN SINH & CSKH")}
-          {canSeeTraining && renderMenu(currentTrainingMenu, "ĐÀO TẠO")}
-          {canSeeFinance && renderMenu(currentFinanceMenu, "TÀI CHÍNH - VẬT TƯ")}
-          {!isForeignTeacher && renderMenu(internalMenu, "NỘI BỘ")}
-          {canSeeSystem && renderMenu(currentSystemMenu, "HỆ THỐNG")}
-        </nav>
+        {isPartner ? (
+          <>
+            {renderMenu(partnerMenu, "ĐỐI TÁC ĐÀO TẠO")}
+          </>
+        ) : (
+          <>
+            {renderMenu(commonMenu)}
+            {canSeeAdmission && renderMenu(currentAdmissionMenu, "TUYỂN SINH & CSKH")}
+            {canSeeTraining && renderMenu(currentTrainingMenu, "ĐÀO TẠO")}
+            {canSeeFinance && renderMenu(currentFinanceMenu, "TÀI CHÍNH - VẬT TƯ")}
+            {!isForeignTeacher && renderMenu(internalMenu, "NỘI BỘ")}
+            {canSeeSystem && renderMenu(currentSystemMenu, "HỆ THỐNG")}
+          </>
+        )}
+      </nav>
 
       <div className="sidebar-footer" style={{ position: 'relative' }}>
         <OnlineWidget />

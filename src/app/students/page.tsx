@@ -27,6 +27,12 @@ export default function StudentsPage() {
     if (saved === "list") setViewMode("list");
   }, []);
 
+  useEffect(() => {
+    if (user && (user.role === 'Partner' || user.role === 'Đối tác' || user.position === 'Đối tác Đào tạo')) {
+      router.replace('/partner/students');
+    }
+  }, [user, router]);
+
   
   // Filter States
   const [searchTerm, setSearchTerm] = useState("");
