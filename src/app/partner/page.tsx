@@ -66,8 +66,6 @@ export default function PartnerDashboard() {
           <div style={{ marginTop: "1.5rem", display: "flex", flexWrap: "wrap", gap: "1rem" }}>
             <a
               href="/api/sso?target=/dashboard/courses/d0100000-0000-0000-0000-000000000001"
-              target="_blank"
-              rel="noopener noreferrer"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -231,8 +229,6 @@ export default function PartnerDashboard() {
               <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0", display: "flex", gap: "0.75rem" }}>
                 <a
                   href="/api/sso?target=/dashboard/courses/d0100000-0000-0000-0000-000000000001"
-                  target="_blank"
-                  rel="noopener noreferrer"
                   style={{
                     flex: 1,
                     textAlign: "center",

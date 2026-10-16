@@ -209,8 +209,6 @@ export default function PartnerCoursesPage() {
 
                     <a
                       href="/api/sso?target=/dashboard/courses/d0100000-0000-0000-0000-000000000001"
-                      target="_blank"
-                      rel="noopener noreferrer"
                       style={{
                         padding: "0.45rem 0.85rem",
                         borderRadius: "6px",

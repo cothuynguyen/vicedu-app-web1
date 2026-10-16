@@ -196,8 +196,6 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
       <div style={{ padding: "0.5rem 1rem 0.75rem", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
         <a 
           href={isPartner ? "/api/sso?target=/dashboard/courses/d0100000-0000-0000-0000-000000000001" : "/api/sso?target=/dashboard"}
-          target="_blank"
-          rel="noopener noreferrer"
           style={{
             display: "flex",
             alignItems: "center",
@@ -218,7 +216,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
             <span style={{ fontSize: "1rem" }}>🎓</span>
             <span>{isPartner ? "Vào Phòng Học Thử" : "Cổng Học Tập & Đào Tạo"}</span>
           </div>
-          <span style={{ opacity: 0.85, fontSize: "0.75rem" }}>↗</span>
+          <span style={{ opacity: 0.85, fontSize: "0.75rem" }}>→</span>
         </a>
       </div>
 
