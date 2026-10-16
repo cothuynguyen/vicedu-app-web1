@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
 import { 
   BookOpen, 
   Video, 
@@ -17,6 +18,8 @@ import {
 } from "lucide-react";
 
 export default function PartnerCoursesPage() {
+  const { user } = useAuth();
+  const displayName = user?.full_name || "Thầy Tân Dancesport";
   const learningUrl = process.env.NEXT_PUBLIC_LEARNING_URL || (typeof window !== "undefined" && window.location.hostname === "localhost" ? "http://localhost:3001/dashboard" : "https://hoc.viceduvn.com/dashboard");
 
   const modules = [
@@ -103,7 +106,7 @@ export default function PartnerCoursesPage() {
       }}>
         <div>
           <div style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 600 }}>GIẢNG VIÊN</div>
-          <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a", marginTop: "4px" }}>Thầy Tân Dancesport</div>
+          <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a", marginTop: "4px" }}>{displayName}</div>
           <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: "2px" }}>● Đã xác minh chuyên gia</div>
         </div>
         <div>

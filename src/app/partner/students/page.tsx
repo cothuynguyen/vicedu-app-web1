@@ -97,7 +97,7 @@ export default function PartnerStudentsPage() {
             Quản lý Học viên Khiêu vũ ({students.length})
           </h1>
           <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "0.9rem" }}>
-            Danh sách học viên theo học các khóa học khiêu vũ và dancesport của Thầy Tân.
+            Danh sách học viên theo học các khóa học do Giảng viên Đối tác phụ trách.
           </p>
         </div>
 
@@ -137,7 +137,7 @@ export default function PartnerStudentsPage() {
         marginBottom: "1.5rem"
       }}>
         <ShieldCheck size={18} color="#16a34a" />
-        <span>Khu vực bảo mật: Chỉ hiển thị dữ liệu học viên thuộc các khóa do Thầy Tân phụ trách.</span>
+        <span>Khu vực bảo mật: Chỉ hiển thị dữ liệu học viên thuộc các khóa do Giảng viên Đối tác phụ trách.</span>
       </div>
 
       {/* Filters & Search Bar */}

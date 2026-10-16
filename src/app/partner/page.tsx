@@ -139,7 +139,7 @@ export default function PartnerDashboard() {
       }}>
         <ShieldCheck size={22} style={{ flexShrink: 0, color: "#16a34a" }} />
         <div>
-          <strong>Chế độ Phân lập Dữ liệu Hoàn toàn (Partner Isolation Active):</strong> Thầy Tân chỉ có quyền truy cập vào danh sách học viên và khóa học khiêu vũ của chính mình. Toàn bộ học viên và nghiệp vụ tài chính của các chi nhánh VicEdu khác được bảo mật tuyệt đối.
+          <strong>Chế độ Phân lập Dữ liệu Hoàn toàn (Partner Isolation Active):</strong> {displayName} chỉ có quyền truy cập vào danh sách học viên và khóa học của chính mình. Toàn bộ học viên và nghiệp vụ tài chính của các chi nhánh VicEdu khác được bảo mật tuyệt đối.
         </div>
       </div>
 
