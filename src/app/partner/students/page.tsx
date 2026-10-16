@@ -24,7 +24,8 @@ import {
   Trash2,
   AlertCircle,
   Loader2,
-  BookOpen
+  BookOpen,
+  Copy
 } from "lucide-react";
 
 export default function PartnerStudentsPage() {
@@ -145,6 +146,17 @@ export default function PartnerStudentsPage() {
     } else {
       setToastMessage({ type: "error", text: res.error || "Lỗi khi xóa học viên." });
     }
+  };
+
+  const handleCopyCredentials = (st: PartnerStudentItem) => {
+    const learningUrl = typeof window !== "undefined" && window.location.hostname === "localhost" 
+      ? "http://localhost:3001" 
+      : "https://hoc.viceduvn.com";
+    
+    const text = `Chào bạn/chị ${st.name},\n${user?.full_name || "Thầy"} đã kích hoạt tài khoản học khóa "${st.course}" trên hệ thống VicEdu:\n\n🌐 Cổng học tập: ${learningUrl}\n📱 Tên đăng nhập (SĐT): ${st.phone}\n🔑 Mật khẩu mặc định: Toiyeuvicedu\n\nChúc bạn/chị có những buổi học và luyện tập thật hiệu quả!`;
+    
+    navigator.clipboard.writeText(text);
+    setToastMessage({ type: "success", text: `Đã sao chép tin nhắn tài khoản của học viên ${st.name}!` });
   };
 
   return (
@@ -443,6 +455,29 @@ export default function PartnerStudentsPage() {
 
                       <td style={{ padding: "1rem 1.25rem", textAlign: "center" }}>
                         <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyCredentials(st)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              padding: "0.45rem 0.75rem",
+                              borderRadius: "8px",
+                              backgroundColor: "#f8fafc",
+                              color: "#334155",
+                              border: "1px solid #cbd5e1",
+                              fontSize: "0.8rem",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              transition: "background 0.15s"
+                            }}
+                            title="Sao chép tin nhắn tài khoản để gửi cho học viên qua Zalo/SMS"
+                          >
+                            <Copy size={13} color="#475569" />
+                            <span>Copy TK</span>
+                          </button>
+
                           {st.phone && st.phone !== "—" && (
                             <a
                               href={`https://zalo.me/${st.phone.replace(/\D/g, '')}`}
