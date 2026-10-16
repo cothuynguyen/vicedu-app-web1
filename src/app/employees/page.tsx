@@ -173,6 +173,10 @@ export default function EmployeesPage() {
     
     // Fix: Cột Date trong Supabase không nhận chuỗi rỗng "" -> Chuyển thành null
     const payload = { ...formData } as any;
+    if (!payload.email || payload.email.trim() === '') {
+      alert("Vui lòng nhập Email (Tài khoản đăng nhập) cho nhân sự!");
+      return;
+    }
     if (!payload.branch_id || payload.branch_id.trim() === '') {
       alert("Vui lòng chọn ít nhất một chi nhánh!");
       return;
@@ -740,6 +744,55 @@ export default function EmployeesPage() {
 
                   <div className="form-row">
                     <div className="form-group">
+                      <label className="form-label">Email (Tài khoản Đăng nhập) *</label>
+                      <input 
+                        type="email" 
+                        className="form-input" 
+                        required 
+                        placeholder="thaytan@vicedu.local hoặc email@..."
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        readOnly={activeRole === "Kế toán Chi nhánh"}
+                        style={activeRole === "Kế toán Chi nhánh" ? { backgroundColor: 'rgba(0,0,0,0.15)', cursor: 'not-allowed', color: 'var(--text-muted)' } : {}}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Số điện thoại</label>
+                      <input 
+                        type="tel" 
+                        className="form-input" 
+                        placeholder="09..."
+                        value={formData.phone}
+                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  {(activeRole === "Super Admin" || (activeRole === "Kế toán HO" && editingEmployeeId === user?.id)) && (
+                    <div className="form-group">
+                      <label className="form-label">Mật khẩu khởi tạo</label>
+                      <div style={{ position: 'relative' }}>
+                        <input 
+                          type={showPassword ? "text" : "password"} 
+                          className="form-input" 
+                          placeholder="Mặc định: vicedu123 nếu để trống"
+                          value={formData.password}
+                          onChange={(e) => setFormData({...formData, password: e.target.value})}
+                          style={{ paddingRight: '2.5rem' }}
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => setShowPassword(!showPassword)}
+                          style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
+                        >
+                          {showPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="form-row">
+                    <div className="form-group">
                       <label className="form-label">Nick name</label>
                       <input 
                         type="text" 
@@ -812,6 +865,10 @@ export default function EmployeesPage() {
                             <option value="Bảo vệ">Bảo vệ</option>
                             <option value="Tạp vụ">Tạp vụ</option>
                             <option value="Part time">Part time</option>
+                          </optgroup>
+                          <optgroup label="Đối tác & Giảng viên Liên kết">
+                            <option value="Đối tác Đào tạo">Đối tác Đào tạo</option>
+                            <option value="Giảng viên Kỹ năng">Giảng viên Kỹ năng</option>
                           </optgroup>
                         </select>
                       )}
@@ -1038,56 +1095,6 @@ export default function EmployeesPage() {
                   </div>
 
                   <hr style={{ borderColor: 'var(--glass-border)', margin: '0.5rem 0' }} />
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Số điện thoại</label>
-                      <input 
-                        type="tel" 
-                        className="form-input" 
-                        placeholder="09..."
-                        value={formData.phone}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Email (Tài khoản) *</label>
-                      <input 
-                        type="email" 
-                        className="form-input" 
-                        required 
-                        placeholder="nva@vicedu.com"
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                        readOnly={activeRole === "Kế toán Chi nhánh"}
-                        style={activeRole === "Kế toán Chi nhánh" ? { backgroundColor: 'rgba(0,0,0,0.15)', cursor: 'not-allowed', color: 'var(--text-muted)' } : {}}
-                        title={activeRole === "Kế toán Chi nhánh" ? "Bạn không có quyền thay đổi Email tài khoản" : ""}
-                      />
-                    </div>
-                  </div>
-                  
-                  {(activeRole === "Super Admin" || (activeRole === "Kế toán HO" && editingEmployeeId === user?.id)) && (
-                    <div className="form-group">
-                      <label className="form-label">Mật khẩu khởi tạo</label>
-                      <div style={{ position: 'relative' }}>
-                        <input 
-                          type={showPassword ? "text" : "password"} 
-                          className="form-input" 
-                          placeholder="Để trống nếu không đổi"
-                          value={formData.password}
-                          onChange={(e) => setFormData({...formData, password: e.target.value})}
-                          style={{ paddingRight: '2.5rem' }}
-                        />
-                        <button 
-                          type="button" 
-                          onClick={() => setShowPassword(!showPassword)}
-                          style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
-                        >
-                          {showPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
-                        </button>
-                      </div>
-                    </div>
-                  )}
 
                   <div className="form-group">
                     <label className="form-label">Địa chỉ hiện tại</label>
