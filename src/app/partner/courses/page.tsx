@@ -205,7 +205,7 @@ export default function PartnerCoursesPage() {
                     </span>
 
                     <a
-                      href={`${learningUrl}/courses`}
+                      href="/api/sso?target=/dashboard/courses?type=parents"
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{

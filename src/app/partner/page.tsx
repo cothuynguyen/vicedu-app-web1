@@ -230,7 +230,7 @@ export default function PartnerDashboard() {
 
               <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0", display: "flex", gap: "0.75rem" }}>
                 <a
-                  href={`${learningUrl}/courses`}
+                  href="/api/sso?target=/dashboard/courses?type=parents"
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{

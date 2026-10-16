@@ -192,10 +192,10 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
         </div>
       </div>
 
-      {/* Cổng Chuyển đổi Nhanh sang LMS Web 2 */}
+      {/* Cổng Chuyển đổi Nhanh sang LMS Web 2 qua Cầu nối SSO Bảo Mật */}
       <div style={{ padding: "0.5rem 1rem 0.75rem", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
         <a 
-          href={learningUrl}
+          href={isPartner ? "/api/sso?target=/dashboard/courses?type=parents" : "/api/sso?target=/dashboard"}
           target="_blank"
           rel="noopener noreferrer"
           style={{
