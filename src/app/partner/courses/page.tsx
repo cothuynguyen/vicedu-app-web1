@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { getPartnerCourses, PartnerCourse } from "@/app/actions/partner";
 import { 
   BookOpen, 
   Video, 
@@ -19,8 +20,25 @@ import {
 
 export default function PartnerCoursesPage() {
   const { user } = useAuth();
-  const displayName = user?.full_name || "Thầy Tân Dancesport";
-  const learningUrl = process.env.NEXT_PUBLIC_LEARNING_URL || (typeof window !== "undefined" && window.location.hostname === "localhost" ? "http://localhost:3001/dashboard" : "https://hoc.viceduvn.com/dashboard");
+  const displayName = user?.full_name || "Đối tác";
+  const [partnerCourses, setPartnerCourses] = useState<PartnerCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      if (user?.email) {
+        setLoading(true);
+        const res = await getPartnerCourses(user.email, user.department || user.position);
+        if (res.success && res.data) {
+          setPartnerCourses(res.data);
+        }
+        setLoading(false);
+      }
+    }
+    load();
+  }, [user?.email, user?.department, user?.position]);
+
+  const currentCourse = partnerCourses.length > 0 ? partnerCourses[0] : null;
 
   const modules = [
     {
@@ -62,17 +80,15 @@ export default function PartnerCoursesPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
           <div>
             <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>
-              Khóa học: Khiêu vũ Giữ dáng & Dưỡng sinh Tuổi Trung Niên
+              Khóa học: {currentCourse?.title || "Khiêu vũ Giữ dáng & Dưỡng sinh Tuổi Trung Niên"}
             </h1>
             <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: "0.9rem" }}>
-              Giáo trình đóng gói chuyên biệt dành cho đối tượng trung niên 40 – 60 tuổi với tính năng hỗ trợ lật gương cùng chiều.
+              {currentCourse?.description || "Giáo trình đóng gói chuyên biệt dành cho đối tượng trung niên 40 – 60 tuổi với tính năng hỗ trợ lật gương cùng chiều."}
             </p>
           </div>
 
           <a
-            href={`${learningUrl}/courses`}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={currentCourse ? `/api/sso?target=/dashboard/courses/${currentCourse.id}` : "/api/sso?target=/dashboard/courses"}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -88,7 +104,7 @@ export default function PartnerCoursesPage() {
             }}
           >
             <PlayCircle size={18} />
-            <span>Xem Video Trên Web 2 LMS ↗</span>
+            <span>Vào Học Trên Web 2 LMS →</span>
           </a>
         </div>
       </div>
