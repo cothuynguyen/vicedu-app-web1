@@ -443,6 +443,15 @@ export async function enrollStudentByPartner(payload: {
       }).eq("id", studentUserId);
     }
 
+    // Đảm bảo mở khóa tài khoản Auth (Unban) nếu tài khoản này từng bị khóa do con nghỉ học ở VicEdu
+    try {
+      await lmsClient.auth.admin.updateUserById(studentUserId, {
+        ban_duration: 'none'
+      });
+    } catch (unbanErr) {
+      console.warn("Mở khóa auth user khi ghi danh đối tác:", unbanErr);
+    }
+
     // 4. Kiểm tra xem đã ghi danh vào khóa học này chưa
     const { data: existingEnr } = await lmsClient
       .from("course_enrollments")
