@@ -343,32 +343,66 @@ export async function enrollStudentByPartner(payload: {
     const email = `${cleanPhone}@vicedu.local`;
     let studentUserId: string | null = null;
 
-    // 2. Kiểm tra xem profile đã tồn tại trong LMS chưa
+    // 2. Kiểm tra xem profile đã tồn tại trong LMS chưa (theo phone hoặc email)
     const { data: existingProfiles } = await lmsClient
       .from("profiles")
-      .select("id, full_name, phone, email")
-      .or(`phone.eq.${cleanPhone},email.eq.${email}`)
+      .select("id, full_name, phone, email, role, branch, student_code")
+      .or(`phone.eq.${cleanPhone},email.eq.${email},email.eq.${cleanPhone}@vicedu.com`)
       .limit(1);
 
+    let isExistingVicUser = false;
+    let existingProfile: any = null;
+
     if (existingProfiles && existingProfiles.length > 0) {
-      studentUserId = existingProfiles[0].id;
+      existingProfile = existingProfiles[0];
+      studentUserId = existingProfile.id;
+      // Nếu là học viên/phụ huynh/nhân sự nội bộ VicEdu
+      if (["PARENTS", "STUDENT", "STAFF", "TEACHER", "SUPER_ADMIN"].includes(existingProfile.role)) {
+        isExistingVicUser = true;
+      }
     } else {
+      // Kiểm tra thêm xem SĐT này có phải phụ huynh trong bảng students của Web 1 CRM không
+      let detectedVicRole: string | null = null;
+      let detectedVicBranch: string | null = null;
+      let detectedParentName: string | null = null;
+
+      try {
+        const { data: crmStudents } = await crmClient
+          .from("students")
+          .select("parent_name, parent_phone, branch_id")
+          .eq("parent_phone", cleanPhone)
+          .limit(1);
+
+        if (crmStudents && crmStudents.length > 0) {
+          detectedVicRole = "PARENTS";
+          detectedVicBranch = crmStudents[0].branch_id;
+          detectedParentName = crmStudents[0].parent_name;
+          isExistingVicUser = true;
+        }
+      } catch (checkErr) {
+        console.warn("Check CRM parent phone skipped:", checkErr);
+      }
+
       // Thử tạo auth user trong LMS
+      const roleToCreate = detectedVicRole || "GUEST_STUDENT";
+      const branchToCreate = detectedVicBranch || "Đối tác";
+      const nameToCreate = detectedParentName || studentName.trim();
+
       const { data: authData, error: authErr } = await lmsClient.auth.admin.createUser({
         email,
         password: "Toiyeuvicedu",
         email_confirm: true,
         user_metadata: {
-          full_name: studentName.trim(),
+          full_name: nameToCreate,
           phone: cleanPhone,
-          role: "GUEST_STUDENT"
+          role: roleToCreate
         }
       });
 
       if (authErr) {
         if (authErr.message?.toLowerCase().includes("already") || (authErr as any).code === "email_exists") {
           const { data: userList } = await lmsClient.auth.admin.listUsers();
-          const matched = userList?.users?.find(u => u.email === email);
+          const matched = userList?.users?.find(u => u.email === email || u.user_metadata?.phone === cleanPhone);
           if (matched) {
             studentUserId = matched.id;
           } else {
@@ -380,22 +414,34 @@ export async function enrollStudentByPartner(payload: {
       } else if (authData?.user) {
         studentUserId = authData.user.id;
       }
+
+      // Khởi tạo profile cho user mới (nếu chưa có profile)
+      if (studentUserId) {
+        await lmsClient.from("profiles").upsert({
+          id: studentUserId,
+          full_name: nameToCreate,
+          phone: cleanPhone,
+          email,
+          role: roleToCreate,
+          student_code: `DT_${cleanPhone.slice(-6)}`,
+          branch: branchToCreate
+        }, { onConflict: "id" });
+      }
     }
 
     if (!studentUserId) {
       return { success: false, error: "Không thể khởi tạo tài khoản học viên trong hệ thống LMS" };
     }
 
-    // 3. Cập nhật / Upsert profile trong LMS
-    await lmsClient.from("profiles").upsert({
-      id: studentUserId,
-      full_name: studentName.trim(),
-      phone: cleanPhone,
-      email,
-      role: "GUEST_STUDENT",
-      student_code: `DT_${cleanPhone.slice(-6)}`,
-      branch: "Đối tác"
-    }, { onConflict: "id" });
+    // 3. NGUYÊN TẮC BẢO TỒN VAI TRÒ NỘI BỘ (ROLE PRESERVATION & SINGLE IDENTITY):
+    // NẾU ĐÃ LÀ Phụ huynh (PARENTS), Học viên Vic (STUDENT), Nhân viên (STAFF)...
+    // thì TUYỆT ĐỐI GIỮ NGUYÊN vai trò gốc, họ tên và chi nhánh của họ, KHÔNG bao giờ bị đè thành GUEST_STUDENT!
+    if (!isExistingVicUser && existingProfile) {
+      await lmsClient.from("profiles").update({
+        full_name: studentName.trim(),
+        phone: cleanPhone
+      }).eq("id", studentUserId);
+    }
 
     // 4. Kiểm tra xem đã ghi danh vào khóa học này chưa
     const { data: existingEnr } = await lmsClient
@@ -430,31 +476,42 @@ export async function enrollStudentByPartner(payload: {
       .eq("course_id", targetCourseId)
       .eq("user_id", studentUserId);
 
-    // 5. Đồng bộ vào CRM Leads (Web 1)
+    // 5. Đồng bộ vào CRM (Web 1)
     try {
-      await crmClient.from("leads").upsert({
-        phone: cleanPhone,
-        full_name: studentName.trim(),
-        email: email,
-        branch_id: "Đối tác",
-        status: "Đang học",
-        updated_at: new Date().toISOString()
-      }, { onConflict: "phone" });
+      if (!isExistingVicUser) {
+        await crmClient.from("leads").upsert({
+          phone: cleanPhone,
+          full_name: studentName.trim(),
+          email: email,
+          branch_id: "Đối tác",
+          status: "Đang học",
+          updated_at: new Date().toISOString()
+        }, { onConflict: "phone" });
+      }
 
       await crmClient.from("customer_activities").insert({
         phone: cleanPhone,
         activity_type: "PARTNER_ENROLL",
-        description: `Đối tác (${partnerEmail}) thêm học viên vào khóa học: "${targetCourseTitle}". Ghi chú: ${notes || "Không"}`,
+        description: isExistingVicUser
+          ? `Đối tác (${partnerEmail}) ghi danh thêm khóa học: "${targetCourseTitle}" cho Phụ huynh/Học viên nội bộ VicEdu. Ghi chú: ${notes || "Không"}`
+          : `Đối tác (${partnerEmail}) thêm học viên vào khóa học: "${targetCourseTitle}". Ghi chú: ${notes || "Không"}`,
         created_at: new Date().toISOString()
       });
     } catch (crmError) {
       console.warn("Lưu CRM Leads song song không bắt buộc có lỗi nhẹ:", crmError);
     }
 
+    let returnMessage = `Đã cấp quyền học thành công cho học viên ${studentName.trim()} (${cleanPhone})!`;
+    if (isExistingVicUser) {
+      const roleLabel = existingProfile?.role === "PARENTS" ? "Phụ huynh VicEdu" : existingProfile?.role === "STUDENT" ? "Học viên VicEdu" : "Thành viên VicEdu";
+      returnMessage = `Học viên ${studentName.trim()} (${cleanPhone}) đã là ${roleLabel}. Hệ thống đã tự động gán thêm khóa học "${targetCourseTitle}" vào tài khoản hiện tại mà vẫn bảo toàn 100% vai trò và dữ liệu gốc!`;
+    }
+
     return { 
       success: true, 
       studentId: studentUserId,
-      message: `Đã cấp quyền học thành công cho học viên ${studentName.trim()} (${cleanPhone})!`
+      isExistingVicUser,
+      message: returnMessage
     };
   } catch (err: any) {
     console.error("Lỗi khi đối tác thêm học viên:", err);
