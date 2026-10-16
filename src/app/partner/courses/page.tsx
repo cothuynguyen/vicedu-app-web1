@@ -205,7 +205,7 @@ export default function PartnerCoursesPage() {
                     </span>
 
                     <a
-                      href="/api/sso?target=/dashboard/courses?type=parents"
+                      href="/api/sso?target=/dashboard/courses/d0100000-0000-0000-0000-000000000001"
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
