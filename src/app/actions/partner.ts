@@ -122,6 +122,73 @@ export async function getPartnerCourses(userEmail: string, userDepartment?: stri
   }
 }
 
+export interface CourseLessonItem {
+  id: string;
+  title: string;
+  order: number;
+  duration?: string;
+  isFree?: boolean;
+  type?: string;
+}
+
+export interface CourseModuleItem {
+  id: string;
+  title: string;
+  order: number;
+  lessons: CourseLessonItem[];
+}
+
+export async function getCourseModulesAndLessons(courseId: string) {
+  try {
+    if (!courseId) return { success: true, data: [] };
+
+    // 1. Lấy danh sách modules (Chương / Học phần)
+    const { data: modules, error: modErr } = await lmsClient
+      .from("course_modules")
+      .select("id, title, order")
+      .eq("course_id", courseId)
+      .order("order", { ascending: true });
+
+    if (modErr) throw modErr;
+    if (!modules || modules.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    const moduleIds = modules.map(m => m.id);
+
+    // 2. Lấy danh sách bài học thực tế
+    const { data: lessons, error: lesErr } = await lmsClient
+      .from("course_lessons")
+      .select("id, module_id, title, order, is_free, type, youtube_id")
+      .in("module_id", moduleIds)
+      .order("order", { ascending: true });
+
+    if (lesErr) throw lesErr;
+
+    const result: CourseModuleItem[] = modules.map(m => ({
+      id: m.id,
+      title: m.title,
+      order: m.order,
+      lessons: (lessons || [])
+        .filter(l => l.module_id === m.id)
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map(l => ({
+          id: l.id,
+          title: l.title,
+          order: l.order,
+          duration: l.type === "quiz" ? "Trắc nghiệm" : (l.youtube_id ? "Video YouTube" : "Bài giảng"),
+          isFree: Boolean(l.is_free),
+          type: l.type || "video"
+        }))
+    }));
+
+    return { success: true, data: result };
+  } catch (err: any) {
+    console.error("Lỗi getCourseModulesAndLessons:", err);
+    return { success: false, error: err.message, data: [] };
+  }
+}
+
 const crmClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qrvxaoabzhxgcjjejffq.supabase.co",
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
