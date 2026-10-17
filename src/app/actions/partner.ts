@@ -599,3 +599,109 @@ export async function getFilterCourseSources() {
   }
 }
 
+export async function getPartnerPracticeSubmissions(partnerEmail?: string) {
+  try {
+    const { data: subs, error } = await lmsClient
+      .from("test_submissions")
+      .select("*")
+      .order("submitted_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    const practiceSubs = (subs || [])
+      .filter((s: any) => s.answers?.submission_type === "PRACTICE_REVIEW")
+      .map((s: any) => ({
+        id: s.id,
+        studentName: s.full_name || "Học viên VIP",
+        studentPhone: s.phone || "",
+        courseTitle: s.answers?.course_title || "Khóa học",
+        lessonTitle: s.answers?.lesson_title || "Bài thực hành",
+        submittedAt: s.submitted_at ? new Date(s.submitted_at).toLocaleString("vi-VN") : "",
+        videoUrl: s.answers?.video_url || "",
+        status: (s.status === "graded" || s.status === "reviewed" || s.teacher_feedback) ? ("reviewed" as const) : ("pending" as const),
+        studentNotes: s.answers?.student_notes || "",
+        teacherFeedback: s.teacher_feedback || "",
+        score: s.score || 5
+      }));
+
+    return { success: true, data: practiceSubs };
+  } catch (err: any) {
+    console.error("Lỗi getPartnerPracticeSubmissions:", err);
+    return { success: false, data: [] };
+  }
+}
+
+export async function submitPracticeFeedback(submissionId: string, feedback: string, score: number = 5) {
+  try {
+    const { data: subData, error: fetchErr } = await lmsClient
+      .from("test_submissions")
+      .select("*")
+      .eq("id", submissionId)
+      .maybeSingle();
+
+    if (fetchErr) console.warn("Lỗi fetch submission:", fetchErr);
+
+    const { error } = await lmsClient
+      .from("test_submissions")
+      .update({
+        teacher_feedback: feedback.trim(),
+        score,
+        status: "reviewed",
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", submissionId);
+
+    if (error) throw error;
+
+    // Đồng bộ CRM & gửi thông báo cho học viên
+    if (subData?.answers) {
+      const answers = subData.answers;
+      const studentPhone = answers.user_phone || subData.phone || "";
+      const cleanPhone = studentPhone.replace(/\D/g, "");
+      const lessonTitle = answers.lesson_title || "Bài thực hành";
+
+      if (cleanPhone) {
+        // 1. Ghi nhận customer_activities trong CRM
+        const { data: customer } = await crmClient
+          .from("customers")
+          .select("id")
+          .ilike("phone", `%${cleanPhone.slice(-9)}%`)
+          .maybeSingle();
+
+        if (customer?.id) {
+          await crmClient.from("customer_activities").insert({
+            customer_id: customer.id,
+            activity_type: "PRACTICE_REVIEWED",
+            notes: `Giảng viên đã nhận xét bài thực hành [${lessonTitle}]: "${feedback.trim().substring(0, 120)}..." (Điểm: ${score} sao)`,
+            created_by: "system"
+          });
+        }
+
+        // 2. Gửi chuông thông báo cho tài khoản học viên (nếu có trên CRM)
+        const { data: studentUser } = await crmClient
+          .from("users")
+          .select("id")
+          .ilike("phone", `%${cleanPhone.slice(-9)}%`)
+          .maybeSingle();
+
+        if (studentUser?.id) {
+          await crmClient.from("notifications").insert({
+            user_id: studentUser.id,
+            title: `🎉 Thầy đã nhận xét bài của bạn!`,
+            content: `Thầy đã nhận xét bài "${lessonTitle}". Hãy vào khóa học để xem chi tiết góp ý nhé!`,
+            link_url: answers.course_id ? `/dashboard/courses/${answers.course_id}` : `/courses`,
+            reference_id: submissionId
+          });
+        }
+      }
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Lỗi submitPracticeFeedback:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+
