@@ -81,12 +81,6 @@ const DEMO_SUBMISSIONS: Submission[] = [
   }
 ];
 
-const PRESET_FEEDBACKS = [
-  "💃 Động tác tay rất mềm và bắt đúng nhịp! Cố gắng giữ mắt nhìn thẳng ngang tầm mắt khi xoay nhé.",
-  "👍 Trọng tâm cơ thể chuyển rất chuẩn! Chú ý hơi chùng đầu gối một chút ở phách 2 để chuyển bước mượt hơn.",
-  "✨ Thần thái tuyệt vời! Bước chân dứt khoát, bạn hoàn toàn có thể tự tin chuyển sang bài tiếp theo.",
-  "🎯 Lưu ý giữ lưng thẳng và mở vai ra phía sau một chút, động tác sẽ thanh thoát hơn rất nhiều."
-];
 
 export default function PartnerSubmissionsPage() {
   const { user } = useAuth();
@@ -604,7 +598,7 @@ export default function PartnerSubmissionsPage() {
                 <textarea
                   required
                   rows={4}
-                  placeholder="Ví dụ: Bước chân rất đều nhịp! Chú ý khi chuyển bước sang chân phải thì hơi hạ thấp trọng tâm một chút sẽ vững hơn nhé..."
+                  placeholder="Nhập lời nhận xét, góp ý chuyên môn hoặc dặn dò học viên..."
                   value={feedbackInput}
                   onChange={(e) => setFeedbackInput(e.target.value)}
                   style={{
@@ -617,34 +611,6 @@ export default function PartnerSubmissionsPage() {
                     boxSizing: "border-box"
                   }}
                 />
-              </div>
-
-              {/* Quick feedback suggestions */}
-              <div>
-                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "6px" }}>
-                  Gợi ý nhận xét nhanh (bấm để điền):
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  {PRESET_FEEDBACKS.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setFeedbackInput(preset)}
-                      style={{
-                        textAlign: "left",
-                        padding: "6px 10px",
-                        borderRadius: "6px",
-                        backgroundColor: "#f1f5f9",
-                        border: "1px solid #e2e8f0",
-                        color: "#334155",
-                        fontSize: "0.78rem",
-                        cursor: "pointer"
-                      }}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Zalo Fast Action in Modal */}
