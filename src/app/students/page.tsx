@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Users, Phone, MapPin, Calendar, Clock, DollarSign, BookOpen, Upload, Download, AlertCircle, LayoutGrid, List, ChevronDown } from "lucide-react";
+import { Plus, Search, Users, Phone, MapPin, Calendar, Clock, DollarSign, BookOpen, Upload, Download, AlertCircle, LayoutGrid, List, ChevronDown, Package, Zap } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import StudentModal from "@/components/students/StudentModal";
 import ImportStudentsModal from "@/components/students/ImportStudentsModal";
 import CreateTaskModal from "@/components/students/CreateTaskModal";
+import PadletPoolModal from "@/components/students/PadletPoolModal";
+import { getPadletPoolStats, assignPadletToExistingStudent, PadletPoolStats } from "@/app/actions/padletPool";
 import Image from "next/image";
 import "./Students.css";
 
@@ -61,6 +63,42 @@ export default function StudentsPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // Padlet Pool States
+  const [showPadletPoolModal, setShowPadletPoolModal] = useState(false);
+  const [padletPoolStats, setPadletPoolStats] = useState<PadletPoolStats | null>(null);
+  const [quickAssigningId, setQuickAssigningId] = useState<string | null>(null);
+
+  const fetchPadletStats = async () => {
+    const res = await getPadletPoolStats();
+    if (res.success && res.data) {
+      setPadletPoolStats(res.data);
+    }
+  };
+
+  useEffect(() => {
+    fetchPadletStats();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("openPadletPool") === "true") {
+        setShowPadletPoolModal(true);
+      }
+    }
+  }, []);
+
+  const handleQuickAssignPadlet = async (stu: any) => {
+    setQuickAssigningId(stu.id);
+    const res = await assignPadletToExistingStudent(stu.id, stu.full_name);
+    setQuickAssigningId(null);
+    if (res.success) {
+      alert(`🎉 Đã cấp thành công Padlet từ kho cho ${stu.full_name}!\n(Link: ${res.padlet_url})`);
+      fetchData(true);
+      fetchPadletStats();
+    } else {
+      alert(res.error || "Kho Padlet đã hết link dự trữ! Vui lòng nạp thêm link vào kho.");
+      setShowPadletPoolModal(true);
+    }
+  };
 
   const activeRole = user?.role || "User";
   const activeBranch = user?.branch_id || "Việt Trì 1";
@@ -517,6 +555,29 @@ export default function StudentsPage() {
                   </button>
                 </>
               )}
+              {/* NÚT KHO PADLET DỰ TRỮ */}
+              <button 
+                type="button"
+                className="btn"
+                onClick={() => setShowPadletPoolModal(true)}
+                style={{
+                  backgroundColor: (padletPoolStats?.available || 0) <= 5 ? "#dc2626" : "#4f46e5",
+                  color: "white",
+                  border: "none",
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  boxShadow: (padletPoolStats?.available || 0) <= 5 ? "0 0 12px rgba(220, 38, 38, 0.4)" : "none"
+                }}
+                title="Quản lý kho link và API Padlet dự trữ"
+              >
+                <Package size={18} style={{ marginRight: '0.5rem' }} />
+                <span>
+                  {(padletPoolStats?.available || 0) <= 5 
+                    ? `⚠️ Kho Padlet: Sắp hết (${padletPoolStats?.available || 0})` 
+                    : `📦 Kho Padlet (${padletPoolStats?.available || 0})`}
+                </span>
+              </button>
               <button className="btn btn-primary" onClick={openCreateModal}>
                 <Plus size={18} style={{ marginRight: '0.5rem' }} />
                 <span>Thêm Học viên mới</span>
@@ -716,8 +777,18 @@ export default function StudentsPage() {
                               <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                 {stu.id}
                                 {activeRole === "Super Admin" && !hasPadlet && (
-                                  <span style={{ color: '#ef4444', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(239, 68, 68, 0.1)', padding: '1px 4px', borderRadius: '4px' }}>
-                                    <AlertCircle size={10} /> Thiếu Padlet
+                                  <span style={{ color: '#ef4444', fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}><AlertCircle size={10} /> Thiếu Padlet</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleQuickAssignPadlet(stu); }}
+                                      disabled={quickAssigningId === stu.id}
+                                      style={{ padding: '1px 6px', borderRadius: '4px', backgroundColor: '#10b981', color: 'white', border: 'none', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                                      title="Lấy ngay 1 link từ kho cấp cho học viên này"
+                                    >
+                                      <Zap size={10} />
+                                      <span>{quickAssigningId === stu.id ? '...' : 'Cấp ngay'}</span>
+                                    </button>
                                   </span>
                                 )}
                               </div>
@@ -802,11 +873,20 @@ export default function StudentsPage() {
                           borderRadius: '4px', 
                           fontSize: '0.68rem', 
                           fontWeight: 600,
-                          gap: '2px',
-                          cursor: 'help'
+                          gap: '4px',
                         }}
                       >
-                        <AlertCircle size={10} /> Thiếu Padlet
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}><AlertCircle size={10} /> Thiếu Padlet</span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleQuickAssignPadlet(stu); }}
+                          disabled={quickAssigningId === stu.id}
+                          style={{ padding: '1px 6px', borderRadius: '4px', backgroundColor: '#10b981', color: 'white', border: 'none', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                          title="Lấy ngay 1 link từ kho cấp cho học viên này"
+                        >
+                          <Zap size={10} />
+                          <span>{quickAssigningId === stu.id ? '...' : 'Cấp ngay'}</span>
+                        </button>
                       </span>
                     )}
                   </div>
@@ -973,6 +1053,13 @@ export default function StudentsPage() {
           isGlobalRole={isGlobalRole}
         />
       )}
+
+      {/* Kho Padlet Dự Trữ Modal */}
+      <PadletPoolModal 
+        isOpen={showPadletPoolModal} 
+        onClose={() => { setShowPadletPoolModal(false); fetchPadletStats(); }} 
+        onAssignedChange={() => { fetchData(true); fetchPadletStats(); }} 
+      />
     </>
 
 

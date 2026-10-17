@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { syncStudentAuthAccount } from "@/app/actions/studentAuth";
-import { X, Upload, Trash2, Edit, Clock, DollarSign, PlusCircle, ExternalLink, Camera, ChevronLeft, ChevronRight } from "lucide-react";
+import { popAvailablePadlet, assignPadletToExistingStudent } from "@/app/actions/padletPool";
+import { X, Upload, Trash2, Edit, Clock, DollarSign, PlusCircle, ExternalLink, Camera, ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { compressImage, compressDocumentImage } from "@/utils/imageCompressor";
 import { uploadImageToCloudflare } from "@/utils/uploadImage";
@@ -664,12 +665,32 @@ export default function StudentModal({
       if (!payload.id) {
         payload.id = `HV${Date.now().toString().slice(-5)}`;
       }
+
+      // TỰ ĐỘNG CẤP LINK & API PADLET TỪ KHO DỰ TRỮ NẾU CHƯA CÓ
+      let autoAssignedPadlet = false;
+      if (!payload.padlet_url || !payload.padlet_api) {
+        try {
+          const popRes = await popAvailablePadlet(payload.id, payload.full_name);
+          if (popRes.success && popRes.padlet) {
+            payload.padlet_url = popRes.padlet.padlet_url;
+            payload.padlet_api = popRes.padlet.padlet_api;
+            autoAssignedPadlet = true;
+          }
+        } catch (padletErr) {
+          console.warn("Tự động cấp Padlet từ kho:", padletErr);
+        }
+      }
+
       const { error } = await supabase.from("students").insert([payload]);
       if (error) {
         alert("Lỗi khi tạo học viên: " + error.message);
         return;
       }
-      alert(`Đã thêm học viên ${payload.full_name} thành công!`);
+
+      const successMsg = autoAssignedPadlet
+        ? `Đã thêm học viên ${payload.full_name} thành công!\n(✓ Hệ thống đã tự động cấp Link & API Padlet từ kho dự trữ)`
+        : `Đã thêm học viên ${payload.full_name} thành công!`;
+      alert(successMsg);
     }
 
     // Tự động đồng bộ tài khoản Đăng nhập (Auth) nếu có email
@@ -679,6 +700,24 @@ export default function StudentModal({
 
     onSuccess();
     onClose();
+  };
+
+  const [assigningPadlet, setAssigningPadlet] = useState(false);
+  const handleAssignFromPool = async () => {
+    if (!studentId) return;
+    setAssigningPadlet(true);
+    const res = await assignPadletToExistingStudent(studentId, formData.full_name);
+    setAssigningPadlet(false);
+    if (res.success && res.padlet_url) {
+      setFormData(prev => ({
+        ...prev,
+        padlet_url: res.padlet_url || "",
+        padlet_api: res.padlet_api || ""
+      }));
+      alert(`🎉 Đã cấp thành công Padlet từ kho dự trữ cho học viên ${formData.full_name}!`);
+    } else {
+      alert(res.error || "Kho Padlet đã hết link dự trữ!");
+    }
   };
 
   const academicStaff = staffList.filter(s => s.department && s.department.includes("Đào tạo") && s.status !== "Nghỉ việc");
@@ -996,7 +1035,33 @@ export default function StudentModal({
             {activeTab === 'training' && studentId && (
               <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                 <div className="form-group" style={{ gridColumn: 'span 3' }}>
-                  <label>Link Padlet học tập</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ margin: 0 }}>Link Padlet học tập</label>
+                    {(!formData.padlet_url || !formData.padlet_api) && (
+                      <button
+                        type="button"
+                        onClick={handleAssignFromPool}
+                        disabled={assigningPadlet}
+                        style={{
+                          padding: "3px 10px",
+                          borderRadius: "6px",
+                          backgroundColor: "#10b981",
+                          color: "white",
+                          border: "none",
+                          fontSize: "0.78rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
+                        title="Tự động lấy 1 link và API từ kho dự trữ điền vào đây"
+                      >
+                        <Zap size={13} />
+                        <span>{assigningPadlet ? "Đang lấy..." : "⚡ Cấp từ Kho dự trữ"}</span>
+                      </button>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input type="url" value={formData.padlet_url} onChange={e => setFormData({ ...formData, padlet_url: e.target.value })} placeholder="https://padlet.com/..." style={{ flex: 1 }} />
                     {formData.padlet_url && (

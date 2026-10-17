@@ -4,6 +4,7 @@ import React, { useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, Download, AlertCircle, Upload, FileSpreadsheet } from "lucide-react";
 import * as XLSX from "xlsx";
+import { popAvailablePadlet } from "@/app/actions/padletPool";
 
 interface ImportStudentsModalProps {
   isOpen: boolean;
@@ -141,13 +142,29 @@ export default function ImportStudentsModal({
           const remainingCost = parseCost(row["Tổng chi phí còn lại"]);
           const validCost = remainingCost > 0 ? remainingCost : 0;
 
+          let padletUrl = String(row["Link Padlet Học tập"] || "").trim();
+          let padletApi = String(row["Padlet API"] || "").trim();
+
+          // Tự động cấp từ Kho Padlet nếu trống trong file Excel
+          if (!padletUrl && !padletApi) {
+            try {
+              const pooled = await popAvailablePadlet(nextId, fullName);
+              if (pooled.success && pooled.padlet) {
+                padletUrl = pooled.padlet.padlet_url;
+                padletApi = pooled.padlet.padlet_api;
+              }
+            } catch (pErr) {
+              console.warn("Không thể bốc link từ Kho Padlet:", pErr);
+            }
+          }
+
           const studentPayload = {
             id: nextId,
             branch_id: branchName,
             full_name: fullName,
             nickname: String(row["Nick name"] || ""),
-            padlet_url: String(row["Link Padlet Học tập"] || ""),
-            padlet_api: String(row["Padlet API"] || ""),
+            padlet_url: padletUrl,
+            padlet_api: padletApi,
             gender: String(row["Giới tính"] || "Nam"),
             dob: row["Ngày sinh"] ? String(row["Ngày sinh"]) : null,
             school: String(row["Trường đang học"] || ""),
