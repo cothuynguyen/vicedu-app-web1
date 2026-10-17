@@ -75,7 +75,14 @@ export default function LeadsCRM() {
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>("");
   const [selectedSurveyFilter, setSelectedSurveyFilter] = useState<string>("");
   
-  const BRANCHES = ["Chỉ Admin được dùng", "Việt Trì", "Dân Hòa", "Lâm Thao", "Tuyên Quang"];
+  const BRANCHES = [
+    { value: "ONLINE", label: "🌐 ONLINE (Khóa học/CLB)" },
+    { value: "Chỉ Admin được dùng", label: "Chỉ Admin được dùng" },
+    { value: "Việt Trì", label: "Việt Trì" },
+    { value: "Dân Hòa", label: "Dân Hòa" },
+    { value: "Lâm Thao", label: "Lâm Thao" },
+    { value: "Tuyên Quang", label: "Tuyên Quang" }
+  ];
   
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -107,7 +114,7 @@ export default function LeadsCRM() {
     
     if (!isSuperAdmin) {
       if (user?.branch_id) {
-        const BASE_BRANCHES = ["Việt Trì", "Dân Hòa", "Lâm Thao", "Tuyên Quang"];
+        const BASE_BRANCHES = ["Việt Trì", "Dân Hòa", "Lâm Thao", "Tuyên Quang", "ONLINE"];
         const userBaseBranches = BASE_BRANCHES.filter(b => user.branch_id?.includes(b));
         if (userBaseBranches.length > 0) {
           query = query.in("branch_id", userBaseBranches);
@@ -134,7 +141,7 @@ export default function LeadsCRM() {
       
       if (!isSuperAdmin) {
         if (user?.branch_id) {
-          const BASE_BRANCHES = ["Việt Trì", "Dân Hòa", "Lâm Thao", "Tuyên Quang"];
+          const BASE_BRANCHES = ["Việt Trì", "Dân Hòa", "Lâm Thao", "Tuyên Quang", "ONLINE"];
           const userBaseBranches = BASE_BRANCHES.filter(b => user.branch_id?.includes(b));
           if (userBaseBranches.length > 0) {
             query = query.in("branch_id", userBaseBranches);
@@ -692,7 +699,7 @@ export default function LeadsCRM() {
                 >
                   <option value="">Tất cả chi nhánh</option>
                   {BRANCHES.map(b => (
-                    <option key={b} value={b}>{b}</option>
+                    <option key={b.value} value={b.value}>{b.label}</option>
                   ))}
                 </select>
               </div>
@@ -914,7 +921,17 @@ export default function LeadsCRM() {
                 <div style={{ fontSize: '0.825rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Phone size={13} /> {lead.phone}</span>
                   {isSuperAdmin && (
-                    <span style={{ fontSize: '0.7rem', background: 'rgba(139, 92, 246, 0.1)', color: '#6d28d9', padding: '1px 6px', borderRadius: '4px' }}>{lead.branch_id}</span>
+                    <span style={{ 
+                      fontSize: '0.7rem', 
+                      background: lead.branch_id === 'ONLINE' ? 'rgba(37, 99, 235, 0.15)' : 'rgba(139, 92, 246, 0.1)', 
+                      color: lead.branch_id === 'ONLINE' ? '#1d4ed8' : '#6d28d9', 
+                      padding: '2px 8px', 
+                      borderRadius: '4px',
+                      fontWeight: lead.branch_id === 'ONLINE' ? 700 : 500,
+                      border: lead.branch_id === 'ONLINE' ? '1px solid rgba(37, 99, 235, 0.3)' : 'none'
+                    }}>
+                      {lead.branch_id === 'ONLINE' ? '🌐 ONLINE' : lead.branch_id}
+                    </span>
                   )}
                 </div>
 
