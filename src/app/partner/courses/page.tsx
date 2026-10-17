@@ -225,7 +225,7 @@ export default function PartnerCoursesPage() {
                     </span>
 
                     <a
-                      href={`/api/sso?target=/dashboard/courses/${currentCourse?.id || 'd0100000-0000-0000-0000-000000000001'}`}
+                      href={`/api/sso?target=${currentCourse?.id ? `/dashboard/courses/${currentCourse.id}` : '/dashboard/classroom'}`}
                       style={{
                         padding: "0.45rem 0.85rem",
                         borderRadius: "6px",
