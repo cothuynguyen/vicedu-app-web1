@@ -145,6 +145,7 @@ export interface PartnerStudentItem {
   lastLesson: string;
   joinDate: string;
   notes: string;
+  isVip?: boolean;
 }
 
 export async function getPartnerStudents(userEmail: string, userDepartment?: string) {
@@ -177,7 +178,7 @@ export async function getPartnerStudents(userEmail: string, userDepartment?: str
     // 3. Lấy thông tin profiles
     const { data: profiles, error: profError } = await lmsClient
       .from("profiles")
-      .select("id, full_name, email, phone, student_code, branch, role")
+      .select("id, full_name, email, phone, student_code, branch, role, job_title")
       .in("id", userIds);
 
     if (profError) throw profError;
@@ -273,6 +274,7 @@ export async function getPartnerStudents(userEmail: string, userDepartment?: str
       }
 
       const joinDateStr = enr.created_at ? new Date(enr.created_at).toLocaleDateString("vi-VN") : "Hôm nay";
+      const isStudentVip = Boolean(prof?.job_title?.includes("VIP"));
 
       return {
         id: enr.user_id,
@@ -284,7 +286,8 @@ export async function getPartnerStudents(userEmail: string, userDepartment?: str
         progress: progressPercent,
         lastLesson: lastLessonName,
         joinDate: joinDateStr,
-        notes: prof?.student_code ? `Mã: ${prof.student_code}` : "Đang học tích cực"
+        notes: prof?.student_code ? `Mã: ${prof.student_code}` : "Đang học tích cực",
+        isVip: isStudentVip
       };
     });
 
@@ -303,9 +306,10 @@ export async function enrollStudentByPartner(payload: {
   studentAge?: number;
   notes?: string;
   courseId?: string;
+  isVip?: boolean;
 }) {
   try {
-    const { partnerEmail, partnerDepartment, studentName, studentPhone, studentAge, notes, courseId } = payload;
+    const { partnerEmail, partnerDepartment, studentName, studentPhone, studentAge, notes, courseId, isVip } = payload;
 
     if (!partnerEmail) {
       return { success: false, error: "Thiếu thông tin tài khoản đối tác" };
@@ -424,7 +428,8 @@ export async function enrollStudentByPartner(payload: {
           email,
           role: roleToCreate,
           student_code: `DT_${cleanPhone.slice(-6)}`,
-          branch: branchToCreate
+          branch: branchToCreate,
+          job_title: isVip ? "Học viên VIP" : "Học viên"
         }, { onConflict: "id" });
       }
     }
@@ -439,7 +444,13 @@ export async function enrollStudentByPartner(payload: {
     if (!isExistingVicUser && existingProfile) {
       await lmsClient.from("profiles").update({
         full_name: studentName.trim(),
-        phone: cleanPhone
+        phone: cleanPhone,
+        job_title: isVip ? "Học viên VIP" : (existingProfile.job_title || "Học viên")
+      }).eq("id", studentUserId);
+    } else if (isExistingVicUser && isVip) {
+      // Nếu là học viên/phụ huynh VicEdu được cấp gói VIP đối tác
+      await lmsClient.from("profiles").update({
+        job_title: "Học viên VIP"
       }).eq("id", studentUserId);
     }
 
@@ -700,6 +711,21 @@ export async function submitPracticeFeedback(submissionId: string, feedback: str
     return { success: true };
   } catch (err: any) {
     console.error("Lỗi submitPracticeFeedback:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function toggleStudentVipStatusByPartner(userId: string, isVip: boolean) {
+  try {
+    if (!userId) return { success: false, error: "Thiếu mã học viên" };
+    const { error } = await lmsClient
+      .from("profiles")
+      .update({ job_title: isVip ? "Học viên VIP" : "Học viên" })
+      .eq("id", userId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Lỗi toggleStudentVipStatusByPartner:", err);
     return { success: false, error: err.message };
   }
 }

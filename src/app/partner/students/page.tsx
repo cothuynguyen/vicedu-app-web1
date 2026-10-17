@@ -7,6 +7,7 @@ import {
   getPartnerStudents, 
   enrollStudentByPartner, 
   removeStudentByPartner,
+  toggleStudentVipStatusByPartner,
   PartnerStudentItem, 
   PartnerCourse 
 } from "@/app/actions/partner";
@@ -25,7 +26,8 @@ import {
   AlertCircle,
   Loader2,
   BookOpen,
-  Copy
+  Copy,
+  Crown
 } from "lucide-react";
 
 export default function PartnerStudentsPage() {
@@ -44,6 +46,7 @@ export default function PartnerStudentsPage() {
   const [newStudentPhone, setNewStudentPhone] = useState("");
   const [newStudentAge, setNewStudentAge] = useState("");
   const [newStudentNote, setNewStudentNote] = useState("");
+  const [newStudentIsVip, setNewStudentIsVip] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -116,7 +119,8 @@ export default function PartnerStudentsPage() {
       studentPhone: newStudentPhone.trim(),
       studentAge: newStudentAge ? parseInt(newStudentAge) : undefined,
       notes: newStudentNote.trim(),
-      courseId: courseToEnroll
+      courseId: courseToEnroll,
+      isVip: newStudentIsVip
     });
 
     setIsSubmitting(false);
@@ -127,11 +131,34 @@ export default function PartnerStudentsPage() {
       setNewStudentPhone("");
       setNewStudentAge("");
       setNewStudentNote("");
+      setNewStudentIsVip(false);
       setShowAddModal(false);
       // Tải lại danh sách từ LMS
       fetchStudents();
     } else {
       setModalError(res.error || "Đã xảy ra lỗi khi cấp tài khoản học viên.");
+    }
+  };
+
+  const handleToggleVip = async (st: PartnerStudentItem) => {
+    const targetStatus = !st.isVip;
+    const confirmMsg = targetStatus
+      ? `Nâng cấp học viên "${st.name}" lên GÓI VIP (Kèm 1-1, mở quyền nộp bài Padlet & Zalo)?`
+      : `Hạ học viên "${st.name}" về GÓI THƯỜNG (Chỉ tự học qua video)?`;
+    
+    if (!window.confirm(confirmMsg)) return;
+
+    const res = await toggleStudentVipStatusByPartner(st.id, targetStatus);
+    if (res.success) {
+      setToastMessage({ 
+        type: "success", 
+        text: targetStatus 
+          ? `🎉 Đã nâng cấp thành công học viên ${st.name} lên Gói VIP!` 
+          : `Đã chuyển học viên ${st.name} về Gói Thường.` 
+      });
+      fetchStudents();
+    } else {
+      setToastMessage({ type: "error", text: res.error || "Không thể cập nhật hạng gói" });
     }
   };
 
@@ -153,7 +180,11 @@ export default function PartnerStudentsPage() {
       ? "http://localhost:3001" 
       : "https://hoc.viceduvn.com";
     
-    const text = `Chào bạn/chị ${st.name},\n${user?.full_name || "Thầy"} đã kích hoạt tài khoản học khóa "${st.course}" trên hệ thống VicEdu:\n\n🌐 Cổng học tập: ${learningUrl}\n📱 Tên đăng nhập (SĐT): ${st.phone}\n🔑 Mật khẩu mặc định: Toiyeuvicedu\n\nChúc bạn/chị có những buổi học và luyện tập thật hiệu quả!`;
+    const vipNote = st.isVip 
+      ? `⭐ ĐẶC QUYỀN VIP CỦA BẠN: Bạn được cấp quyền nộp video thực hành từng bài lên Padlet và được Thầy trực tiếp xem, chỉnh sửa qua Zalo cá nhân nhé!`
+      : `💡 Lưu ý: Bạn đang học với Gói Tự Học qua video bài giảng.`;
+
+    const text = `Chào bạn/chị ${st.name},\n${user?.full_name || "Thầy"} đã kích hoạt tài khoản học khóa "${st.course}" [${st.isVip ? "👑 GÓI VIP KÈM 1-1" : "GÓI TỰ HỌC"}] trên hệ thống VicEdu:\n\n🌐 Cổng học tập: ${learningUrl}\n📱 Tên đăng nhập (SĐT): ${st.phone}\n🔑 Mật khẩu mặc định: Toiyeuvicedu\n\n${vipNote}\n\nChúc bạn/chị có những buổi học và luyện tập thật hiệu quả!`;
     
     navigator.clipboard.writeText(text);
     setToastMessage({ type: "success", text: `Đã sao chép tin nhắn tài khoản của học viên ${st.name}!` });
@@ -348,6 +379,7 @@ export default function PartnerStudentsPage() {
                   <th style={{ padding: "0.85rem 1.25rem" }}>Học viên</th>
                   <th style={{ padding: "0.85rem 1rem" }}>Số điện thoại</th>
                   <th style={{ padding: "0.85rem 1rem" }}>Khóa học</th>
+                  <th style={{ padding: "0.85rem 1rem", textAlign: "center" }}>Gói học</th>
                   <th style={{ padding: "0.85rem 1rem" }}>Tiến độ bài học</th>
                   <th style={{ padding: "0.85rem 1rem" }}>Bài gần nhất</th>
                   <th style={{ padding: "0.85rem 1.25rem", textAlign: "center" }}>Tương tác & Quản lý</th>
@@ -356,7 +388,7 @@ export default function PartnerStudentsPage() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ padding: "4rem 2rem", textAlign: "center", color: "#94a3b8" }}>
+                    <td colSpan={7} style={{ padding: "4rem 2rem", textAlign: "center", color: "#94a3b8" }}>
                       <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>👥</div>
                       <div style={{ fontWeight: 700, color: "#334155", fontSize: "1.05rem", marginBottom: "0.25rem" }}>
                         {searchTerm ? "Không tìm thấy học viên nào phù hợp" : "Chưa có học viên nào trong khóa học"}
@@ -429,6 +461,41 @@ export default function PartnerStudentsPage() {
                         </div>
                       </td>
 
+                      <td style={{ padding: "1rem 1rem", textAlign: "center" }}>
+                        {st.isVip ? (
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            backgroundColor: "#fef3c7",
+                            color: "#b45309",
+                            padding: "4px 9px",
+                            borderRadius: "9999px",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            border: "1px solid #fde68a",
+                            boxShadow: "0 1px 2px rgba(245, 158, 11, 0.15)"
+                          }}>
+                            <Crown size={12} color="#b45309" />
+                            <span>VIP (Kèm 1-1)</span>
+                          </span>
+                        ) : (
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            backgroundColor: "#f1f5f9",
+                            color: "#64748b",
+                            padding: "4px 9px",
+                            borderRadius: "9999px",
+                            fontSize: "0.75rem",
+                            fontWeight: 600
+                          }}>
+                            Tự học
+                          </span>
+                        )}
+                      </td>
+
                       <td style={{ padding: "1rem 1rem", minWidth: "160px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                           <div style={{ flex: 1, height: "7px", backgroundColor: "#e2e8f0", borderRadius: "4px", overflow: "hidden" }}>
@@ -454,7 +521,31 @@ export default function PartnerStudentsPage() {
                       </td>
 
                       <td style={{ padding: "1rem 1.25rem", textAlign: "center" }}>
-                        <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          {/* Nút nâng / hạ VIP nhanh */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleVip(st)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              padding: "0.45rem 0.65rem",
+                              borderRadius: "8px",
+                              backgroundColor: st.isVip ? "#f8fafc" : "#fffbeb",
+                              color: st.isVip ? "#64748b" : "#b45309",
+                              border: st.isVip ? "1px solid #cbd5e1" : "1px solid #fde68a",
+                              fontSize: "0.78rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              transition: "all 0.15s"
+                            }}
+                            title={st.isVip ? "Hạ về Gói Thường (Chỉ tự học qua video)" : "Nâng cấp lên Gói VIP (Kèm 1-1 qua Padlet & Zalo)"}
+                          >
+                            <Crown size={12} color={st.isVip ? "#64748b" : "#b45309"} />
+                            <span>{st.isVip ? "Hạ Thường" : "Lên VIP"}</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => handleCopyCredentials(st)}
@@ -462,19 +553,19 @@ export default function PartnerStudentsPage() {
                               display: "inline-flex",
                               alignItems: "center",
                               gap: "4px",
-                              padding: "0.45rem 0.75rem",
+                              padding: "0.45rem 0.65rem",
                               borderRadius: "8px",
                               backgroundColor: "#f8fafc",
                               color: "#334155",
                               border: "1px solid #cbd5e1",
-                              fontSize: "0.8rem",
+                              fontSize: "0.78rem",
                               fontWeight: 600,
                               cursor: "pointer",
                               transition: "background 0.15s"
                             }}
                             title="Sao chép tin nhắn tài khoản để gửi cho học viên qua Zalo/SMS"
                           >
-                            <Copy size={13} color="#475569" />
+                            <Copy size={12} color="#475569" />
                             <span>Copy TK</span>
                           </button>
 
@@ -639,6 +730,54 @@ export default function PartnerStudentsPage() {
                   </div>
                 </div>
               ) : null}
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+                  Hạng gói học *
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setNewStudentIsVip(false)}
+                    style={{
+                      padding: "0.65rem 0.75rem",
+                      borderRadius: "8px",
+                      border: !newStudentIsVip ? "2px solid #3b82f6" : "1px solid #cbd5e1",
+                      backgroundColor: !newStudentIsVip ? "#eff6ff" : "white",
+                      color: !newStudentIsVip ? "#1d4ed8" : "#64748b",
+                      fontWeight: 700,
+                      fontSize: "0.82rem",
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <div>🟢 Gói Thường</div>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 400, marginTop: "2px", color: "#64748b" }}>Tự học qua video</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewStudentIsVip(true)}
+                    style={{
+                      padding: "0.65rem 0.75rem",
+                      borderRadius: "8px",
+                      border: newStudentIsVip ? "2px solid #f59e0b" : "1px solid #cbd5e1",
+                      backgroundColor: newStudentIsVip ? "#fffbeb" : "white",
+                      color: newStudentIsVip ? "#b45309" : "#64748b",
+                      fontWeight: 700,
+                      fontSize: "0.82rem",
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Crown size={14} color="#b45309" />
+                      <span>Gói VIP (Kèm 1-1)</span>
+                    </div>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 400, marginTop: "2px", color: "#b45309" }}>Nộp bài Padlet & Zalo</div>
+                  </button>
+                </div>
+              </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1rem" }}>
                 <div>
