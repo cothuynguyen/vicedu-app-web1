@@ -94,8 +94,13 @@ export default function LeadsCRM() {
   const [isCrmCustomer, setIsCrmCustomer] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   const isSuperAdmin = user?.role === "Super Admin";
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     fetchLandingPages();
@@ -706,42 +711,59 @@ export default function LeadsCRM() {
             )}
             <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
               <div style={{ position: 'relative', flex: 1, minWidth: '250px' }}>
-                <Select
-                  placeholder="Tất cả nguồn Landing Pages"
-                  options={[
-                    {
-                      label: "Đang hoạt động",
-                      options: landingPages.filter(lp => !lp.is_archived).map(lp => ({ value: lp.id, label: lp.title }))
-                    },
-                    ...(landingPages.some(lp => lp.is_archived) ? [{
-                      label: "Đã lưu trữ",
-                      options: landingPages.filter(lp => lp.is_archived).map(lp => ({ value: lp.id, label: lp.title }))
-                    }] : [])
-                  ]}
-                  value={selectedLandingPage ? { value: selectedLandingPage, label: landingPages.find(lp => lp.id === selectedLandingPage)?.title } : null}
-                  onChange={(selected: any) => {
-                    setSelectedLandingPage(selected ? selected.value : "");
-                    setSelectedSurveyFilter("");
-                  }}
-                  isClearable
-                  styles={{
-                    control: (base) => ({
-                      ...base,
-                      fontSize: '0.85rem',
-                      borderColor: 'var(--primary)',
-                      minHeight: '38px',
-                      borderRadius: '6px'
-                    }),
-                    singleValue: (base) => ({
-                      ...base,
-                      color: 'var(--primary)'
-                    }),
-                    menu: (base) => ({
-                      ...base,
-                      zIndex: 9999
-                    })
-                  }}
-                />
+                {isMounted ? (
+                  <Select
+                    instanceId="landing-pages-select"
+                    placeholder="Tất cả nguồn Landing Pages"
+                    options={[
+                      {
+                        label: "Đang hoạt động",
+                        options: landingPages.filter(lp => !lp.is_archived).map(lp => ({ value: lp.id, label: lp.title }))
+                      },
+                      ...(landingPages.some(lp => lp.is_archived) ? [{
+                        label: "Đã lưu trữ",
+                        options: landingPages.filter(lp => lp.is_archived).map(lp => ({ value: lp.id, label: lp.title }))
+                      }] : [])
+                    ]}
+                    value={selectedLandingPage ? { value: selectedLandingPage, label: landingPages.find(lp => lp.id === selectedLandingPage)?.title } : null}
+                    onChange={(selected: any) => {
+                      setSelectedLandingPage(selected ? selected.value : "");
+                      setSelectedSurveyFilter("");
+                    }}
+                    isClearable
+                    styles={{
+                      control: (base) => ({
+                        ...base,
+                        fontSize: '0.85rem',
+                        borderColor: 'var(--primary)',
+                        minHeight: '38px',
+                        borderRadius: '6px'
+                      }),
+                      singleValue: (base) => ({
+                        ...base,
+                        color: 'var(--primary)'
+                      }),
+                      menu: (base) => ({
+                        ...base,
+                        zIndex: 9999
+                      })
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    minHeight: '38px',
+                    border: '1px solid var(--primary)',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 12px',
+                    fontSize: '0.85rem',
+                    color: '#94a3b8',
+                    backgroundColor: 'white'
+                  }}>
+                    Tất cả nguồn Landing Pages
+                  </div>
+                )}
               </div>
               <button 
                 onClick={handleExportExcel} 
