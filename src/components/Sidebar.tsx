@@ -210,11 +210,11 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
             boxShadow: "0 2px 8px rgba(79, 70, 229, 0.25)",
             transition: "all 0.2s ease"
           }}
-          title="Mở Cổng Học tập & Đào tạo trực tuyến"
+          title={isPartner ? "Vào phòng học trực tuyến khóa của Thầy" : "Mở Cổng Học tập & Đào tạo trực tuyến"}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontSize: "1rem" }}>🎓</span>
-            <span>{isPartner ? "Vào Phòng Học Thử" : "Cổng Học Tập & Đào Tạo"}</span>
+            <span>{isPartner ? "Phòng Học Trực Tuyến" : "Cổng Học Tập & Đào Tạo"}</span>
           </div>
           <span style={{ opacity: 0.85, fontSize: "0.75rem" }}>→</span>
         </a>

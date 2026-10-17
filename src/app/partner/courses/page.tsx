@@ -102,9 +102,10 @@ export default function PartnerCoursesPage() {
               textDecoration: "none",
               boxShadow: "0 2px 8px rgba(79, 70, 229, 0.25)"
             }}
+            title="Mở phòng học trực tuyến của khóa này (Giao diện học viên & thầy tương tác)"
           >
             <PlayCircle size={18} />
-            <span>Vào Học Trên Web 2 LMS →</span>
+            <span>Vào Phòng Học Khóa Này →</span>
           </a>
         </div>
       </div>
@@ -224,7 +225,7 @@ export default function PartnerCoursesPage() {
                     </span>
 
                     <a
-                      href="/api/sso?target=/dashboard/courses/d0100000-0000-0000-0000-000000000001"
+                      href={`/api/sso?target=/dashboard/courses/${currentCourse?.id || 'd0100000-0000-0000-0000-000000000001'}`}
                       style={{
                         padding: "0.45rem 0.85rem",
                         borderRadius: "6px",
@@ -237,10 +238,10 @@ export default function PartnerCoursesPage() {
                         alignItems: "center",
                         gap: "4px"
                       }}
-                      title="Mở video này trên phòng học Web 2"
+                      title="Mở bài học này trên phòng học trực tuyến"
                     >
                       <Eye size={14} />
-                      <span>Xem thử</span>
+                      <span>Xem bài học</span>
                     </a>
                   </div>
                 </div>
