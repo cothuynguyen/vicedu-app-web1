@@ -43,9 +43,14 @@ export async function getPartnerCourses(userEmail: string, userDepartment?: stri
     const myCourses = courses.filter((c: any) => {
       const ta = Array.isArray(c.target_audiences) ? c.target_audiences : [];
       const isAssigned = ta.some((tag: string) => tag.toLowerCase() === `instructor:${email}`);
-      const isDept = userDepartment && c.department && c.department.toLowerCase() === userDepartment.toLowerCase();
-      const isDancesportLegacy = email.includes("thaytan") && c.department === "Dancesport";
-      return isAssigned || isDept || isDancesportLegacy;
+      const isInstEmail = c.instructor_email && c.instructor_email.toLowerCase() === email;
+      const isDancesportLegacy = email.includes("thaytan") && (c.department === "Dancesport" || c.id === "d0100000-0000-0000-0000-000000000001");
+      // Chỉ match theo chuyên môn nếu không phải tên phòng ban chung chung
+      const isDept = userDepartment && 
+        !userDepartment.toLowerCase().includes("đối tác") && 
+        c.department && 
+        c.department.toLowerCase() === userDepartment.toLowerCase();
+      return isAssigned || isInstEmail || isDancesportLegacy || isDept;
     });
 
     if (myCourses.length === 0) {
@@ -408,7 +413,10 @@ export async function enrollStudentByPartner(payload: {
       targetCourseTitle = coursesRes.data[0].title;
     } else {
       const found = coursesRes.data.find(c => c.id === targetCourseId);
-      if (found) targetCourseTitle = found.title;
+      if (!found) {
+        return { success: false, error: "Thầy không có quyền thêm học viên vào khóa học này." };
+      }
+      targetCourseTitle = found.title;
     }
 
     const email = `${cleanPhone}@vicedu.local`;
@@ -606,8 +614,17 @@ export async function enrollStudentByPartner(payload: {
   }
 }
 
-export async function removeStudentByPartner(courseId: string, userId: string) {
+export async function removeStudentByPartner(courseId: string, userId: string, partnerEmail?: string) {
   try {
+    if (partnerEmail) {
+      const email = partnerEmail.toLowerCase().trim();
+      const coursesRes = await getPartnerCourses(email);
+      const myCourseIds = coursesRes.data?.map(c => c.id) || [];
+      if (!myCourseIds.includes(courseId)) {
+        return { success: false, error: "Thầy không có quyền xóa học viên khỏi khóa học này." };
+      }
+    }
+
     const { error } = await lmsClient
       .from("course_enrollments")
       .delete()

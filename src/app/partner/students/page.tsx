@@ -166,7 +166,7 @@ export default function PartnerStudentsPage() {
     const ok = window.confirm(`Thầy/Cô có chắc chắn muốn xóa học viên "${st.name}" (${st.phone}) khỏi khóa học "${st.course}"?`);
     if (!ok) return;
 
-    const res = await removeStudentByPartner(st.courseId, st.id);
+    const res = await removeStudentByPartner(st.courseId, st.id, user?.email || undefined);
     if (res.success) {
       setToastMessage({ type: "success", text: `Đã xóa học viên ${st.name} khỏi khóa học.` });
       fetchStudents();

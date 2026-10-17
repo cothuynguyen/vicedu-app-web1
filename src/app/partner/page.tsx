@@ -130,7 +130,7 @@ export default function PartnerDashboard() {
               }}
             >
               <Users size={16} />
-              <span>Xem {totalStudents > 0 ? totalStudents : 28} Học viên của {user?.full_name?.startsWith("Cô") ? "Cô" : "Thầy"}</span>
+              <span>Xem {totalStudents} Học viên của {user?.full_name?.startsWith("Cô") ? "Cô" : "Thầy"}</span>
             </Link>
           </div>
         </div>
@@ -219,7 +219,7 @@ export default function PartnerDashboard() {
                   {primaryCourse.title}
                 </h3>
                 <p style={{ margin: "6px 0 0", fontSize: "0.85rem", opacity: 0.95 }}>
-                  Giảng viên: {displayName} • {primaryCourse.lesson_count || 12} Video bài giảng thực chiến
+                  Giảng viên: {displayName} • {primaryCourse.lesson_count || 0} Video bài giảng thực chiến
                 </p>
               </div>
 
@@ -397,7 +397,7 @@ export default function PartnerDashboard() {
             }}
           >
             <MessageSquare size={16} />
-            <span>Có 5 video học viên gửi nhờ Thầy chỉnh động tác →</span>
+            <span>Xem bài tập học viên gửi nhờ Thầy nhận xét & hướng dẫn →</span>
           </Link>
         </div>
       </div>
