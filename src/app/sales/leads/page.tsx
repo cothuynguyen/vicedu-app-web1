@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { Search, Phone, Mail, Clock, MessageSquare, Plus, Users, Filter, Edit2, Trash2, Check, X, BarChart3, FileSpreadsheet } from "lucide-react";
+import { Search, Phone, Mail, Clock, MessageSquare, Plus, Users, Filter, Edit2, Trash2, Check, X, BarChart3, FileSpreadsheet, GraduationCap } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Select from "react-select";
 import * as XLSX from "xlsx";
+import { getFilterCourseSources } from "@/app/actions/partner";
 
 export const parseSurveySelections = (description?: string): string[] => {
   if (!description || !description.includes("[HOẠT ĐỘNG CHỌN]:")) return [];
@@ -71,18 +72,21 @@ export default function LeadsCRM() {
   const [searchTerm, setSearchTerm] = useState("");
   
   const [landingPages, setLandingPages] = useState<{id: string, title: string, is_archived: boolean}[]>([]);
+  const [courseSources, setCourseSources] = useState<{ id: string; title: string; label: string; value: string; instructorEmail: string }[]>([]);
   const [selectedLandingPage, setSelectedLandingPage] = useState<string>("");
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>("");
   const [selectedSurveyFilter, setSelectedSurveyFilter] = useState<string>("");
   
   const BRANCHES = [
-    { value: "ONLINE", label: "🌐 ONLINE (Khóa học/CLB)" },
-    { value: "Chỉ Admin được dùng", label: "Chỉ Admin được dùng" },
-    { value: "Việt Trì", label: "Việt Trì" },
-    { value: "Dân Hòa", label: "Dân Hòa" },
-    { value: "Lâm Thao", label: "Lâm Thao" },
-    { value: "Tuyên Quang", label: "Tuyên Quang" }
+    { value: "", label: "Tất cả chi nhánh" },
+    { value: "Việt Trì", label: "Cơ sở Việt Trì" },
+    { value: "Dân Hòa", label: "Cơ sở Dân Hòa" },
+    { value: "Lâm Thao", label: "Cơ sở Lâm Thao" },
+    { value: "Tuyên Quang", label: "Cơ sở Tuyên Quang" },
+    { value: "Chỉ Admin được dùng", label: "Khách Toàn quốc (Chỉ Admin)" }
   ];
+
+  const BASE_BRANCHES = ["Việt Trì", "Dân Hòa", "Lâm Thao", "Tuyên Quang"];
   
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -103,7 +107,10 @@ export default function LeadsCRM() {
   }, []);
 
   useEffect(() => {
-    fetchLandingPages();
+    fetchSources();
+  }, [user, selectedBranchFilter]);
+
+  useEffect(() => {
     fetchLeads();
   }, [user, selectedLandingPage, selectedBranchFilter]);
 
@@ -113,28 +120,38 @@ export default function LeadsCRM() {
     }
   }, [selectedLead]);
 
-  const fetchLandingPages = async () => {
+  const fetchSources = async () => {
     if (!user) return;
-    let query = supabase.from("landing_pages").select("id, title, is_archived");
-    
-    if (!isSuperAdmin) {
-      if (user?.branch_id) {
-        const BASE_BRANCHES = ["Việt Trì", "Dân Hòa", "Lâm Thao", "Tuyên Quang", "ONLINE"];
-        const userBaseBranches = BASE_BRANCHES.filter(b => user.branch_id?.includes(b));
-        if (userBaseBranches.length > 0) {
-          query = query.in("branch_id", userBaseBranches);
+    try {
+      // 1. Nạp Landing Pages
+      let query = supabase.from("landing_pages").select("id, title, is_archived");
+      
+      if (!isSuperAdmin) {
+        if (user?.branch_id) {
+          const userBaseBranches = BASE_BRANCHES.filter(b => user.branch_id?.includes(b));
+          if (userBaseBranches.length > 0) {
+            query = query.in("branch_id", userBaseBranches);
+          } else {
+            query = query.eq("branch_id", "NONE");
+          }
         } else {
           query = query.eq("branch_id", "NONE");
         }
-      } else {
-        query = query.eq("branch_id", "NONE");
+      } else if (selectedBranchFilter) {
+        query = query.eq("branch_id", selectedBranchFilter);
       }
-    } else if (selectedBranchFilter) {
-      query = query.eq("branch_id", selectedBranchFilter);
-    }
 
-    const { data } = await query;
-    if (data) setLandingPages(data);
+      const { data: lpData } = await query;
+      if (lpData) setLandingPages(lpData);
+
+      // 2. Nạp nguồn Khóa học & Đối tác Đào tạo
+      const courseRes = await getFilterCourseSources();
+      if (courseRes.success && courseRes.data) {
+        setCourseSources(courseRes.data);
+      }
+    } catch (err) {
+      console.warn("fetchSources error:", err);
+    }
   };
 
   const fetchLeads = async () => {
@@ -146,7 +163,6 @@ export default function LeadsCRM() {
       
       if (!isSuperAdmin) {
         if (user?.branch_id) {
-          const BASE_BRANCHES = ["Việt Trì", "Dân Hòa", "Lâm Thao", "Tuyên Quang", "ONLINE"];
           const userBaseBranches = BASE_BRANCHES.filter(b => user.branch_id?.includes(b));
           if (userBaseBranches.length > 0) {
             query = query.in("branch_id", userBaseBranches);
@@ -162,47 +178,82 @@ export default function LeadsCRM() {
 
       const { data, error } = await query;
       if (!error && data) {
-        // Áp dụng bộ lọc Landing Page (nếu có)
+        // Áp dụng bộ lọc Nguồn (Landing Page hoặc Khóa học Đối tác)
         if (selectedLandingPage) {
-          // Tìm những phone có FORM_SUBMIT của Landing Page này kèm description
-          const { data: actData } = await supabase
-            .from("customer_activities")
-            .select("phone, description, created_at, landing_page:landing_pages(title)")
-            .eq("landing_page_id", selectedLandingPage)
-            .eq("activity_type", "FORM_SUBMIT")
-            .order("created_at", { ascending: false });
-          
-          const phoneActivityMap = new Map<string, any>();
-          if (actData) {
-            for (const act of actData) {
-              if (!phoneActivityMap.has(act.phone)) {
-                phoneActivityMap.set(act.phone, act);
+          if (selectedLandingPage.startsWith("COURSE:")) {
+            const courseTitleKeyword = selectedLandingPage.replace("COURSE:", "").trim();
+
+            // Tìm những phone có COURSE_CONSULTATION hoặc PARTNER_ENROLL liên quan khóa học này
+            const { data: actData } = await supabase
+              .from("customer_activities")
+              .select("phone, description, activity_type, created_at")
+              .or("activity_type.eq.COURSE_CONSULTATION,activity_type.eq.PARTNER_ENROLL")
+              .ilike("description", `%${courseTitleKeyword}%`)
+              .order("created_at", { ascending: false });
+
+            const phoneActivityMap = new Map<string, any>();
+            if (actData) {
+              for (const act of actData) {
+                if (!phoneActivityMap.has(act.phone)) {
+                  phoneActivityMap.set(act.phone, act);
+                }
               }
             }
+
+            const leadsForCourse = data
+              .filter((l: any) => phoneActivityMap.has(l.phone))
+              .map((l: any) => {
+                const act = phoneActivityMap.get(l.phone);
+                return {
+                  ...l,
+                  survey_selections: parseSurveySelections(act?.description),
+                  test_result: parseTestResult(act?.description),
+                  landing_page_title: `Khóa: ${courseTitleKeyword}`
+                };
+              });
+            setLeads(leadsForCourse);
+          } else {
+            const lpId = selectedLandingPage.replace("LANDING:", "");
+            // Tìm những phone có FORM_SUBMIT của Landing Page này kèm description
+            const { data: actData } = await supabase
+              .from("customer_activities")
+              .select("phone, description, created_at, landing_page:landing_pages(title)")
+              .eq("landing_page_id", lpId)
+              .eq("activity_type", "FORM_SUBMIT")
+              .order("created_at", { ascending: false });
+
+            const phoneActivityMap = new Map<string, any>();
+            if (actData) {
+              for (const act of actData) {
+                if (!phoneActivityMap.has(act.phone)) {
+                  phoneActivityMap.set(act.phone, act);
+                }
+              }
+            }
+
+            const leadsForLanding = data
+              .filter((l: any) => phoneActivityMap.has(l.phone))
+              .map((l: any) => {
+                const act = phoneActivityMap.get(l.phone);
+                return {
+                  ...l,
+                  survey_selections: parseSurveySelections(act?.description),
+                  test_result: parseTestResult(act?.description),
+                  landing_page_title: act?.landing_page?.title || ""
+                };
+              });
+            setLeads(leadsForLanding);
           }
-          
-          const leadsForLanding = data
-            .filter((l: any) => phoneActivityMap.has(l.phone))
-            .map((l: any) => {
-              const act = phoneActivityMap.get(l.phone);
-              return {
-                ...l,
-                survey_selections: parseSurveySelections(act?.description),
-                test_result: parseTestResult(act?.description),
-                landing_page_title: act?.landing_page?.title || ""
-              };
-            });
-          setLeads(leadsForLanding);
         } else {
-          // Nạp thông tin FORM_SUBMIT cho tất cả leads
+          // Nạp thông tin hoạt động mới nhất cho tất cả leads (bao gồm cả FORM_SUBMIT, COURSE_CONSULTATION, PARTNER_ENROLL)
           const phones = data.map((l: any) => l.phone);
           const phoneActivityMap = new Map<string, any>();
           if (phones.length > 0) {
             const { data: actData } = await supabase
               .from("customer_activities")
-              .select("phone, description, created_at, landing_page:landing_pages(title)")
+              .select("phone, description, activity_type, created_at, landing_page:landing_pages(title)")
               .in("phone", phones)
-              .eq("activity_type", "FORM_SUBMIT")
+              .or("activity_type.eq.FORM_SUBMIT,activity_type.eq.COURSE_CONSULTATION,activity_type.eq.PARTNER_ENROLL")
               .order("created_at", { ascending: false });
 
             if (actData) {
@@ -216,18 +267,28 @@ export default function LeadsCRM() {
 
           const enrichedLeads = data.map((l: any) => {
             const act = phoneActivityMap.get(l.phone);
+            let title = act?.landing_page?.title || "";
+            if (!title && act) {
+              if (act.activity_type === "COURSE_CONSULTATION" || act.activity_type === "PARTNER_ENROLL") {
+                const cMatch = act.description?.match(/khóa học(?:\/CLB)?:\s*"([^"]+)"/i);
+                title = cMatch ? `Khóa: ${cMatch[1]}` : "Khóa học Đối tác";
+              }
+            }
             return {
               ...l,
               survey_selections: parseSurveySelections(act?.description),
               test_result: parseTestResult(act?.description),
-              landing_page_title: act?.landing_page?.title || ""
+              landing_page_title: title
             };
           });
           setLeads(enrichedLeads);
         }
+      } else {
+        setLeads([]);
       }
     } catch (e) {
-      console.error(e);
+      console.error("fetchLeads error:", e);
+      setLeads([]);
     } finally {
       setLoading(false);
     }
@@ -388,6 +449,8 @@ export default function LeadsCRM() {
             const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth()+1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
             let prefix = t.activity_type;
             if (t.activity_type === 'FORM_SUBMIT') prefix = 'Điền Form: ' + (t.landing_page?.title || '');
+            if (t.activity_type === 'COURSE_CONSULTATION') prefix = 'Đăng ký Khóa học';
+            if (t.activity_type === 'PARTNER_ENROLL') prefix = 'Đối tác thêm học viên';
             if (t.activity_type === 'NOTE') prefix = 'Ghi chú';
             if (t.activity_type === 'CALL') prefix = 'Gọi điện';
             return `[${dateStr}] ${prefix} - ${t.description || ''}`;
@@ -713,19 +776,29 @@ export default function LeadsCRM() {
               <div style={{ position: 'relative', flex: 1, minWidth: '250px' }}>
                 {isMounted ? (
                   <Select
-                    instanceId="landing-pages-select"
-                    placeholder="Tất cả nguồn Landing Pages"
+                    instanceId="leads-source-select"
+                    placeholder="Tất cả Nguồn & Khóa học Đối tác"
                     options={[
-                      {
-                        label: "Đang hoạt động",
-                        options: landingPages.filter(lp => !lp.is_archived).map(lp => ({ value: lp.id, label: lp.title }))
-                      },
+                      ...(courseSources.length > 0 ? [{
+                        label: "🎓 Khóa Học & Đối Tác Đào Tạo",
+                        options: courseSources.map(c => ({ value: c.value, label: c.label }))
+                      }] : []),
+                      ...(landingPages.filter(lp => !lp.is_archived).length > 0 ? [{
+                        label: "📄 Chiến Dịch Landing Page",
+                        options: landingPages.filter(lp => !lp.is_archived).map(lp => ({ value: `LANDING:${lp.id}`, label: lp.title }))
+                      }] : []),
                       ...(landingPages.some(lp => lp.is_archived) ? [{
-                        label: "Đã lưu trữ",
-                        options: landingPages.filter(lp => lp.is_archived).map(lp => ({ value: lp.id, label: lp.title }))
+                        label: "🗄️ Landing Page Đã Lưu Trữ",
+                        options: landingPages.filter(lp => lp.is_archived).map(lp => ({ value: `LANDING:${lp.id}`, label: lp.title }))
                       }] : [])
                     ]}
-                    value={selectedLandingPage ? { value: selectedLandingPage, label: landingPages.find(lp => lp.id === selectedLandingPage)?.title } : null}
+                    value={
+                      selectedLandingPage
+                        ? selectedLandingPage.startsWith("COURSE:")
+                          ? { value: selectedLandingPage, label: courseSources.find(c => c.value === selectedLandingPage)?.label || selectedLandingPage.replace("COURSE:", "") }
+                          : { value: selectedLandingPage, label: landingPages.find(lp => lp.id === selectedLandingPage.replace("LANDING:", ""))?.title || selectedLandingPage }
+                        : null
+                    }
                     onChange={(selected: any) => {
                       setSelectedLandingPage(selected ? selected.value : "");
                       setSelectedSurveyFilter("");
@@ -741,7 +814,8 @@ export default function LeadsCRM() {
                       }),
                       singleValue: (base) => ({
                         ...base,
-                        color: 'var(--primary)'
+                        color: 'var(--primary)',
+                        fontWeight: 600
                       }),
                       menu: (base) => ({
                         ...base,
@@ -761,7 +835,7 @@ export default function LeadsCRM() {
                     color: '#94a3b8',
                     backgroundColor: 'white'
                   }}>
-                    Tất cả nguồn Landing Pages
+                    Tất cả Nguồn & Khóa học Đối tác
                   </div>
                 )}
               </div>
@@ -945,17 +1019,37 @@ export default function LeadsCRM() {
                   {isSuperAdmin && (
                     <span style={{ 
                       fontSize: '0.7rem', 
-                      background: lead.branch_id === 'ONLINE' ? 'rgba(37, 99, 235, 0.15)' : 'rgba(139, 92, 246, 0.1)', 
-                      color: lead.branch_id === 'ONLINE' ? '#1d4ed8' : '#6d28d9', 
+                      background: lead.branch_id === 'ONLINE' || lead.branch_id === 'Chỉ Admin được dùng' ? 'rgba(37, 99, 235, 0.15)' : 'rgba(139, 92, 246, 0.1)', 
+                      color: lead.branch_id === 'ONLINE' || lead.branch_id === 'Chỉ Admin được dùng' ? '#1d4ed8' : '#6d28d9', 
                       padding: '2px 8px', 
                       borderRadius: '4px',
-                      fontWeight: lead.branch_id === 'ONLINE' ? 700 : 500,
-                      border: lead.branch_id === 'ONLINE' ? '1px solid rgba(37, 99, 235, 0.3)' : 'none'
+                      fontWeight: lead.branch_id === 'ONLINE' || lead.branch_id === 'Chỉ Admin được dùng' ? 700 : 500,
+                      border: lead.branch_id === 'ONLINE' || lead.branch_id === 'Chỉ Admin được dùng' ? '1px solid rgba(37, 99, 235, 0.3)' : 'none'
                     }}>
-                      {lead.branch_id === 'ONLINE' ? '🌐 ONLINE' : lead.branch_id}
+                      {lead.branch_id === 'Chỉ Admin được dùng' ? '🌐 Toàn quốc' : (lead.branch_id === 'ONLINE' ? '🌐 ONLINE' : lead.branch_id)}
                     </span>
                   )}
                 </div>
+
+                {/* Badge Nguồn / Khóa học */}
+                {lead.landing_page_title && (
+                  <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center' }}>
+                    <span style={{ 
+                      background: lead.landing_page_title.startsWith("Khóa:") ? '#f5f3ff' : '#eff6ff', 
+                      color: lead.landing_page_title.startsWith("Khóa:") ? '#7c3aed' : '#2563eb', 
+                      border: lead.landing_page_title.startsWith("Khóa:") ? '1px solid #ddd6fe' : '1px solid #bfdbfe',
+                      padding: '1px 6px', 
+                      borderRadius: '4px', 
+                      fontWeight: 600,
+                      maxWidth: '100%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {lead.landing_page_title.startsWith("Khóa:") ? "🎓" : "📄"} {lead.landing_page_title}
+                    </span>
+                  </div>
+                )}
 
                 {/* Badges hiển thị lựa chọn khảo sát trên từng Lead card */}
                 {lead.survey_selections && lead.survey_selections.length > 0 && (
@@ -1019,9 +1113,37 @@ export default function LeadsCRM() {
                     </button>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Phone size={16} /> {selectedLead.phone}</span>
                   {selectedLead.email && <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Mail size={16} /> {selectedLead.email}</span>}
+                  {selectedLead.landing_page_title && (
+                    <span style={{ 
+                      background: selectedLead.landing_page_title.startsWith("Khóa:") ? '#f5f3ff' : '#eff6ff', 
+                      color: selectedLead.landing_page_title.startsWith("Khóa:") ? '#7c3aed' : '#2563eb', 
+                      border: selectedLead.landing_page_title.startsWith("Khóa:") ? '1px solid #ddd6fe' : '1px solid #bfdbfe',
+                      padding: '2px 8px', 
+                      borderRadius: '4px', 
+                      fontSize: '0.78rem', 
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      {selectedLead.landing_page_title.startsWith("Khóa:") ? "🎓" : "📄"} {selectedLead.landing_page_title}
+                    </span>
+                  )}
+                  {selectedLead.branch_id && (
+                    <span style={{ 
+                      fontSize: '0.78rem', 
+                      background: selectedLead.branch_id === 'ONLINE' || selectedLead.branch_id === 'Chỉ Admin được dùng' ? 'rgba(37, 99, 235, 0.1)' : 'rgba(139, 92, 246, 0.1)', 
+                      color: selectedLead.branch_id === 'ONLINE' || selectedLead.branch_id === 'Chỉ Admin được dùng' ? '#1d4ed8' : '#6d28d9', 
+                      padding: '2px 8px', 
+                      borderRadius: '4px',
+                      fontWeight: 600
+                    }}>
+                      Cơ sở: {selectedLead.branch_id === 'Chỉ Admin được dùng' ? 'Toàn quốc' : selectedLead.branch_id}
+                    </span>
+                  )}
                 </div>
 
                 {/* Hiển thị nhanh các lựa chọn khảo sát của Lead này */}
@@ -1100,7 +1222,10 @@ export default function LeadsCRM() {
                     <div style={{ 
                       position: 'absolute', left: '-30px', top: '4px', width: '16px', height: '16px', borderRadius: '50%', 
                       border: '3px solid var(--surface)',
-                      backgroundColor: act.activity_type === 'FORM_SUBMIT' ? '#3b82f6' : act.activity_type === 'STATUS_CHANGE' ? '#f97316' : '#10b981'
+                      backgroundColor: act.activity_type === 'FORM_SUBMIT' ? '#3b82f6' : 
+                                       act.activity_type === 'COURSE_CONSULTATION' ? '#8b5cf6' :
+                                       act.activity_type === 'PARTNER_ENROLL' ? '#ec4899' :
+                                       act.activity_type === 'STATUS_CHANGE' ? '#f97316' : '#10b981'
                     }}></div>
                     
                     <div style={{ background: 'var(--surface)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
@@ -1108,10 +1233,14 @@ export default function LeadsCRM() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <span style={{ fontWeight: 600, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             {act.activity_type === 'FORM_SUBMIT' ? <Mail size={16} color="#3b82f6"/> : 
+                             act.activity_type === 'COURSE_CONSULTATION' ? <GraduationCap size={16} color="#8b5cf6"/> :
+                             act.activity_type === 'PARTNER_ENROLL' ? <GraduationCap size={16} color="#ec4899"/> :
                              (act.activity_type === 'NOTE' || act.activity_type === 'Ghi chú') ? <MessageSquare size={16} color="#10b981"/> :
                              <Clock size={16} color="#6b7280"/>}
                              
                             {act.activity_type === 'FORM_SUBMIT' ? 'Điền Form Đăng ký' : 
+                             act.activity_type === 'COURSE_CONSULTATION' ? '🎓 Đăng ký Tư vấn Khóa học' :
+                             act.activity_type === 'PARTNER_ENROLL' ? '🤝 Đối tác Cấp quyền Học' :
                              (act.activity_type === 'NOTE' || act.activity_type === 'Ghi chú') ? 'Ghi chú' : act.activity_type}
                           </span>
                           {act.source === 'crm' && (

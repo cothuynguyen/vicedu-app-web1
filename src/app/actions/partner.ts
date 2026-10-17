@@ -492,7 +492,7 @@ export async function enrollStudentByPartner(payload: {
           phone: cleanPhone,
           full_name: studentName.trim(),
           email: email,
-          branch_id: "Đối tác",
+          branch_id: "Chỉ Admin được dùng",
           status: "Đang học",
           updated_at: new Date().toISOString()
         }, { onConflict: "phone" });
@@ -541,6 +541,61 @@ export async function removeStudentByPartner(courseId: string, userId: string) {
   } catch (err: any) {
     console.error("Lỗi xóa học viên khỏi khóa:", err);
     return { success: false, error: err.message };
+  }
+}
+
+export async function getFilterCourseSources() {
+  try {
+    const { data: courses, error } = await lmsClient
+      .from("courses")
+      .select("id, title, department, target_audiences, is_published")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    const validCourses = (courses || [])
+      .filter((c: any) => {
+        const titleLower = (c.title || "").toLowerCase();
+        const isInternalStaff = titleLower.includes("nhân viên thử việc") || 
+          titleLower.includes("dành cho kế toán") || 
+          titleLower.includes("cấp quản lý") ||
+          titleLower.includes("hướng dẫn");
+        return !isInternalStaff;
+      })
+      .map((c: any) => {
+        const titleLower = (c.title || "").toLowerCase();
+        const ta = Array.isArray(c.target_audiences) ? c.target_audiences : [];
+        const instTag = ta.find((t: string) => t.toLowerCase().startsWith("instructor:"));
+        const instructorEmail = instTag ? instTag.replace(/instructor:/i, "").trim().toLowerCase() : "";
+
+        let instructorLabel = "";
+        if (instructorEmail.includes("thaytan") || c.department === "Dancesport" || titleLower.includes("dancesport") || titleLower.includes("khiêu vũ")) {
+          instructorLabel = "💃 Thầy Tân (Dancesport)";
+        } else if (instructorEmail.includes("covua") || titleLower.includes("cờ vua")) {
+          instructorLabel = "♟️ Thầy Cờ Vua";
+        } else if (titleLower.includes("tâm tuệ") || titleLower.includes("khen chê")) {
+          instructorLabel = "🧠 Thầy Đức (Cha Mẹ Tâm Tuệ)";
+        } else if (titleLower.includes("mc")) {
+          instructorLabel = "🎤 Cô Trang (MC Nhí)";
+        } else if (instructorEmail) {
+          instructorLabel = `👤 Giảng viên: ${instructorEmail.split("@")[0]}`;
+        } else {
+          instructorLabel = `🎓 ${c.department || "Khóa Kỹ Năng"}`;
+        }
+
+        return {
+          id: c.id,
+          title: c.title,
+          label: `${instructorLabel}: ${c.title}`,
+          value: `COURSE:${c.title}`,
+          instructorEmail
+        };
+      });
+
+    return { success: true, data: validCourses };
+  } catch (err: any) {
+    console.error("Lỗi getFilterCourseSources:", err);
+    return { success: false, data: [] };
   }
 }
 
