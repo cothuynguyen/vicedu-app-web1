@@ -18,7 +18,8 @@ import {
   RefreshCw,
   Sparkles,
   Copy,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 
 interface Submission {
@@ -34,52 +35,7 @@ interface Submission {
   teacherFeedback?: string;
   studentNotes?: string;
   score?: number;
-  isDemo?: boolean;
 }
-
-const DEMO_SUBMISSIONS: Submission[] = [
-  {
-    id: "sub-1",
-    studentName: "Bác Trần Đình Trọng",
-    studentPhone: "0983 765 432",
-    age: 62,
-    courseTitle: "Khóa Khiêu Vũ Căn Bản",
-    lessonTitle: "Bài 3: Trọng tâm & Đổi hướng",
-    submittedAt: "15/10/2026, 19:15",
-    videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    status: "pending",
-    studentNotes: "Thầy xem giúp tôi bước xoay bên trái đã đúng trọng tâm chưa ạ, tôi cảm thấy hơi bị chới với.",
-    isDemo: true
-  },
-  {
-    id: "sub-2",
-    studentName: "Cô Nguyễn Thị Mai",
-    studentPhone: "0912 345 678",
-    age: 56,
-    courseTitle: "Khóa Khiêu Vũ Căn Bản",
-    lessonTitle: "Bài 4: Bước xoay Rumba căn bản",
-    submittedAt: "15/10/2026, 08:30",
-    videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    status: "pending",
-    studentNotes: "Tôi đã tập theo gương lật của Thầy, quay lại video ngắn 1 phút nhờ Thầy chấm.",
-    isDemo: true
-  },
-  {
-    id: "sub-3",
-    studentName: "Cô Đặng Bích Liên",
-    studentPhone: "0962 444 111",
-    age: 53,
-    courseTitle: "Khóa Khiêu Vũ Căn Bản",
-    lessonTitle: "Bài 4: Bước xoay Rumba căn bản",
-    submittedAt: "14/10/2026, 21:00",
-    videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    status: "reviewed",
-    studentNotes: "Nhờ Thầy xem động tác tay khi xoay.",
-    teacherFeedback: "Động tác tay của chị đã mềm hơn rất nhiều. Chú ý giữ mắt nhìn thẳng ngang tầm mắt khi xoay để không bị chóng mặt nhé!",
-    score: 5,
-    isDemo: true
-  }
-];
 
 
 export function parseSubmissionMedia(rawUrl?: string) {
@@ -119,8 +75,8 @@ export function parseSubmissionMedia(rawUrl?: string) {
 
 export default function PartnerSubmissionsPage() {
   const { user } = useAuth();
-  const [submissions, setSubmissions] = useState<Submission[]>(DEMO_SUBMISSIONS);
-  const [loading, setLoading] = useState(false);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "reviewed">("all");
   
   // Modal state
@@ -134,14 +90,14 @@ export default function PartnerSubmissionsPage() {
     setLoading(true);
     try {
       const res = await getPartnerPracticeSubmissions(user?.email);
-      if (res.success && res.data && res.data.length > 0) {
+      if (res.success && res.data) {
         setSubmissions(res.data);
       } else {
-        // Fallback demo data if DB has no practice submissions yet
-        setSubmissions(DEMO_SUBMISSIONS);
+        setSubmissions([]);
       }
     } catch (err) {
       console.error("Lỗi tải submissions:", err);
+      setSubmissions([]);
     } finally {
       setLoading(false);
     }
@@ -173,13 +129,11 @@ export default function PartnerSubmissionsPage() {
 
     setIsSaving(true);
     try {
-      if (!selectedSub.isDemo && !selectedSub.id.startsWith("sub-")) {
-        const res = await submitPracticeFeedback(selectedSub.id, feedbackInput, scoreInput);
-        if (!res.success) {
-          alert("Có lỗi xảy ra: " + (res.error || "Không thể lưu nhận xét"));
-          setIsSaving(false);
-          return;
-        }
+      const res = await submitPracticeFeedback(selectedSub.id, feedbackInput, scoreInput);
+      if (!res.success) {
+        alert("Có lỗi xảy ra: " + (res.error || "Không thể lưu nhận xét"));
+        setIsSaving(false);
+        return;
       }
 
       setSubmissions(prev => prev.map(s => {
@@ -327,12 +281,18 @@ export default function PartnerSubmissionsPage() {
 
       {/* Submissions List */}
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        {filteredSubmissions.length === 0 ? (
+        {loading ? (
+          <div style={{ padding: "3.5rem 2rem", textAlign: "center", backgroundColor: "white", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+            <Loader2 size={36} className="animate-spin" style={{ margin: "0 auto 1rem", color: "#4f46e5" }} />
+            <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "#1e293b" }}>Đang đồng bộ danh sách bài nộp từ học viên...</div>
+            <div style={{ color: "#64748b", fontSize: "0.85rem", marginTop: "4px" }}>Hệ thống đang tải các yêu cầu nhận xét bài mới nhất.</div>
+          </div>
+        ) : filteredSubmissions.length === 0 ? (
           <div style={{ padding: "3rem", textAlign: "center", backgroundColor: "white", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
             <CheckCircle size={40} color="#16a34a" style={{ margin: "0 auto 0.75rem" }} />
             <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "#0f172a" }}>Hiện không có bài tập nào cần xử lý</div>
             <div style={{ color: "#64748b", fontSize: "0.88rem", marginTop: "4px" }}>
-              Khi học viên nộp video bài thực hành, bài sẽ hiển thị ngay tại đây.
+              Khi học viên gửi câu hỏi hoặc nộp video thực hành, bài sẽ hiển thị ngay tại đây.
             </div>
           </div>
         ) : (
@@ -385,11 +345,6 @@ export default function PartnerSubmissionsPage() {
                         }}>
                           {isPending ? "⏳ Chờ nhận xét" : "✅ Đã nhận xét"}
                         </span>
-                        {sub.isDemo && (
-                          <span style={{ fontSize: "0.7rem", backgroundColor: "#f1f5f9", color: "#64748b", padding: "1px 6px", borderRadius: "4px" }}>
-                            Demo mẫu
-                          </span>
-                        )}
                       </div>
                       <div style={{ fontSize: "0.82rem", color: "#64748b", marginTop: "3px" }}>
                         SĐT: <strong style={{ color: "#334155" }}>{sub.studentPhone || "Chưa cập nhật"}</strong> • Nộp lúc: {sub.submittedAt || "Gần đây"}
