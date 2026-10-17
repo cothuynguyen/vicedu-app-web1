@@ -93,9 +93,10 @@ export default function PartnerSubmissionsPage() {
   const [copyZaloSuccess, setCopyZaloSuccess] = useState(false);
 
   const fetchSubmissions = async () => {
+    if (!user?.email) return;
     setLoading(true);
     try {
-      const res = await getPartnerPracticeSubmissions(user?.email);
+      const res = await getPartnerPracticeSubmissions(user.email, user.department || user.position);
       if (res.success && res.data) {
         setSubmissions(res.data);
       } else {
@@ -111,7 +112,7 @@ export default function PartnerSubmissionsPage() {
 
   useEffect(() => {
     fetchSubmissions();
-  }, [user?.email]);
+  }, [user?.email, user?.department, user?.position]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCourse, setFilterCourse] = useState("all");
@@ -177,7 +178,7 @@ export default function PartnerSubmissionsPage() {
 
     setIsSaving(true);
     try {
-      const res = await submitPracticeFeedback(selectedSub.id, feedbackInput, scoreInput);
+      const res = await submitPracticeFeedback(selectedSub.id, feedbackInput, scoreInput, user?.email);
       if (!res.success) {
         alert("Có lỗi xảy ra: " + (res.error || "Không thể lưu nhận xét"));
         setIsSaving(false);

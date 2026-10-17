@@ -610,18 +610,62 @@ export async function getFilterCourseSources() {
   }
 }
 
-export async function getPartnerPracticeSubmissions(partnerEmail?: string) {
+export async function getPartnerPracticeSubmissions(partnerEmail?: string, userDepartment?: string) {
   try {
+    if (!partnerEmail) {
+      return { success: true, data: [] };
+    }
+
+    const email = partnerEmail.toLowerCase().trim();
+
+    // 1. Kiểm tra xem người dùng có phải là Super Admin hoặc Admin không
+    const { data: userProfile } = await lmsClient
+      .from("profiles")
+      .select("role")
+      .eq("email", email)
+      .maybeSingle();
+
+    const isSuperAdmin = userProfile?.role === "SUPER_ADMIN" || userProfile?.role === "ADMIN";
+
+    // 2. Lấy danh sách khóa học thuộc quyền sở hữu của Giảng viên này
+    let partnerCourseIds: string[] = [];
+    let partnerCourseTitles: string[] = [];
+
+    if (!isSuperAdmin) {
+      const coursesRes = await getPartnerCourses(partnerEmail, userDepartment);
+      if (!coursesRes.success || !coursesRes.data || coursesRes.data.length === 0) {
+        // Đối tác chưa phụ trách khóa nào => tuyệt đối không hiển thị bài nộp của đối tác khác
+        return { success: true, data: [] };
+      }
+      partnerCourseIds = coursesRes.data.map(c => c.id);
+      partnerCourseTitles = coursesRes.data.map(c => (c.title || "").toLowerCase().trim());
+    }
+
+    // 3. Lấy bài nộp từ test_submissions
     const { data: subs, error } = await lmsClient
       .from("test_submissions")
       .select("*")
       .order("submitted_at", { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (error) throw error;
 
     const practiceSubs = (subs || [])
-      .filter((s: any) => s.answers?.submission_type === "PRACTICE_REVIEW")
+      .filter((s: any) => {
+        if (s.answers?.submission_type !== "PRACTICE_REVIEW") return false;
+
+        // Nếu là Super Admin thì được xem tất cả
+        if (isSuperAdmin) return true;
+
+        // Phân quyền cách ly nghiêm ngặt: Chỉ xem bài nộp thuộc khóa học của Giảng viên này
+        const subCourseId = s.answers?.course_id;
+        const subCourseTitle = (s.answers?.course_title || "").toLowerCase().trim();
+
+        const matchId = subCourseId && partnerCourseIds.includes(subCourseId);
+        const matchTitle = subCourseTitle && partnerCourseTitles.some(t => subCourseTitle === t || subCourseTitle.includes(t) || t.includes(subCourseTitle));
+
+        return matchId || matchTitle;
+      })
       .map((s: any) => ({
         id: s.id,
         studentName: s.full_name || "Học viên VIP",
@@ -643,7 +687,12 @@ export async function getPartnerPracticeSubmissions(partnerEmail?: string) {
   }
 }
 
-export async function submitPracticeFeedback(submissionId: string, feedback: string, score: number = 5) {
+export async function submitPracticeFeedback(
+  submissionId: string, 
+  feedback: string, 
+  score: number = 5,
+  partnerEmail?: string
+) {
   try {
     const { data: subData, error: fetchErr } = await lmsClient
       .from("test_submissions")
@@ -652,6 +701,37 @@ export async function submitPracticeFeedback(submissionId: string, feedback: str
       .maybeSingle();
 
     if (fetchErr) console.warn("Lỗi fetch submission:", fetchErr);
+    if (!subData) {
+      return { success: false, error: "Không tìm thấy bài nộp" };
+    }
+
+    // Bảo mật phân quyền: Xác thực giảng viên có quyền trên bài nộp này
+    if (partnerEmail) {
+      const email = partnerEmail.toLowerCase().trim();
+      const { data: userProfile } = await lmsClient
+        .from("profiles")
+        .select("role")
+        .eq("email", email)
+        .maybeSingle();
+
+      const isSuperAdmin = userProfile?.role === "SUPER_ADMIN" || userProfile?.role === "ADMIN";
+
+      if (!isSuperAdmin) {
+        const coursesRes = await getPartnerCourses(partnerEmail);
+        const myCourseIds = coursesRes.data?.map(c => c.id) || [];
+        const myCourseTitles = coursesRes.data?.map(c => (c.title || "").toLowerCase().trim()) || [];
+
+        const subCourseId = subData.answers?.course_id;
+        const subCourseTitle = (subData.answers?.course_title || "").toLowerCase().trim();
+
+        const matchId = subCourseId && myCourseIds.includes(subCourseId);
+        const matchTitle = subCourseTitle && myCourseTitles.some(t => subCourseTitle === t || subCourseTitle.includes(t) || t.includes(subCourseTitle));
+
+        if (!matchId && !matchTitle) {
+          return { success: false, error: "Bạn không có quyền nhận xét bài nộp của khóa học này!" };
+        }
+      }
+    }
 
     const { error } = await lmsClient
       .from("test_submissions")
