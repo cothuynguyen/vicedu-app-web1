@@ -82,6 +82,41 @@ const DEMO_SUBMISSIONS: Submission[] = [
 ];
 
 
+export function parseSubmissionMedia(rawUrl?: string) {
+  if (!rawUrl || typeof rawUrl !== "string") {
+    return { hasLink: false, url: "", type: "none" as const, label: "Hỏi đáp trao đổi 1-1" };
+  }
+
+  const trimmed = rawUrl.trim();
+  if (!trimmed || trimmed === "Câu hỏi trao đổi trực tiếp") {
+    return { hasLink: false, url: "", type: "none" as const, label: "Hỏi đáp trao đổi 1-1" };
+  }
+
+  // 1. Trích xuất link http/https nếu nằm trong chuỗi text (VD: "Xem trên Padlet: https://padlet.com/...")
+  const httpMatch = trimmed.match(/(https?:\/\/[^\s]+)/i);
+  let cleanUrl = httpMatch ? httpMatch[1] : "";
+
+  // 2. Nếu thiếu https://, tự động bổ sung cho các domain phổ biến
+  if (!cleanUrl) {
+    const domainMatch = trimmed.match(/((?:[a-zA-Z0-9-]+\.)+(?:com|edu|vn|org|net|me|be|app|tv|io)[^\s]*)/i);
+    if (domainMatch) {
+      cleanUrl = `https://${domainMatch[1]}`;
+    }
+  }
+
+  if (!cleanUrl) {
+    return { hasLink: false, url: "", type: "none" as const, label: trimmed };
+  }
+
+  const isPadlet = cleanUrl.toLowerCase().includes("padlet.com");
+  return {
+    hasLink: true,
+    url: cleanUrl,
+    type: isPadlet ? ("padlet" as const) : ("video" as const),
+    label: isPadlet ? "Mở Padlet học viên" : "Xem video thực hành"
+  };
+}
+
 export default function PartnerSubmissionsPage() {
   const { user } = useAuth();
   const [submissions, setSubmissions] = useState<Submission[]>(DEMO_SUBMISSIONS);
@@ -424,29 +459,52 @@ export default function PartnerSubmissionsPage() {
                       {sub.courseTitle && <span style={{ fontWeight: 400, color: "#64748b", marginLeft: "6px" }}>({sub.courseTitle})</span>}
                     </div>
 
-                    {sub.videoUrl && (
-                      <a
-                        href={sub.videoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
+                    {(() => {
+                      const media = parseSubmissionMedia(sub.videoUrl);
+                      if (media.hasLink) {
+                        return (
+                          <a
+                            href={media.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              color: media.type === "padlet" ? "#7c3aed" : "#2563eb",
+                              fontWeight: 700,
+                              fontSize: "0.82rem",
+                              textDecoration: "none",
+                              backgroundColor: media.type === "padlet" ? "#f5f3ff" : "#eff6ff",
+                              border: `1px solid ${media.type === "padlet" ? "#ddd6fe" : "#bfdbfe"}`,
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+                            }}
+                          >
+                            {media.type === "padlet" ? <span style={{ fontSize: "0.85rem" }}>📋</span> : <Video size={13} />}
+                            <span>{media.label}</span>
+                            <ExternalLink size={12} />
+                          </a>
+                        );
+                      }
+                      return (
+                        <span style={{
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: "5px",
-                          color: "#4f46e5",
-                          fontWeight: 600,
-                          fontSize: "0.82rem",
-                          textDecoration: "none",
-                          backgroundColor: "#eef2ff",
+                          gap: "4px",
+                          fontSize: "0.78rem",
+                          color: "#64748b",
+                          backgroundColor: "#f1f5f9",
+                          border: "1px solid #e2e8f0",
                           padding: "3px 8px",
-                          borderRadius: "6px"
-                        }}
-                      >
-                        <Video size={13} />
-                        <span>Xem video thực hành</span>
-                        <ExternalLink size={12} />
-                      </a>
-                    )}
+                          borderRadius: "6px",
+                          fontWeight: 600
+                        }}>
+                          💬 Hỏi đáp trao đổi 1-1
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {sub.studentNotes && (
@@ -523,40 +581,55 @@ export default function PartnerSubmissionsPage() {
               {selectedSub.lessonTitle} • SĐT: {selectedSub.studentPhone || "Chưa cập nhật"}
             </p>
 
-            {/* Video link preview box */}
-            {selectedSub.videoUrl && (
-              <div style={{
-                marginBottom: "1rem",
-                padding: "0.75rem 1rem",
-                backgroundColor: "#f8fafc",
-                borderRadius: "8px",
-                border: "1px solid #e2e8f0",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}>
-                <div style={{ fontSize: "0.85rem", color: "#334155" }}>
-                  <strong>Video nộp:</strong> <span style={{ color: "#64748b" }}>{selectedSub.videoUrl.slice(0, 45)}...</span>
+            {/* Media / Video / Padlet preview box */}
+            {(() => {
+              const media = parseSubmissionMedia(selectedSub.videoUrl);
+              return (
+                <div style={{
+                  marginBottom: "1rem",
+                  padding: "0.75rem 1rem",
+                  backgroundColor: media.type === "padlet" ? "#f5f3ff" : "#f8fafc",
+                  borderRadius: "8px",
+                  border: `1px solid ${media.type === "padlet" ? "#ddd6fe" : "#e2e8f0"}`,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "8px"
+                }}>
+                  <div style={{ fontSize: "0.85rem", color: "#334155" }}>
+                    <strong>{media.type === "padlet" ? "📋 Hồ sơ Padlet học viên:" : media.hasLink ? "🎬 Video nộp:" : "💬 Hình thức:"}</strong>{" "}
+                    <span style={{ color: "#64748b" }}>
+                      {media.hasLink ? (media.url.length > 45 ? `${media.url.slice(0, 45)}...` : media.url) : "Học viên gửi câu hỏi trao đổi trực tiếp"}
+                    </span>
+                  </div>
+                  {media.hasLink && (
+                    <a
+                      href={media.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        color: media.type === "padlet" ? "#6d28d9" : "#1d4ed8",
+                        backgroundColor: "white",
+                        padding: "5px 10px",
+                        borderRadius: "6px",
+                        border: `1px solid ${media.type === "padlet" ? "#c4b5fd" : "#bfdbfe"}`,
+                        fontSize: "0.82rem",
+                        fontWeight: 700,
+                        textDecoration: "none",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                      }}
+                    >
+                      <span>{media.type === "padlet" ? "Mở xem Padlet" : "Mở xem video"}</span>
+                      <ExternalLink size={13} />
+                    </a>
+                  )}
                 </div>
-                <a
-                  href={selectedSub.videoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    color: "#4f46e5",
-                    fontSize: "0.82rem",
-                    fontWeight: 600,
-                    textDecoration: "none"
-                  }}
-                >
-                  <span>Mở xem video</span>
-                  <ExternalLink size={13} />
-                </a>
-              </div>
-            )}
+              );
+            })()}
 
             <form onSubmit={handleSaveFeedback} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               {/* Star Rating Selection */}
