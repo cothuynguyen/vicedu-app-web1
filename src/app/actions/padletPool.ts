@@ -13,9 +13,11 @@ const crmClient = createClient(
   }
 );
 
+const LMS_FALLBACK_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkdWZvdXl3a3RieGx0aXhyeWN3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MzM2NDE1MywiZXhwIjoyMDk4OTQwMTUzfQ.GrP8DJBd0WbR3JMHhCUprZkcDY_UHwX0sLt9L8CUNy0";
+
 const lmsClient = createClient(
   process.env.LMS_SUPABASE_URL || "https://wdufouywktbxltixrycw.supabase.co",
-  process.env.LMS_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  process.env.LMS_SERVICE_ROLE_KEY || LMS_FALLBACK_KEY,
   {
     auth: {
       persistSession: false,
