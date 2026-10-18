@@ -75,6 +75,7 @@ export default function StudentModal({
   const [formData, setFormData] = useState(defaultFormData);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [assigningPadlet, setAssigningPadlet] = useState(false);
   
   // Finance tab state
   const [studentEnrollments, setStudentEnrollments] = useState<any[]>([]);
@@ -702,7 +703,6 @@ export default function StudentModal({
     onClose();
   };
 
-  const [assigningPadlet, setAssigningPadlet] = useState(false);
   const handleAssignFromPool = async () => {
     if (!studentId) return;
     setAssigningPadlet(true);
