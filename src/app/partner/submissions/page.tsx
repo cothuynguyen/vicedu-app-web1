@@ -102,8 +102,14 @@ export default function PartnerSubmissionsPage() {
       } else {
         setSubmissions([]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Lỗi tải submissions:", err);
+      const errMsg = err?.message || String(err);
+      if (errMsg.includes("Server Action") || errMsg.includes("failed-to-find-server-action") || errMsg.includes("UnrecognizedActionError") || errMsg.includes("404")) {
+        console.warn("Phiên bản mã nguồn máy chủ đã được cập nhật, đang tự động tải lại trang để đồng bộ...");
+        window.location.reload();
+        return;
+      }
       setSubmissions([]);
     } finally {
       setLoading(false);
@@ -199,6 +205,13 @@ export default function PartnerSubmissionsPage() {
 
       setSelectedSub(null);
     } catch (err: any) {
+      console.error("Lỗi khi lưu nhận xét:", err);
+      const errMsg = err?.message || String(err);
+      if (errMsg.includes("Server Action") || errMsg.includes("failed-to-find-server-action") || errMsg.includes("UnrecognizedActionError") || errMsg.includes("404")) {
+        alert("Phiên làm việc trên trình duyệt đã cũ do hệ thống vừa được nâng cấp. Hệ thống sẽ tự động tải lại trang để cập nhật!");
+        window.location.reload();
+        return;
+      }
       alert("Lỗi khi lưu nhận xét: " + err.message);
     } finally {
       setIsSaving(false);
