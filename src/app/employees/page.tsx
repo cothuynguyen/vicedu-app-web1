@@ -361,10 +361,22 @@ export default function EmployeesPage() {
         const myBranches = activeBranch.split(',').map((b: string) => b.trim());
         return empBranches.some((eb: string) => myBranches.includes(eb));
       }
+      if (currentBranch === "Đối tác Online" || currentBranch === "Đối tác" || currentBranch === "Thầy giáo Đối tác") {
+        return empBranches.some((eb: string) => eb.toLowerCase().includes("đối tác")) ||
+               emp.role === "Partner" ||
+               (emp.department && emp.department.toLowerCase().includes("đối tác")) ||
+               (emp.position && emp.position.toLowerCase().includes("đối tác"));
+      }
       return empBranches.includes(currentBranch);
     })();
 
-    const matchDept = filterDepartment === "Tất cả" || emp.department === filterDepartment;
+    const matchDept = filterDepartment === "Tất cả" || 
+                      emp.department === filterDepartment ||
+                      (filterDepartment === "Đối tác" && (
+                        (emp.department && emp.department.toLowerCase().includes("đối tác")) ||
+                        emp.role === "Partner" ||
+                        (emp.position && emp.position.toLowerCase().includes("đối tác"))
+                      ));
     const matchStatus = filterStatus === "Tất cả" || emp.status === filterStatus;
     const matchTab = listTab === "active" ? emp.status !== "Nghỉ việc" : emp.status === "Nghỉ việc";
     return matchSearch && matchBranch && matchDept && matchStatus && matchTab;
@@ -431,6 +443,7 @@ export default function EmployeesPage() {
                 {activeBranch.split(",").map(b => b.trim()).filter(Boolean).map(br => (
                   <option key={br} value={br}>{br}</option>
                 ))}
+                <option value="Đối tác Online">Thầy giáo Đối tác</option>
               </>
             )
           ) : (
@@ -441,6 +454,7 @@ export default function EmployeesPage() {
               <option value="Lâm Thao">Lâm Thao</option>
               <option value="Tuyên Quang">Tuyên Quang</option>
               <option value="Dân Hòa">Dân Hòa</option>
+              <option value="Đối tác Online">Thầy giáo Đối tác</option>
             </>
           )}
         </select>
@@ -451,6 +465,7 @@ export default function EmployeesPage() {
           <option value="Tư vấn">Tư vấn</option>
           <option value="Kế toán">Kế toán</option>
           <option value="Quản lý">Quản lý</option>
+          <option value="Đối tác">Đối tác Đào tạo</option>
         </select>
 
         {listTab === 'active' && (

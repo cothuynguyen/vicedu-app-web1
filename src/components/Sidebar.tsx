@@ -80,7 +80,6 @@ const financeMenu = [
 
 const systemMenu = [
   { name: "Nhân sự", path: "/employees", icon: UserCircle },
-  { name: "Cấu hình", path: "/settings", icon: Settings },
 ];
 
 export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
