@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { getPartnerPracticeSubmissions, submitPracticeFeedback } from "@/app/actions/partner";
+import { getPartnerPracticeSubmissions, submitPracticeFeedback, countPendingPartnerConsultations } from "@/app/actions/partner";
 import { 
   Video, 
   MessageSquare, 
@@ -25,7 +25,8 @@ import {
   LayoutList,
   LayoutGrid,
   X,
-  Filter
+  Filter,
+  PhoneCall
 } from "lucide-react";
 
 interface Submission {
@@ -116,8 +117,19 @@ export default function PartnerSubmissionsPage() {
     }
   };
 
+  const [pendingConsultationsCount, setPendingConsultationsCount] = useState(0);
+
   useEffect(() => {
     fetchSubmissions();
+    if (user?.email) {
+      countPendingPartnerConsultations(user.email, user.department || user.position)
+        .then(res => {
+          if (res.success && typeof res.count === 'number') {
+            setPendingConsultationsCount(res.count);
+          }
+        })
+        .catch(console.error);
+    }
   }, [user?.email, user?.department, user?.position]);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -291,6 +303,66 @@ export default function PartnerSubmissionsPage() {
           </div>
         </div>
       </div>
+
+      {/* Banner thông báo nếu có Khách đăng ký tư vấn */}
+      {pendingConsultationsCount > 0 && (
+        <div style={{
+          background: "linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%)",
+          border: "1px solid #fde68a",
+          borderRadius: "14px",
+          padding: "1rem 1.25rem",
+          marginBottom: "1.25rem",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "1rem",
+          boxShadow: "0 2px 6px rgba(245, 158, 11, 0.1)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "10px",
+              backgroundColor: "#f59e0b",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0
+            }}>
+              <PhoneCall size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#92400e" }}>
+                Thầy/Cô đang có {pendingConsultationsCount} khách hàng đăng ký nhận tư vấn bộ môn!
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "#b45309", marginTop: "2px" }}>
+                Khách quan tâm đã gửi thông tin liên hệ. Thầy/Cô có thể gọi điện hoặc nhắn tin Zalo hỗ trợ phụ huynh ngay.
+              </div>
+            </div>
+          </div>
+          <Link
+            href="/partner/consultations"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              backgroundColor: "#f59e0b",
+              color: "white",
+              padding: "0.6rem 1.1rem",
+              borderRadius: "10px",
+              fontSize: "0.84rem",
+              fontWeight: 700,
+              textDecoration: "none",
+              boxShadow: "0 2px 6px rgba(245, 158, 11, 0.3)"
+            }}
+          >
+            <span>Xem danh sách tư vấn</span>
+            <ChevronRight size={15} />
+          </Link>
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div style={{

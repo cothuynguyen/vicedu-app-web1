@@ -894,4 +894,216 @@ export async function toggleStudentVipStatusByPartner(userId: string, isVip: boo
   }
 }
 
+export interface PartnerConsultationItem {
+  id: string;
+  phone: string;
+  fullName: string;
+  courseTitle: string;
+  courseId?: string;
+  targetStudent: string;
+  notes: string;
+  status: string;
+  createdAt: string;
+  leadNotes?: string;
+  isEnrolled?: boolean;
+}
+
+export async function getPartnerConsultations(partnerEmail?: string, userDepartment?: string) {
+  try {
+    if (!partnerEmail) {
+      return { success: true, data: [] };
+    }
+
+    const email = partnerEmail.toLowerCase().trim();
+
+    // 1. Kiểm tra quyền Super Admin / Admin
+    const { data: userProfile } = await lmsClient
+      .from("profiles")
+      .select("role")
+      .eq("email", email)
+      .maybeSingle();
+
+    const isSuperAdmin = userProfile?.role === "SUPER_ADMIN" || userProfile?.role === "ADMIN";
+
+    // 2. Lấy danh sách khóa học của đối tác
+    let partnerCourses: PartnerCourse[] = [];
+    if (!isSuperAdmin) {
+      const coursesRes = await getPartnerCourses(partnerEmail, userDepartment);
+      if (!coursesRes.success || !coursesRes.data || coursesRes.data.length === 0) {
+        return { success: true, data: [] };
+      }
+      partnerCourses = coursesRes.data;
+    } else {
+      // Super Admin lấy tất cả các khóa
+      const { data: allCourses } = await lmsClient
+        .from("courses")
+        .select("id, title, department, target_audiences, is_published");
+      partnerCourses = (allCourses || []).map((c: any) => ({
+        id: c.id,
+        title: c.title,
+        description: null,
+        department: c.department,
+        price: 0,
+        image_url: null,
+        is_published: c.is_published ?? true
+      }));
+    }
+
+    // 3. Lấy tất cả hoạt động COURSE_CONSULTATION từ bảng customer_activities của CRM
+    const { data: activities, error: actError } = await crmClient
+      .from("customer_activities")
+      .select("id, phone, description, created_at, landing_page_id")
+      .eq("activity_type", "COURSE_CONSULTATION")
+      .order("created_at", { ascending: false });
+
+    if (actError) throw actError;
+    if (!activities || activities.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    // 4. Lọc các hoạt động liên quan đến khóa học của giảng viên này
+    const matchedActivities = activities.filter((act: any) => {
+      const desc = act.description || "";
+      if (isSuperAdmin) return true;
+
+      // Match instructor tag trong description
+      if (desc.toLowerCase().includes(`[instructor:${email}]`)) return true;
+
+      // Match tiêu đề khóa học
+      return partnerCourses.some(c => {
+        if (!c.title) return false;
+        return desc.includes(`"${c.title}"`) || desc.toLowerCase().includes(c.title.toLowerCase());
+      });
+    });
+
+    if (matchedActivities.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    // 5. Lấy thông tin leads song song để biết trạng thái chăm sóc và ghi chú
+    const phones = Array.from(new Set(matchedActivities.map(a => a.phone).filter(Boolean)));
+    const { data: leadsData } = await crmClient
+      .from("leads")
+      .select("phone, full_name, status, notes, updated_at")
+      .in("phone", phones);
+
+    const leadMap = new Map<string, any>();
+    if (leadsData) {
+      leadsData.forEach((l: any) => leadMap.set(l.phone, l));
+    }
+
+    // 6. Kiểm tra xem học viên này đã được ghi danh vào khóa học chưa
+    const { data: enrollments } = await lmsClient
+      .from("course_enrollments")
+      .select("course_id, user_id, profiles(phone)")
+      .in("course_id", partnerCourses.map(c => c.id));
+
+    const enrolledPhones = new Set<string>();
+    if (enrollments) {
+      enrollments.forEach((en: any) => {
+        const ph = en.profiles?.phone;
+        if (ph) enrolledPhones.add(ph.replace(/\D/g, ""));
+      });
+    }
+
+    // 7. Bóc tách và định dạng dữ liệu
+    const consultations: PartnerConsultationItem[] = matchedActivities.map((act: any) => {
+      const desc = act.description || "";
+      const nameMatch = desc.match(/Khách hàng \[(.*?)\]/);
+      const courseMatch = desc.match(/khóa học\/CLB: "(.*?)"/);
+      const targetMatch = desc.match(/Đối tượng học: \[(.*?)\]/);
+      const notesMatch = desc.match(/Ghi chú: (.*?)(?: \| \[|$)/);
+
+      const cleanPhone = (act.phone || "").replace(/\D/g, "");
+      const leadInfo = leadMap.get(act.phone) || leadMap.get(cleanPhone);
+
+      const matchedCourseTitle = courseMatch ? courseMatch[1] : "";
+      const foundCourse = partnerCourses.find(c => 
+        c.title === matchedCourseTitle || 
+        matchedCourseTitle.includes(c.title) || 
+        c.title.includes(matchedCourseTitle)
+      );
+
+      const isEnrolled = enrolledPhones.has(cleanPhone);
+      let status = leadInfo?.status || "Mới";
+      if (isEnrolled && status !== "Đang học") {
+        status = "Đang học";
+      }
+
+      return {
+        id: act.id,
+        phone: act.phone || "",
+        fullName: nameMatch ? nameMatch[1] : (leadInfo?.full_name || "Khách hàng"),
+        courseTitle: foundCourse?.title || matchedCourseTitle || "Khóa học",
+        courseId: foundCourse?.id,
+        targetStudent: targetMatch ? targetMatch[1] : "Bản thân",
+        notes: notesMatch ? notesMatch[1] : "Không có ghi chú",
+        status: status,
+        createdAt: act.created_at ? new Date(act.created_at).toLocaleString("vi-VN") : "",
+        leadNotes: leadInfo?.notes || "",
+        isEnrolled
+      };
+    });
+
+    return { success: true, data: consultations };
+  } catch (err: any) {
+    console.error("Lỗi getPartnerConsultations:", err);
+    return { success: false, error: err.message, data: [] };
+  }
+}
+
+export async function countPendingPartnerConsultations(partnerEmail?: string, userDepartment?: string) {
+  try {
+    const res = await getPartnerConsultations(partnerEmail, userDepartment);
+    if (!res.success || !res.data) return { success: true, count: 0, total: 0 };
+
+    const pendingCount = res.data.filter(c => c.status === "Mới" || !c.status).length;
+    return { success: true, count: pendingCount, total: res.data.length };
+  } catch (err: any) {
+    console.error("Lỗi countPendingPartnerConsultations:", err);
+    return { success: false, count: 0, total: 0 };
+  }
+}
+
+export async function updatePartnerConsultationStatus(payload: {
+  phone: string;
+  status: string;
+  notes?: string;
+  partnerEmail?: string;
+  fullName?: string;
+}) {
+  try {
+    const { phone, status, notes, partnerEmail, fullName } = payload;
+    if (!phone) return { success: false, error: "Thiếu số điện thoại" };
+
+    const cleanPhone = phone.replace(/\D/g, "");
+
+    // 1. Cập nhật hoặc thêm vào bảng leads trong CRM
+    const { error: leadErr } = await crmClient.from("leads").upsert({
+      phone: cleanPhone,
+      full_name: fullName || "Khách hàng",
+      status: status || "Đang tư vấn",
+      notes: notes || null,
+      branch_id: "Chỉ Admin được dùng",
+      updated_at: new Date().toISOString()
+    }, { onConflict: "phone" });
+
+    if (leadErr) console.warn("Lỗi cập nhật leads:", leadErr);
+
+    // 2. Ghi nhật ký vào customer_activities
+    await crmClient.from("customer_activities").insert({
+      phone: cleanPhone,
+      activity_type: "NOTE",
+      description: `Đối tác (${partnerEmail || "Giảng viên"}) cập nhật tư vấn: [${status}]. Ghi chú: ${notes || "Không"}`,
+      created_at: new Date().toISOString()
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Lỗi updatePartnerConsultationStatus:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+
 

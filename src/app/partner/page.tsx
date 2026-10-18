@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import { getPartnerCourses, getPartnerStudents, PartnerCourse, PartnerStudentItem } from "@/app/actions/partner";
+import { getPartnerCourses, getPartnerStudents, countPendingPartnerConsultations, PartnerCourse, PartnerStudentItem } from "@/app/actions/partner";
 import { 
   Users, 
   BookOpen, 
@@ -16,7 +16,8 @@ import {
   Sparkles,
   ArrowRight,
   UserPlus,
-  Plus
+  Plus,
+  PhoneCall
 } from "lucide-react";
 
 export default function PartnerDashboard() {
@@ -28,21 +29,28 @@ export default function PartnerDashboard() {
 
   const [partnerCourses, setPartnerCourses] = useState<PartnerCourse[]>([]);
   const [partnerStudents, setPartnerStudents] = useState<PartnerStudentItem[]>([]);
+  const [pendingConsultationsCount, setPendingConsultationsCount] = useState(0);
+  const [totalConsultationsCount, setTotalConsultationsCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       if (user?.email) {
         setLoading(true);
-        const [cRes, sRes] = await Promise.all([
+        const [cRes, sRes, consultRes] = await Promise.all([
           getPartnerCourses(user.email, user.department || user.position),
-          getPartnerStudents(user.email, user.department || user.position)
+          getPartnerStudents(user.email, user.department || user.position),
+          countPendingPartnerConsultations(user.email, user.department || user.position)
         ]);
         if (cRes.success && cRes.data) {
           setPartnerCourses(cRes.data);
         }
         if (sRes.success && sRes.data) {
           setPartnerStudents(sRes.data);
+        }
+        if (consultRes.success) {
+          setPendingConsultationsCount(consultRes.count || 0);
+          setTotalConsultationsCount(consultRes.total || 0);
         }
         setLoading(false);
       }
@@ -57,10 +65,10 @@ export default function PartnerDashboard() {
 
   // Dynamic stats
   const stats = [
-    { label: "Khóa học đang mở", value: partnerCourses.length.toString(), sub: primaryCourse ? primaryCourse.title : partnerSubject, icon: BookOpen, color: "#4f46e5", bg: "#eef2ff" },
-    { label: "Học viên tham gia", value: totalStudents.toString(), sub: totalStudents > 0 ? "Đã ghi danh" : "Chưa có học viên", icon: Users, color: "#06b6d4", bg: "#ecfeff" },
-    { label: "Tỷ lệ hoàn thành TB", value: totalStudents > 0 ? `${Math.round(partnerStudents.reduce((acc, s) => acc + s.progress, 0) / totalStudents)}%` : "0%", sub: "Độ hoàn thành bài", icon: TrendingUp, color: "#10b981", bg: "#ecfdf5" },
-    { label: "Bài tập cần chấm/nhận xét", value: "0", sub: "Chờ góp ý", icon: Video, color: "#f59e0b", bg: "#fffbeb" },
+    { label: "Khóa học đang mở", value: partnerCourses.length.toString(), sub: primaryCourse ? primaryCourse.title : partnerSubject, icon: BookOpen, color: "#4f46e5", bg: "#eef2ff", link: "/partner/courses" },
+    { label: "Học viên tham gia", value: totalStudents.toString(), sub: totalStudents > 0 ? "Đã ghi danh" : "Chưa có học viên", icon: Users, color: "#06b6d4", bg: "#ecfeff", link: "/partner/students" },
+    { label: "Khách chờ tư vấn", value: pendingConsultationsCount.toString(), sub: `${totalConsultationsCount} lượt đăng ký`, icon: PhoneCall, color: "#ef4444", bg: "#fef2f2", link: "/partner/consultations" },
+    { label: "Bài tập cần chấm/nhận xét", value: "0", sub: "Chờ góp ý 1-1", icon: Video, color: "#f59e0b", bg: "#fffbeb", link: "/partner/submissions" },
   ];
 
   const recentStudents = partnerStudents.slice(0, 5);
@@ -132,6 +140,28 @@ export default function PartnerDashboard() {
               <Users size={16} />
               <span>Xem {totalStudents} Học viên của {user?.full_name?.startsWith("Cô") ? "Cô" : "Thầy"}</span>
             </Link>
+
+            <Link
+              href="/partner/consultations"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                backgroundColor: pendingConsultationsCount > 0 ? "#ef4444" : "rgba(255, 255, 255, 0.15)",
+                color: "white",
+                border: "1px solid rgba(255, 255, 255, 0.25)",
+                backdropFilter: "blur(8px)",
+                padding: "0.75rem 1.25rem",
+                borderRadius: "10px",
+                fontWeight: 600,
+                fontSize: "0.9rem",
+                textDecoration: "none",
+                boxShadow: pendingConsultationsCount > 0 ? "0 4px 12px rgba(239, 68, 68, 0.4)" : "none"
+              }}
+            >
+              <PhoneCall size={16} />
+              <span>Khách chờ tư vấn {pendingConsultationsCount > 0 ? `(${pendingConsultationsCount})` : ""}</span>
+            </Link>
           </div>
         </div>
 
@@ -154,16 +184,31 @@ export default function PartnerDashboard() {
         {stats.map((s, idx) => {
           const Icon = s.icon;
           return (
-            <div key={idx} style={{
-              backgroundColor: "white",
-              borderRadius: "16px",
-              padding: "1.5rem",
-              border: "1px solid #e2e8f0",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.75rem"
-            }}>
+            <Link
+              key={idx}
+              href={s.link}
+              style={{
+                backgroundColor: "white",
+                borderRadius: "16px",
+                padding: "1.5rem",
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+                textDecoration: "none",
+                transition: "transform 0.15s, box-shadow 0.15s",
+                cursor: "pointer"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 8px 16px rgba(0,0,0,0.06)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "none";
+                e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.02)";
+              }}
+            >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 600 }}>{s.label}</span>
                 <div style={{ width: "38px", height: "38px", borderRadius: "10px", backgroundColor: s.bg, display: "flex", alignItems: "center", justifyContent: "center", color: s.color }}>
@@ -174,7 +219,7 @@ export default function PartnerDashboard() {
                 <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#0f172a", lineHeight: 1 }}>{s.value}</div>
                 <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: "4px" }}>{s.sub}</div>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>

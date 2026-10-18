@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { countPendingTasks } from "@/app/actions/events";
+import { countPendingPartnerConsultations } from "@/app/actions/partner";
 import ChangePasswordModal from './ChangePasswordModal';
 import OnlineWidget from './OnlineWidget';
 import NotificationBell from './NotificationBell';
@@ -45,6 +46,7 @@ const partnerMenu = [
   { name: "Tổng quan Đối tác", path: "/partner", icon: LayoutDashboard },
   { name: "Khóa học của tôi", path: "/partner/courses", icon: BookOpen },
   { name: "Học viên của tôi", path: "/partner/students", icon: Users },
+  { name: "Khách đăng ký tư vấn", path: "/partner/consultations", icon: PhoneCall },
   { name: "Chấm bài & Hướng dẫn", path: "/partner/submissions", icon: ClipboardCheck },
 ];
 
@@ -89,6 +91,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
+  const [pendingConsultationsCount, setPendingConsultationsCount] = useState(0);
 
   useEffect(() => {
     setIsMounted(true);
@@ -101,6 +104,18 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
         .catch(console.error);
     }
   }, [user?.id, pathname]);
+
+  useEffect(() => {
+    if (user?.email) {
+      countPendingPartnerConsultations(user.email, user.department || user.position)
+        .then(res => {
+          if (res.success && typeof res.count === 'number') {
+            setPendingConsultationsCount(res.count);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [user?.email, user?.department, user?.position, pathname]);
 
   
   if (!isMounted) return <aside className={`sidebar ${isOpen ? "open" : ""}`}></aside>;
@@ -170,6 +185,19 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
                 boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)'
               }}>
                 {pendingTasksCount}
+              </span>
+            )}
+            {item.path === "/partner/consultations" && pendingConsultationsCount > 0 && (
+              <span className="animate-pulse" style={{
+                background: '#ef4444',
+                color: 'white',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                boxShadow: '0 0 8px rgba(239, 68, 68, 0.6)'
+              }}>
+                {pendingConsultationsCount}
               </span>
             )}
             {isActive && <div className="active-indicator" />}
