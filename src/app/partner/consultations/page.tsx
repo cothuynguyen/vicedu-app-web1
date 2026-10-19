@@ -7,6 +7,7 @@ import {
   getPartnerConsultations, 
   updatePartnerConsultationStatus, 
   enrollStudentByPartner,
+  deletePartnerConsultation,
   getPartnerCourses,
   PartnerConsultationItem,
   PartnerCourse 
@@ -34,7 +35,8 @@ import {
   Loader2,
   Send,
   Check,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from "lucide-react";
 
 export default function PartnerConsultationsPage() {
@@ -60,6 +62,10 @@ export default function PartnerConsultationsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [enrollVip, setEnrollVip] = useState(false);
+
+  // Delete modal
+  const [deleteTarget, setDeleteTarget] = useState<PartnerConsultationItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Notification Toast
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -205,6 +211,31 @@ export default function PartnerConsultationsPage() {
       showToast(err.message || "Lỗi khi ghi danh", "error");
     } finally {
       setIsEnrolling(false);
+    }
+  };
+
+  // Open delete modal
+  const openDeleteModal = (item: PartnerConsultationItem) => {
+    setDeleteTarget(item);
+  };
+
+  // Handle delete consultation
+  const handleDeleteConsultation = async () => {
+    if (!deleteTarget || !user?.email) return;
+    setIsDeleting(true);
+    try {
+      const res = await deletePartnerConsultation(deleteTarget.id, user.email);
+      if (res.success) {
+        showToast(res.message || "Đã xóa lượt đăng ký thành công!");
+        setConsultations(prev => prev.filter(c => c.id !== deleteTarget.id));
+        setDeleteTarget(null);
+      } else {
+        showToast(res.error || "Xóa thất bại", "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || "Lỗi khi xóa", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -869,8 +900,27 @@ export default function PartnerConsultationsPage() {
                             <Edit3 size={14} />
                           </button>
 
-                          {/* Ghi danh khóa học */}
-                          {!item.isEnrolled && item.status !== "Đang học" && (
+                          {/* Ghi danh khóa học hoặc Trạng thái đã vào lớp */}
+                          {item.isEnrolled || item.status === "Đang học" ? (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                height: "32px",
+                                padding: "0 10px",
+                                borderRadius: "8px",
+                                backgroundColor: "#ecfdf5",
+                                color: "#059669",
+                                border: "1px solid #a7f3d0",
+                                fontSize: "0.78rem",
+                                fontWeight: 700
+                              }}
+                            >
+                              <Check size={14} />
+                              <span>Đã vào lớp</span>
+                            </span>
+                          ) : (
                             <button
                               onClick={() => openEnrollModal(item)}
                               title="Cấp quyền vào khóa học ngay"
@@ -893,6 +943,26 @@ export default function PartnerConsultationsPage() {
                               <span>Ghi danh</span>
                             </button>
                           )}
+
+                          {/* Nút Xóa bản ghi tư vấn */}
+                          <button
+                            onClick={() => openDeleteModal(item)}
+                            title="Xóa lượt đăng ký này"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: "32px",
+                              height: "32px",
+                              borderRadius: "8px",
+                              backgroundColor: "#fff1f2",
+                              color: "#e11d48",
+                              border: "1px solid #fecdd3",
+                              cursor: "pointer"
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1168,6 +1238,126 @@ export default function PartnerConsultationsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: XÁC NHẬN XÓA LƯỢT TƯ VẤN */}
+      {deleteTarget && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(15, 23, 42, 0.6)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          padding: "1rem"
+        }}>
+          <div style={{
+            backgroundColor: "white",
+            borderRadius: "20px",
+            maxWidth: "460px",
+            width: "100%",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+            overflow: "hidden"
+          }}>
+            <div style={{
+              padding: "1.25rem 1.5rem",
+              borderBottom: "1px solid #fee2e2",
+              backgroundColor: "#fff1f2",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  backgroundColor: "#fee2e2",
+                  color: "#e11d48",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#9f1239" }}>
+                    Xóa lượt đăng ký tư vấn
+                  </h3>
+                  <p style={{ margin: 0, fontSize: "0.78rem", color: "#e11d48" }}>
+                    Dọn dẹp lượt đăng ký thử nghiệm hoặc dữ liệu rác
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#9f1239",
+                  cursor: "pointer",
+                  padding: "4px"
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ padding: "1.5rem" }}>
+              <p style={{ fontSize: "0.92rem", color: "#334155", margin: "0 0 1rem", lineHeight: 1.6 }}>
+                Bạn có chắc chắn muốn xóa lượt đăng ký của khách hàng <strong>{deleteTarget.fullName}</strong> (SĐT: <code>{deleteTarget.phone}</code>) cho khóa học <em>"{deleteTarget.courseTitle}"</em>?
+              </p>
+              <div style={{ backgroundColor: "#f8fafc", padding: "0.85rem", borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "0.8rem", color: "#64748b", marginBottom: "1.5rem" }}>
+                💡 <strong>Lưu ý:</strong> Thao tác này chỉ xóa bản ghi tư vấn khỏi danh sách quản lý. Hồ sơ học sinh, phụ huynh và tiến trình học trong hệ thống vẫn được bảo toàn nguyên vẹn.
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  style={{
+                    padding: "0.65rem 1.25rem",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#f8fafc",
+                    color: "#475569",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    cursor: "pointer"
+                  }}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteConsultation}
+                  disabled={isDeleting}
+                  style={{
+                    padding: "0.65rem 1.5rem",
+                    borderRadius: "10px",
+                    border: "none",
+                    backgroundColor: "#e11d48",
+                    color: "white",
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    cursor: isDeleting ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  <span>{isDeleting ? "Đang xóa..." : "Xác nhận xóa"}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

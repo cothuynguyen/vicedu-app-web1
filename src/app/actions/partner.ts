@@ -994,18 +994,33 @@ export async function getPartnerConsultations(partnerEmail?: string, userDepartm
       leadsData.forEach((l: any) => leadMap.set(l.phone, l));
     }
 
-    // 6. Kiểm tra xem học viên này đã được ghi danh vào khóa học chưa
-    const { data: enrollments } = await lmsClient
-      .from("course_enrollments")
-      .select("course_id, user_id, profiles(phone)")
-      .in("course_id", partnerCourses.map(c => c.id));
-
+    // 6. Kiểm tra xem học viên này đã được ghi danh vào khóa học chưa (Truy vấn 2 bước vì course_enrollments.user_id không liên kết trực tiếp profiles)
+    const partnerCourseIds = partnerCourses.map(c => c.id).filter(Boolean);
     const enrolledPhones = new Set<string>();
-    if (enrollments) {
-      enrollments.forEach((en: any) => {
-        const ph = en.profiles?.phone;
-        if (ph) enrolledPhones.add(ph.replace(/\D/g, ""));
-      });
+
+    if (partnerCourseIds.length > 0) {
+      const { data: enrollments } = await lmsClient
+        .from("course_enrollments")
+        .select("course_id, user_id")
+        .in("course_id", partnerCourseIds);
+
+      if (enrollments && enrollments.length > 0) {
+        const userIds = Array.from(new Set(enrollments.map((en: any) => en.user_id).filter(Boolean)));
+        if (userIds.length > 0) {
+          const { data: userProfiles } = await lmsClient
+            .from("profiles")
+            .select("id, phone")
+            .in("id", userIds);
+
+          if (userProfiles) {
+            userProfiles.forEach((p: any) => {
+              if (p.phone) {
+                enrolledPhones.add(p.phone.replace(/\D/g, ""));
+              }
+            });
+          }
+        }
+      }
     }
 
     // 7. Bóc tách và định dạng dữ liệu
@@ -1080,17 +1095,39 @@ export async function updatePartnerConsultationStatus(payload: {
 
     const cleanPhone = phone.replace(/\D/g, "");
 
-    // 1. Cập nhật hoặc thêm vào bảng leads trong CRM
-    const { error: leadErr } = await crmClient.from("leads").upsert({
-      phone: cleanPhone,
-      full_name: fullName || "Khách hàng",
-      status: status || "Đang tư vấn",
-      notes: notes || null,
-      branch_id: "Chỉ Admin được dùng",
-      updated_at: new Date().toISOString()
-    }, { onConflict: "phone" });
+    // 1. Cập nhật hoặc thêm vào bảng leads trong CRM an toàn (tránh lỗi null full_name)
+    const { data: existingLead } = await crmClient
+      .from("leads")
+      .select("id, full_name, status, notes")
+      .eq("phone", cleanPhone)
+      .maybeSingle();
 
-    if (leadErr) console.warn("Lỗi cập nhật leads:", leadErr);
+    if (existingLead) {
+      const { error: leadUpdateErr } = await crmClient
+        .from("leads")
+        .update({
+          status: status || existingLead.status || "Đang học",
+          notes: notes !== undefined ? notes : existingLead.notes,
+          updated_at: new Date().toISOString()
+        })
+        .eq("phone", cleanPhone);
+
+      if (leadUpdateErr) console.warn("Lỗi update leads:", leadUpdateErr);
+    } else {
+      const { error: leadInsertErr } = await crmClient
+        .from("leads")
+        .insert({
+          phone: cleanPhone,
+          full_name: (fullName && fullName.trim()) ? fullName.trim() : "Khách hàng",
+          status: status || "Đang học",
+          notes: notes || null,
+          branch_id: "Chỉ Admin được dùng",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (leadInsertErr) console.warn("Lỗi insert leads:", leadInsertErr);
+    }
 
     // 2. Ghi nhật ký vào customer_activities
     await crmClient.from("customer_activities").insert({
@@ -1104,6 +1141,64 @@ export async function updatePartnerConsultationStatus(payload: {
   } catch (err: any) {
     console.error("Lỗi updatePartnerConsultationStatus:", err);
     return { success: false, error: err.message };
+  }
+}
+
+export async function deletePartnerConsultation(activityId: string, userEmail: string) {
+  try {
+    if (!activityId || !userEmail) {
+      return { success: false, error: "Thiếu thông tin yêu cầu" };
+    }
+
+    const email = userEmail.toLowerCase().trim();
+
+    // 1. Kiểm tra quyền Super Admin / Admin
+    const { data: userProfile } = await lmsClient
+      .from("profiles")
+      .select("role")
+      .eq("email", email)
+      .maybeSingle();
+
+    const isSuperAdmin = userProfile?.role === "SUPER_ADMIN" || userProfile?.role === "ADMIN";
+
+    // 2. Lấy bản ghi activity để kiểm tra tính hợp lệ
+    const { data: activity } = await crmClient
+      .from("customer_activities")
+      .select("id, description")
+      .eq("id", activityId)
+      .maybeSingle();
+
+    if (!activity) {
+      return { success: false, error: "Không tìm thấy lượt đăng ký tư vấn cần xóa" };
+    }
+
+    // 3. Nếu không phải Super Admin, kiểm tra xem đối tác có sở hữu khóa học này không
+    if (!isSuperAdmin) {
+      const coursesRes = await getPartnerCourses(email);
+      const partnerCourses = coursesRes.data || [];
+      const desc = activity.description || "";
+      const isOwner = partnerCourses.some(c => 
+        desc.includes(`"${c.title}"`) || 
+        desc.includes(c.title)
+      );
+
+      if (!isOwner) {
+        return { success: false, error: "Bạn không có quyền xóa lượt đăng ký tư vấn của khóa học này" };
+      }
+    }
+
+    // 4. Xóa bản ghi hoạt động tư vấn khỏi customer_activities (Bảo toàn hồ sơ lead/student trong CRM)
+    const { error: delError } = await crmClient
+      .from("customer_activities")
+      .delete()
+      .eq("id", activityId);
+
+    if (delError) throw delError;
+
+    return { success: true, message: "Đã xóa lượt đăng ký tư vấn thành công" };
+  } catch (err: any) {
+    console.error("Lỗi deletePartnerConsultation:", err);
+    return { success: false, error: err.message || "Lỗi xóa lượt tư vấn" };
   }
 }
 
