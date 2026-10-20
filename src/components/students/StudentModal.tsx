@@ -529,8 +529,8 @@ export default function StudentModal({
     if (!files || files.length === 0 || !studentId) return;
 
     const currentImages = formData.commitment_images || [];
-    if (currentImages.length + files.length > 5) {
-      alert("Mỗi học sinh chỉ được lưu tối đa 5 bản chụp cam kết/hồ sơ!");
+    if (currentImages.length + files.length > 10) {
+      alert("Mỗi học sinh chỉ được lưu tối đa 10 bản chụp cam kết/hồ sơ!");
       e.target.value = "";
       return;
     }
@@ -1203,11 +1203,11 @@ export default function StudentModal({
                   <div>
                     <h3 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#0f172a", margin: 0 }}>Hình ảnh Cam kết & Thỏa thuận (Khổ A4)</h3>
                     <p style={{ color: "#64748b", fontSize: "0.85rem", margin: '0.25rem 0 0 0' }}>
-                      Lưu trữ các hồ sơ cam kết đầu ra, thỏa thuận nhập học của học sinh. Tối đa 5 ảnh.
+                      Lưu trữ các hồ sơ cam kết đầu ra, thỏa thuận nhập học của học sinh. Tối đa 10 ảnh.
                     </p>
                   </div>
                   
-                  {!isReadOnly && (!formData.commitment_images || formData.commitment_images.length < 5) && (
+                  {!isReadOnly && (!formData.commitment_images || formData.commitment_images.length < 10) && (
                     <div>
                       <button
                         type="button"
