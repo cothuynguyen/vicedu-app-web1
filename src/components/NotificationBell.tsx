@@ -93,7 +93,13 @@ export default function NotificationBell() {
 
     // Chuyển trang
     if (link_url) {
-      router.push(link_url);
+      if (link_url.startsWith("http://") || link_url.startsWith("https://")) {
+        window.open(link_url, "_blank");
+      } else if (link_url.startsWith("/dashboard/admin")) {
+        window.open(`https://hoc.viceduvn.com${link_url}`, "_blank");
+      } else {
+        router.push(link_url);
+      }
     }
   };
 
