@@ -28,6 +28,11 @@ import {
   Layers,
   Palette,
   Flag,
+  Zap,
+  Video,
+  FileText,
+  MessageSquare,
+  Bookmark,
 } from "lucide-react"
 import * as XLSX from "xlsx"
 import {
@@ -44,6 +49,16 @@ import {
   MemberData,
 } from "@/app/actions/journeyAdmin"
 
+const DAYS_OF_WEEK = [
+  { dayOfWeek: 1, label: "Thứ 2", short: "T2" },
+  { dayOfWeek: 2, label: "Thứ 3", short: "T3" },
+  { dayOfWeek: 3, label: "Thứ 4", short: "T4" },
+  { dayOfWeek: 4, label: "Thứ 5", short: "T5" },
+  { dayOfWeek: 5, label: "Thứ 6", short: "T6" },
+  { dayOfWeek: 6, label: "Thứ 7", short: "T7" },
+  { dayOfWeek: 0, label: "Chủ Nhật", short: "CN" },
+]
+
 export default function JourneyAdminPage() {
   const { user, loading: authLoading } = useAuth()
   const [activeTab, setActiveTab] = useState<"camps" | "attendance" | "approvals" | "members">("camps")
@@ -54,7 +69,15 @@ export default function JourneyAdminPage() {
   const [selectedCampId, setSelectedCampId] = useState<string>("")
   const [editingCamp, setEditingCamp] = useState<CampData | null>(null)
   const [showCampModal, setShowCampModal] = useState(false)
-  const [modalSubTab, setModalSubTab] = useState<"general" | "tasks" | "schedule" | "special_events" | "branding">("general")
+  const [modalSubTab, setModalSubTab] = useState<"general" | "tasks" | "weekly_schedule" | "special_events" | "scoring" | "branding">("general")
+
+  // Generator form state (cho Tab Weekly Schedule)
+  const [genMonth, setGenMonth] = useState("2026-10")
+  const [genStartDate, setGenStartDate] = useState("2026-11-02")
+  const [genTotalCount, setGenTotalCount] = useState(24)
+
+  // Session editor modal state
+  const [editingSessionIdx, setEditingSessionIdx] = useState<number | null>(null)
 
   // State cho sự kiện đặc biệt mới
   const [newEvent, setNewEvent] = useState({
@@ -110,21 +133,43 @@ export default function JourneyAdminPage() {
             { id: 'tu_hoc', name: 'Tự học thêm', type: 'number', unit: 'phút', target: 30, color: '#8b5cf6', description: 'Luyện nghe podcast hoặc đọc báo tiếng Anh 30 phút' }
           ])
 
+      const defaultWeeklySchedule = camp.theme?.weeklySchedule || (camp.mode === 'clb_quanh_nam' ? [
+        { dayOfWeek: 5, dayLabel: "Thứ 6", timeStr: "17:30", location: "Công viên Văn Lang", sessionTitle: "Chạy tiếp sức chiều T6" },
+        { dayOfWeek: 0, dayLabel: "Chủ Nhật", timeStr: "05:30", location: "Công viên Văn Lang", sessionTitle: "Long Run sáng Chủ Nhật" },
+      ] : [
+        { dayOfWeek: 1, dayLabel: "Thứ 2", timeStr: "19:00", location: "Phòng học Cambridge VicEdu", sessionTitle: "Lộ trình Ngữ pháp & Từ vựng" },
+        { dayOfWeek: 6, dayLabel: "Thứ 7", timeStr: "08:30", location: "Phòng Lab VicEdu", sessionTitle: "Luyện Kỹ năng Speaking & Listening" },
+      ])
+
+      const defaultScoringRules = (camp.scoring_rules && Array.isArray(camp.scoring_rules) && camp.scoring_rules.length > 0)
+        ? camp.scoring_rules
+        : [
+            { label: 'Mỗi nhiệm vụ đạt', points: '+1' },
+            { label: 'Buổi làm đủ nhiệm vụ', points: '+1' },
+            { label: 'Có mặt offline đúng giờ', points: '+2' },
+            { label: 'Tuần kỷ luật (đủ tất cả các buổi)', points: '+3' },
+            { label: 'Đạt mốc 100km / 200km / 300km (hoặc hoàn thành chặng)', points: '+10' },
+          ]
+
       setEditingCamp({
         ...camp,
         tasks: defaultTasks,
+        scoring_rules: defaultScoringRules,
         has_divisions: camp.has_divisions ?? true,
         require_pin: camp.require_pin ?? true,
         theme: {
-          primary: camp.theme?.primary || '#e11d48',
-          accent: camp.theme?.accent || '#be123c',
-          light: camp.theme?.light || '#ffe4e6',
+          primary: camp.theme?.primary || (camp.mode === 'clb_quanh_nam' ? '#e11d48' : '#4f46e5'),
+          accent: camp.theme?.accent || (camp.mode === 'clb_quanh_nam' ? '#be123c' : '#4338ca'),
+          light: camp.theme?.light || (camp.mode === 'clb_quanh_nam' ? '#ffe4e6' : '#eef2ff'),
           campaignTitle: camp.theme?.campaignTitle || (camp.club_months?.[0]?.themeTitle || 'CHIẾN DỊCH THÁNG 10 · BÀN TAY GẮN KẾT & KỶ LUẬT THÉP'),
           campaignSlogan: camp.theme?.campaignSlogan || (camp.club_months?.[0]?.themeSlogan || 'Đập tay 5 người ngược chiều · Hoàn thành cự ly · Giữ chuỗi tuần rực lửa'),
           locationText: camp.theme?.locationText || 'Công viên Văn Lang',
           scheduleText: camp.theme?.scheduleText || 'Tuần 2 buổi · T6 17h30 & CN 05h30',
           canvaUrl: camp.theme?.canvaUrl || '',
           videoUrl: camp.theme?.videoUrl || '',
+          careSuccessTpl: camp.theme?.careSuccessTpl || 'Chúc mừng {name} đã xuất sắc hoàn thành trọn vẹn nhiệm vụ ngày hôm nay! Hãy tiếp tục giữ vững ngọn lửa kỷ luật nhé!',
+          careReminderTpl: camp.theme?.careReminderTpl || 'Nhắc nhở: Sắp đến giờ sinh hoạt / hạn nộp bài hôm nay. Bạn {name} hãy chuẩn bị sẵn sàng và nộp báo cáo đúng giờ nhé!',
+          weeklySchedule: defaultWeeklySchedule,
         },
         logo: {
           icon: camp.logo?.icon || (camp.mode === 'clb_quanh_nam' ? '🏃‍♂️🔥' : '🎯📚'),
@@ -149,6 +194,13 @@ export default function JourneyAdminPage() {
           { id: 'dung_gio', name: 'Có mặt đúng giờ', type: 'boolean', color: '#10b981', description: 'T6 17h30 / CN 05h30 có mặt đúng giờ' },
           { id: 'giup_ban', name: 'Hỗ trợ đồng đội', type: 'boolean', color: '#3b82f6', description: 'Chạy kèm bạn yếu hơn hoặc nhặt rác đường chạy' }
         ],
+        scoring_rules: [
+          { label: 'Mỗi nhiệm vụ đạt', points: '+1' },
+          { label: 'Buổi làm đủ nhiệm vụ', points: '+1' },
+          { label: 'Có mặt offline đúng giờ', points: '+2' },
+          { label: 'Tuần kỷ luật (đủ tất cả các buổi)', points: '+3' },
+          { label: 'Đạt mốc 100km / 200km / 300km', points: '+10' },
+        ],
         theme: {
           primary: '#e11d48',
           accent: '#be123c',
@@ -159,6 +211,12 @@ export default function JourneyAdminPage() {
           scheduleText: 'Tuần 2 buổi · T6 17h30 & CN 05h30',
           canvaUrl: '',
           videoUrl: '',
+          careSuccessTpl: 'Chúc mừng {name} đã xuất sắc hoàn thành trọn vẹn nhiệm vụ ngày hôm nay!',
+          careReminderTpl: 'Nhắc nhở: Sắp đến giờ sinh hoạt hôm nay. Bạn {name} hãy chuẩn bị sẵn sàng nhé!',
+          weeklySchedule: [
+            { dayOfWeek: 5, dayLabel: "Thứ 6", timeStr: "17:30", location: "Công viên Văn Lang", sessionTitle: "Chạy tiếp sức chiều T6" },
+            { dayOfWeek: 0, dayLabel: "Chủ Nhật", timeStr: "05:30", location: "Công viên Văn Lang", sessionTitle: "Long Run sáng Chủ Nhật" },
+          ],
         },
         logo: {
           icon: '🏃‍♂️🔥',
@@ -316,7 +374,6 @@ export default function JourneyAdminPage() {
     const membersList = expMembers || []
     const reportsList = expReports || []
 
-    // 1. Tạo ma trận dữ liệu
     const rows = reportsList.map((r: any, idx: number) => {
       const member = membersList.find((m: any) => m.id === r.member_id)
       const tasksStr = r.tasks ? Object.entries(r.tasks).map(([k, v]) => `${k}: ${v}`).join(", ") : ""
@@ -336,12 +393,10 @@ export default function JourneyAdminPage() {
       }
     })
 
-    // 2. Tạo Workbook
     const worksheet = XLSX.utils.json_to_sheet(rows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Dữ Liệu Điểm Danh")
 
-    // 3. Tải xuống file
     const safeTitle = camp.slug || "journey"
     const dateStr = new Date().toISOString().slice(0, 10)
     XLSX.writeFile(workbook, `Bang_Cham_Cong_${safeTitle}_${dateStr}.xlsx`)
@@ -377,6 +432,156 @@ export default function JourneyAdminPage() {
     setEditingCamp({ ...editingCamp, tasks: updatedTasks })
   }
 
+  // Quản lý Lịch Cố Định Hàng Tuần (Weekly Recurring Schedule)
+  const toggleWeeklyDay = (dayOfWeek: number, dayLabel: string) => {
+    if (!editingCamp) return
+    const schedule = editingCamp.theme?.weeklySchedule || []
+    const exists = schedule.some((s: any) => s.dayOfWeek === dayOfWeek)
+
+    let updatedSchedule: any[]
+    if (exists) {
+      updatedSchedule = schedule.filter((s: any) => s.dayOfWeek !== dayOfWeek)
+    } else {
+      updatedSchedule = [
+        ...schedule,
+        {
+          dayOfWeek,
+          dayLabel,
+          timeStr: dayOfWeek === 0 ? "05:30" : "17:30",
+          location: editingCamp.theme?.locationText || "Công viên Văn Lang",
+          sessionTitle: `Buổi sinh hoạt ${dayLabel}`,
+        },
+      ].sort((a, b) => {
+        const orderA = a.dayOfWeek === 0 ? 7 : a.dayOfWeek
+        const orderB = b.dayOfWeek === 0 ? 7 : b.dayOfWeek
+        return orderA - orderB
+      })
+    }
+
+    setEditingCamp({
+      ...editingCamp,
+      theme: {
+        ...editingCamp.theme,
+        weeklySchedule: updatedSchedule,
+      },
+    })
+  }
+
+  const updateWeeklyDayField = (dayOfWeek: number, field: string, value: string) => {
+    if (!editingCamp) return
+    const schedule = (editingCamp.theme?.weeklySchedule || []).map((s: any) => {
+      if (s.dayOfWeek === dayOfWeek) {
+        return { ...s, [field]: value }
+      }
+      return s
+    })
+    setEditingCamp({
+      ...editingCamp,
+      theme: {
+        ...editingCamp.theme,
+        weeklySchedule: schedule,
+      },
+    })
+  }
+
+  // BỘ TỰ ĐỘNG SINH LỊCH (AUTO GENERATOR)
+  const handleAutoGenerateSessions = () => {
+    if (!editingCamp) return
+    const weeklySchedule = editingCamp.theme?.weeklySchedule || []
+
+    if (weeklySchedule.length === 0) {
+      alert("Bố Hoàng vui lòng chọn ít nhất 1 ngày trong tuần trước khi bấm Sinh Lịch!")
+      return
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10)
+    let generated: any[] = []
+
+    if (editingCamp.mode === "clb_quanh_nam") {
+      // Sinh lịch theo Tháng cho CLB Quanh Năm
+      const [yStr, mStr] = genMonth.split("-")
+      const year = parseInt(yStr, 10)
+      const month = parseInt(mStr, 10)
+      const lastDay = new Date(year, month, 0).getDate()
+      const activeDays = weeklySchedule.map((s: any) => s.dayOfWeek)
+
+      for (let day = 1; day <= lastDay; day++) {
+        const d = new Date(year, month - 1, day)
+        const dayOfWeek = d.getDay()
+        if (activeDays.includes(dayOfWeek)) {
+          const rule = weeklySchedule.find((s: any) => s.dayOfWeek === dayOfWeek)
+          const dayPad = day < 10 ? `0${day}` : `${day}`
+          const mPad = month < 10 ? `0${month}` : `${month}`
+          const dateStr = `${year}-${mPad}-${dayPad}`
+          const shortDay = dayOfWeek === 0 ? "CN" : `T${dayOfWeek + 1}`
+
+          generated.push({
+            id: `s_${mPad}_${shortDay.toLowerCase()}_${day}`,
+            sessionCode: `${shortDay} · ${dayPad}/${mPad}`,
+            title: rule?.sessionTitle ? `${rule.sessionTitle}` : `Chạy ${rule?.dayLabel || shortDay}`,
+            dateStr,
+            timeStr: `${shortDay} ${rule?.timeStr || "17:30"}`,
+            location: rule?.location || editingCamp.theme?.locationText || "Công viên Văn Lang",
+            desc: `Lịch chạy định kỳ ${rule?.dayLabel || shortDay} lúc ${rule?.timeStr || "17:30"} tại ${rule?.location || "Công viên Văn Lang"}.`,
+            isPast: dateStr < todayStr,
+            isToday: dateStr === todayStr,
+          })
+        }
+      }
+    } else {
+      // Sinh 24 hoặc 32 Buổi Học theo lộ trình cho Lớp Học
+      const activeDays = weeklySchedule.map((s: any) => s.dayOfWeek)
+      let curDate = new Date(genStartDate)
+      let sessionNum = 1
+
+      for (let step = 0; step < 365 && sessionNum <= genTotalCount; step++) {
+        const dayOfWeek = curDate.getDay()
+        if (activeDays.includes(dayOfWeek)) {
+          const rule = weeklySchedule.find((s: any) => s.dayOfWeek === dayOfWeek)
+          const y = curDate.getFullYear()
+          const m = curDate.getMonth() + 1
+          const d = curDate.getDate()
+          const dayPad = d < 10 ? `0${d}` : `${d}`
+          const mPad = m < 10 ? `0${m}` : `${m}`
+          const dateStr = `${y}-${mPad}-${dayPad}`
+          const shortDay = dayOfWeek === 0 ? "CN" : `T${dayOfWeek + 1}`
+          const phaseId = sessionNum <= 8 ? "phase_1" : sessionNum <= 16 ? "phase_2" : sessionNum <= 24 ? "phase_3" : "phase_4"
+
+          generated.push({
+            id: `s_b${sessionNum}`,
+            sessionCode: `B${sessionNum}`,
+            title: rule?.sessionTitle ? `${rule.sessionTitle} (Buổi ${sessionNum})` : `Buổi ${sessionNum}: Lộ trình bài giảng`,
+            dateStr,
+            timeStr: `${shortDay} ${rule?.timeStr || "19:00"}`,
+            location: rule?.location || "Phòng học Cambridge VicEdu",
+            phaseId,
+            desc: sessionNum === 12
+              ? "🎯 Đánh giá tiến độ giữa khóa (Mid-term Assessment)"
+              : sessionNum === 24
+              ? "🏆 Kiểm tra tốt nghiệp cấp độ (Final Graduation Assessment)"
+              : `Nội dung học tập và rèn luyện kỹ năng Buổi ${sessionNum}.`,
+            isPast: dateStr < todayStr,
+            isToday: dateStr === todayStr,
+            isSpecialEvent: sessionNum === 12 || sessionNum === 24,
+            specialBadge: sessionNum === 12 ? "📝 MID-TERM" : sessionNum === 24 ? "🏆 GRADUATION" : undefined,
+          })
+          sessionNum++
+        }
+        curDate.setDate(curDate.getDate() + 1)
+      }
+    }
+
+    // Giữ lại các Special Events đã thêm trước đó
+    const specialEvents = (editingCamp.sessions || []).filter((s: any) => s.isSpecialEvent)
+    const combinedSessions = [...generated, ...specialEvents].sort((a, b) => a.dateStr.localeCompare(b.dateStr))
+
+    setEditingCamp({
+      ...editingCamp,
+      sessions: combinedSessions,
+    })
+    alert(`⚡ Đã tự động sinh thành công ${generated.length} buổi học/buổi chạy vào lịch trình!`)
+  }
+
   // Thêm sự kiện đặc biệt mới vào editingCamp
   const handleAddSpecialEvent = () => {
     if (!newEvent.title.trim() || !newEvent.dateStr) {
@@ -385,15 +590,15 @@ export default function JourneyAdminPage() {
     }
     const eventSession = {
       id: `event_${Date.now()}`,
-      sessionCode: `${newEvent.timeStr ? newEvent.timeStr.slice(0, 2) : 'SK'} · ${newEvent.dateStr.slice(5).replace('-', '/')}`,
+      sessionCode: `${newEvent.timeStr ? newEvent.timeStr.slice(0, 2) : "SK"} · ${newEvent.dateStr.slice(5).replace("-", "/")}`,
       title: newEvent.title.trim(),
       dateStr: newEvent.dateStr,
-      timeStr: newEvent.timeStr || 'T7 05:30',
-      location: newEvent.location.trim() || 'Địa điểm tổ chức',
+      timeStr: newEvent.timeStr || "T7 05:30",
+      location: newEvent.location.trim() || "Địa điểm tổ chức",
       isSpecialEvent: true,
-      eventType: newEvent.eventType || 'race',
-      specialBadge: newEvent.specialBadge.trim() || '🏆 GIẢI ĐẤU',
-      desc: newEvent.desc.trim() || '',
+      eventType: newEvent.eventType || "race",
+      specialBadge: newEvent.specialBadge.trim() || "🏆 GIẢI ĐẤU",
+      desc: newEvent.desc.trim() || "",
     }
 
     const currentSessions = editingCamp?.sessions || []
@@ -412,7 +617,7 @@ export default function JourneyAdminPage() {
     })
   }
 
-  const handleDeleteSpecialEvent = (sessionId: string) => {
+  const handleDeleteSession = (sessionId: string) => {
     if (!editingCamp) return
     const updatedSessions = (editingCamp.sessions || []).filter((s: any) => s.id !== sessionId)
     setEditingCamp({
@@ -745,7 +950,7 @@ export default function JourneyAdminPage() {
                     }}
                   >
                     <Edit size={14} />
-                    <span>⚙️ Cấu Hình Toàn Diện (Nhiệm vụ & Sự kiện)</span>
+                    <span>⚙️ Cấu Hình Toàn Diện (Lịch tuần, Nhiệm vụ, Sự kiện)</span>
                   </button>
 
                   <button
@@ -1290,7 +1495,7 @@ export default function JourneyAdminPage() {
       )}
 
       {/* ============================================================ */}
-      {/* MODAL CẤU HÌNH TOÀN DIỆN (NHIỆM VỤ, LỊCH TRÌNH, SỰ KIỆN...) */}
+      {/* MODAL CẤU HÌNH TOÀN DIỆN (LỊCH TUẦN, NHIỆM VỤ, SỰ KIỆN...) */}
       {/* ============================================================ */}
       {showCampModal && editingCamp && (
         <div style={{
@@ -1307,7 +1512,7 @@ export default function JourneyAdminPage() {
           <div style={{
             background: "var(--surface)",
             borderRadius: "16px",
-            maxWidth: "920px",
+            maxWidth: "960px",
             width: "100%",
             boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
             maxHeight: "92vh",
@@ -1330,7 +1535,7 @@ export default function JourneyAdminPage() {
                   {editingCamp.id ? `⚙️ Cấu Hình Toàn Diện: ${editingCamp.title}` : "✨ Tạo Hành Trình Mới"}
                 </h2>
                 <p style={{ fontSize: "0.8rem", opacity: 0.85, margin: "0.2rem 0 0" }}>
-                  Tùy biến Slogan, 4 Thử thách cốt lõi, Chiến dịch tháng, Sự kiện đặc biệt & Tông màu
+                  Lịch cố định hàng tuần, Sinh buổi tự động, 4 Thử thách, Điểm thưởng, Sự kiện & Slogan
                 </p>
               </div>
               <button
@@ -1365,9 +1570,10 @@ export default function JourneyAdminPage() {
               {[
                 { key: "general", label: "📋 Thông Tin & Slogan", icon: Edit },
                 { key: "tasks", label: "🎯 4 Thử Thách Tháng", icon: Layers, badge: editingCamp.tasks?.length || 4 },
-                { key: "schedule", label: "🗓️ Chiến Dịch & Lịch", icon: Calendar },
+                { key: "weekly_schedule", label: "🗓️ Lịch Tuần & Sinh Buổi", icon: Zap, badge: editingCamp.sessions?.length || 0 },
                 { key: "special_events", label: "🏆 Sự Kiện Đặc Biệt", icon: Flag, badge: (editingCamp.sessions || []).filter((s: any) => s.isSpecialEvent).length },
-                { key: "branding", label: "🎨 Giao Diện & Media", icon: Palette },
+                { key: "scoring", label: "💎 Quy Tắc Tính Điểm", icon: Award },
+                { key: "branding", label: "🎨 Giao Diện & Zalo", icon: Palette },
               ].map((subTab) => {
                 const Icon = subTab.icon
                 const isActive = modalSubTab === subTab.key
@@ -1444,13 +1650,13 @@ export default function JourneyAdminPage() {
 
                   <div>
                     <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                      Phụ Đề / Lịch Sinh Hoạt
+                      Phụ Đề / Tóm Tắt Định Kỳ
                     </label>
                     <input
                       type="text"
                       value={editingCamp.subtitle || ""}
                       onChange={(e) => setEditingCamp({ ...editingCamp, subtitle: e.target.value })}
-                      placeholder="Lịch chạy T6 17h30 & CN 05h30 (Công viên Văn Lang)..."
+                      placeholder="Lịch chạy định kỳ quanh năm · T6 17h30 & CN 05h30..."
                       style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
                     />
                   </div>
@@ -1483,7 +1689,7 @@ export default function JourneyAdminPage() {
                         onChange={(e) => setEditingCamp({ ...editingCamp, mode: e.target.value as any })}
                         style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
                       >
-                        <option value="clb_quanh_nam">🏃‍♂️ CLB Quanh Năm (Tích lũy km, phân hạng Tân binh / Bàn chân thép / 300km)</option>
+                        <option value="clb_quanh_nam">🏃‍♂️ CLB Quanh Năm (Tích lũy km, mùa giải 12 tháng, phân hạng Tân binh / 300km)</option>
                         <option value="lop_hoc_buoi">📚 Lớp Học Theo Buổi (Lộ trình 24/32 buổi Cambridge, BTVN & Điểm danh)</option>
                       </select>
                     </div>
@@ -1715,71 +1921,318 @@ export default function JourneyAdminPage() {
                 </div>
               )}
 
-              {/* PHẦN 3: CHIẾN DỊCH & LỊCH SINH HOẠT */}
-              {modalSubTab === "schedule" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
-                  <div>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                      Tên Chiến Dịch Tháng Này
-                    </label>
-                    <input
-                      type="text"
-                      value={editingCamp.theme?.campaignTitle || ""}
-                      onChange={(e) => setEditingCamp({
-                        ...editingCamp,
-                        theme: { ...editingCamp.theme, campaignTitle: e.target.value }
-                      })}
-                      placeholder="Ví dụ: CHIẾN DỊCH THÁNG 10 · BÀN TAY GẮN KẾT & KỶ LUẬT THÉP"
-                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                      Khẩu Hiệu / Chủ Đề Tháng
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={editingCamp.theme?.campaignSlogan || ""}
-                      onChange={(e) => setEditingCamp({
-                        ...editingCamp,
-                        theme: { ...editingCamp.theme, campaignSlogan: e.target.value }
-                      })}
-                      placeholder="Ví dụ: Đập tay 5 người ngược chiều · Hoàn thành cự ly · Giữ chuỗi tuần rực lửa"
-                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
-                    />
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                    <div>
-                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                        Địa Điểm Tập Trung Chính
-                      </label>
-                      <input
-                        type="text"
-                        value={editingCamp.theme?.locationText || ""}
-                        onChange={(e) => setEditingCamp({
-                          ...editingCamp,
-                          theme: { ...editingCamp.theme, locationText: e.target.value }
-                        })}
-                        placeholder="Công viên Văn Lang / VP VicEdu..."
-                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
-                      />
+              {/* PHẦN 3: LỊCH HÀNG TUẦN & TỰ ĐỘNG SINH BUỔI (WEEKLY SCHEDULE & GENERATOR) */}
+              {modalSubTab === "weekly_schedule" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                  {/* Mục 1: Cài đặt lịch cố định hàng tuần */}
+                  <div style={{ background: "var(--background)", padding: "1.25rem", borderRadius: "12px", border: "1px solid var(--border)" }}>
+                    <div style={{ marginBottom: "1rem" }}>
+                      <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                        <Clock size={16} style={{ color: "#4f46e5" }} />
+                        <span>1. Cài Đặt Khung Lịch Hàng Tuần Cố Định</span>
+                      </h4>
+                      <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.2rem 0 0" }}>
+                        Ví dụ: Chạy vào Thứ 3 & Thứ 6 lúc 17h30, hoặc học vào Thứ 2 & Thứ 7 ở khung giờ mong muốn
+                      </p>
                     </div>
-                    <div>
-                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                        Lịch Sinh Hoạt Định Kỳ
-                      </label>
-                      <input
-                        type="text"
-                        value={editingCamp.theme?.scheduleText || ""}
-                        onChange={(e) => setEditingCamp({
-                          ...editingCamp,
-                          theme: { ...editingCamp.theme, scheduleText: e.target.value }
-                        })}
-                        placeholder="Tuần 2 buổi · T6 17h30 & CN 05h30"
-                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
-                      />
+
+                    {/* Bộ chọn các Thứ trong tuần */}
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
+                      {DAYS_OF_WEEK.map((d) => {
+                        const isSelected = (editingCamp.theme?.weeklySchedule || []).some((s: any) => s.dayOfWeek === d.dayOfWeek)
+                        return (
+                          <button
+                            key={d.dayOfWeek}
+                            type="button"
+                            onClick={() => toggleWeeklyDay(d.dayOfWeek, d.label)}
+                            style={{
+                              padding: "0.45rem 0.95rem",
+                              borderRadius: "8px",
+                              fontSize: "0.82rem",
+                              fontWeight: isSelected ? 700 : 500,
+                              background: isSelected ? "#4f46e5" : "var(--surface)",
+                              color: isSelected ? "white" : "var(--text-main)",
+                              border: isSelected ? "1px solid #4f46e5" : "1px solid var(--border)",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            {isSelected ? `✓ ${d.label}` : d.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {/* Danh sách các Thứ đang chọn kèm Khung Giờ & Địa Điểm */}
+                    {(editingCamp.theme?.weeklySchedule || []).length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                        {(editingCamp.theme?.weeklySchedule || []).map((rule: any) => (
+                          <div
+                            key={rule.dayOfWeek}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1.2fr 1.5fr 2fr 2fr auto",
+                              gap: "0.75rem",
+                              alignItems: "center",
+                              background: "var(--surface)",
+                              padding: "0.65rem 0.85rem",
+                              borderRadius: "8px",
+                              border: "1px solid var(--border)",
+                            }}
+                          >
+                            <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "#4f46e5" }}>
+                              📅 {rule.dayLabel}
+                            </span>
+                            <div>
+                              <input
+                                type="text"
+                                value={rule.timeStr}
+                                onChange={(e) => updateWeeklyDayField(rule.dayOfWeek, "timeStr", e.target.value)}
+                                placeholder="17:30 / 19:00"
+                                style={{ width: "100%", padding: "0.4rem 0.6rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                                title="Khung giờ sinh hoạt"
+                              />
+                            </div>
+                            <div>
+                              <input
+                                type="text"
+                                value={rule.location}
+                                onChange={(e) => updateWeeklyDayField(rule.dayOfWeek, "location", e.target.value)}
+                                placeholder="Địa điểm (Văn Lang / Phòng học)"
+                                style={{ width: "100%", padding: "0.4rem 0.6rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                                title="Địa điểm tập trung"
+                              />
+                            </div>
+                            <div>
+                              <input
+                                type="text"
+                                value={rule.sessionTitle}
+                                onChange={(e) => updateWeeklyDayField(rule.dayOfWeek, "sessionTitle", e.target.value)}
+                                placeholder="Tên buổi (Chạy tiếp sức / Bài giảng)"
+                                style={{ width: "100%", padding: "0.4rem 0.6rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                                title="Tiêu đề buổi mặc định"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleWeeklyDay(rule.dayOfWeek, rule.dayLabel)}
+                              style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer" }}
+                              title="Bỏ ngày này"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                        Bố Hoàng hãy bấm vào các nút thứ phía trên (VD: Thứ 3 và Thứ 6) để bật lịch hàng tuần.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mục 2: Bộ Sinh Lịch Tự Động (1-Click Generator) */}
+                  <div style={{
+                    background: "linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(245, 158, 11, 0.08) 100%)",
+                    padding: "1.25rem",
+                    borderRadius: "12px",
+                    border: "1px dashed #818cf8",
+                  }}>
+                    <div style={{ marginBottom: "1rem" }}>
+                      <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0, color: "#4f46e5", display: "flex", alignItems: "center", gap: "8px" }}>
+                        <Zap size={16} style={{ color: "#f59e0b" }} />
+                        <span>2. Bộ Sinh Lịch 1-Chạm (Auto Schedule Generator)</span>
+                      </h4>
+                      <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.2rem 0 0" }}>
+                        Hệ thống tự động tính ngày thực tế theo cuốn lịch và sinh ra toàn bộ danh sách buổi chỉ trong 1 giây
+                      </p>
+                    </div>
+
+                    {editingCamp.mode === "clb_quanh_nam" ? (
+                      <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+                        <div>
+                          <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
+                            Chọn Tháng Cần Sinh Lịch
+                          </label>
+                          <input
+                            type="month"
+                            value={genMonth}
+                            onChange={(e) => setGenMonth(e.target.value)}
+                            style={{ padding: "0.5rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", fontSize: "0.85rem", fontWeight: 600 }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAutoGenerateSessions}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+                            color: "white",
+                            padding: "0.6rem 1.25rem",
+                            borderRadius: "8px",
+                            border: "none",
+                            fontWeight: 700,
+                            fontSize: "0.85rem",
+                            cursor: "pointer",
+                            boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
+                          }}
+                        >
+                          <Zap size={16} />
+                          <span>⚡ Sinh Toàn Bộ Lịch Chạy Cả Tháng Này</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+                        <div>
+                          <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
+                            Ngày Khai Giảng / Bắt Đầu
+                          </label>
+                          <input
+                            type="date"
+                            value={genStartDate}
+                            onChange={(e) => setGenStartDate(e.target.value)}
+                            style={{ padding: "0.5rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", fontSize: "0.85rem", fontWeight: 600 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
+                            Tổng Số Buổi Khóa Học
+                          </label>
+                          <select
+                            value={genTotalCount}
+                            onChange={(e) => setGenTotalCount(parseInt(e.target.value))}
+                            style={{ padding: "0.5rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", fontSize: "0.85rem", fontWeight: 600 }}
+                          >
+                            <option value={24}>24 buổi (3 tháng · Kindy/Kids/IELTS)</option>
+                            <option value={32}>32 buổi (4 tháng · Teen)</option>
+                            <option value={16}>16 buổi (2 tháng)</option>
+                            <option value={12}>12 buổi (Khóa cấp tốc)</option>
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAutoGenerateSessions}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+                            color: "white",
+                            padding: "0.6rem 1.25rem",
+                            borderRadius: "8px",
+                            border: "none",
+                            fontWeight: 700,
+                            fontSize: "0.85rem",
+                            cursor: "pointer",
+                            boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
+                          }}
+                        >
+                          <Zap size={16} />
+                          <span>⚡ Sinh {genTotalCount} Buổi Học Chia 3 Chặng Chuẩn Cambridge</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mục 3: Danh sách các buổi chi tiết đã sinh */}
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                      <div>
+                        <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0 }}>
+                          📋 Danh Sách Các Buổi Trong Lịch Trình ({editingCamp.sessions?.length || 0} buổi)
+                        </h4>
+                        <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.15rem 0 0" }}>
+                          Bố Hoàng có thể chỉnh sửa trực tiếp từng buổi, gắn Video, Slide Canva, Bài tập về nhà hoặc xóa ngày nghỉ
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSession = {
+                            id: `session_${Date.now()}`,
+                            sessionCode: `B${(editingCamp.sessions || []).length + 1}`,
+                            title: `Buổi bổ sung #${(editingCamp.sessions || []).length + 1}`,
+                            dateStr: new Date().toISOString().slice(0, 10),
+                            timeStr: "17:30",
+                            location: editingCamp.theme?.locationText || "Công viên Văn Lang",
+                            desc: "",
+                          }
+                          setEditingCamp({
+                            ...editingCamp,
+                            sessions: [...(editingCamp.sessions || []), newSession],
+                          })
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          background: "var(--surface)",
+                          color: "#4f46e5",
+                          border: "1px solid #4f46e5",
+                          padding: "0.4rem 0.85rem",
+                          borderRadius: "6px",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Plus size={14} />
+                        <span>+ Thêm 1 Buổi Lẻ</span>
+                      </button>
+                    </div>
+
+                    <div style={{ maxHeight: "320px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "8px" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                        <thead>
+                          <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)", textAlign: "left" }}>
+                            <th style={{ padding: "0.6rem 0.75rem" }}>Mã Buổi</th>
+                            <th style={{ padding: "0.6rem 0.75rem" }}>Ngày & Giờ</th>
+                            <th style={{ padding: "0.6rem 0.75rem" }}>Tên Buổi Học / Chạy</th>
+                            <th style={{ padding: "0.6rem 0.75rem" }}>Địa Điểm</th>
+                            <th style={{ padding: "0.6rem 0.75rem", textAlign: "right" }}>Thao Tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(editingCamp.sessions || []).map((s: any, idx: number) => (
+                            <tr key={s.id || idx} style={{ borderBottom: "1px solid var(--border)" }}>
+                              <td style={{ padding: "0.6rem 0.75rem", fontWeight: 700, color: "#4f46e5" }}>
+                                {s.sessionCode}
+                              </td>
+                              <td style={{ padding: "0.6rem 0.75rem" }}>
+                                <div>📅 {s.dateStr}</div>
+                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>⏰ {s.timeStr}</div>
+                              </td>
+                              <td style={{ padding: "0.6rem 0.75rem", fontWeight: 600 }}>
+                                {s.title}
+                                {s.isSpecialEvent && <span style={{ marginLeft: "6px", background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: "4px", fontSize: "0.7rem" }}>{s.specialBadge || "SỰ KIỆN"}</span>}
+                              </td>
+                              <td style={{ padding: "0.6rem 0.75rem", color: "var(--text-muted)" }}>
+                                {s.location}
+                              </td>
+                              <td style={{ padding: "0.6rem 0.75rem", textAlign: "right" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSession(s.id)}
+                                  style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px" }}
+                                  title="Xóa buổi này"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          {(editingCamp.sessions || []).length === 0 && (
+                            <tr>
+                              <td colSpan={5} style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
+                                Chưa có buổi nào trong lịch trình. Bố Hoàng hãy chọn Thứ ở mục 1 và bấm nút "⚡ Sinh Lịch 1-Chạm" ở mục 2 nhé!
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
@@ -1827,7 +2280,7 @@ export default function JourneyAdminPage() {
 
                         <button
                           type="button"
-                          onClick={() => handleDeleteSpecialEvent(ev.id)}
+                          onClick={() => handleDeleteSession(ev.id)}
                           style={{
                             background: "transparent",
                             border: "none",
@@ -1946,7 +2399,93 @@ export default function JourneyAdminPage() {
                 </div>
               )}
 
-              {/* PHẦN 5: GIAO DIỆN, TÔNG MÀU & ĐA PHƯƠNG TIỆN */}
+              {/* PHẦN 5: QUY TẮC TÍNH ĐIỂM (SCORING RULES) */}
+              {modalSubTab === "scoring" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
+                  <div>
+                    <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0 }}>
+                      💎 Quy Tắc Tính Điểm & Điểm Thưởng Thi Đua
+                    </h4>
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.2rem 0 0" }}>
+                      Tùy biến số điểm thưởng cho từng nỗ lực để tạo động lực nội tại cho các học viên / runner nhí
+                    </p>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {(editingCamp.scoring_rules || []).map((rule, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "3fr 1fr auto",
+                          gap: "0.75rem",
+                          alignItems: "center",
+                          background: "var(--background)",
+                          padding: "0.6rem 0.85rem",
+                          borderRadius: "8px",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={rule.label}
+                          onChange={(e) => {
+                            const updated = [...(editingCamp.scoring_rules || [])]
+                            updated[idx] = { ...updated[idx], label: e.target.value }
+                            setEditingCamp({ ...editingCamp, scoring_rules: updated })
+                          }}
+                          placeholder="Tiêu chí tính điểm"
+                          style={{ padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.85rem", background: "var(--surface)" }}
+                        />
+                        <input
+                          type="text"
+                          value={rule.points}
+                          onChange={(e) => {
+                            const updated = [...(editingCamp.scoring_rules || [])]
+                            updated[idx] = { ...updated[idx], points: e.target.value }
+                            setEditingCamp({ ...editingCamp, scoring_rules: updated })
+                          }}
+                          placeholder="+1, +2, +10"
+                          style={{ padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.85rem", fontWeight: 700, color: "#4f46e5", textAlign: "center", background: "var(--surface)" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = (editingCamp.scoring_rules || []).filter((_, i) => i !== idx)
+                            setEditingCamp({ ...editingCamp, scoring_rules: updated })
+                          }}
+                          style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer" }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = [...(editingCamp.scoring_rules || []), { label: "Tiêu chí thưởng mới", points: "+1" }]
+                      setEditingCamp({ ...editingCamp, scoring_rules: updated })
+                    }}
+                    style={{
+                      alignSelf: "flex-start",
+                      background: "transparent",
+                      border: "1px dashed #4f46e5",
+                      color: "#4f46e5",
+                      padding: "0.45rem 0.85rem",
+                      borderRadius: "6px",
+                      fontSize: "0.82rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    + Thêm Tiêu Chí Thưởng Điểm
+                  </button>
+                </div>
+              )}
+
+              {/* PHẦN 6: GIAO DIỆN, TÔNG MÀU & TIN NHẮN ZALO */}
               {modalSubTab === "branding" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
@@ -2024,36 +2563,44 @@ export default function JourneyAdminPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                      Link Nhúng Slide Canva Bài Giảng
-                    </label>
-                    <input
-                      type="url"
-                      value={editingCamp.theme?.canvaUrl || ""}
-                      onChange={(e) => setEditingCamp({
-                        ...editingCamp,
-                        theme: { ...editingCamp.theme, canvaUrl: e.target.value }
-                      })}
-                      placeholder="https://www.canva.com/design/.../view?embed"
-                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
-                    />
-                  </div>
+                  {/* Mẫu Tin Nhắn Zalo Chăm Sóc & Nhắc Nhở */}
+                  <div style={{ background: "rgba(79, 70, 229, 0.04)", padding: "1rem", borderRadius: "10px", border: "1px solid #c7d2fe" }}>
+                    <h5 style={{ fontSize: "0.88rem", fontWeight: 700, margin: "0 0 0.5rem", color: "#4f46e5", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <MessageSquare size={16} />
+                      <span>Mẫu Tin Nhắn Chăm Sóc & Biểu Dương Tự Động (Zalo / SMS)</span>
+                    </h5>
 
-                  <div>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                      Link Video Buổi Học (YouTube / Google Drive)
-                    </label>
-                    <input
-                      type="url"
-                      value={editingCamp.theme?.videoUrl || ""}
-                      onChange={(e) => setEditingCamp({
-                        ...editingCamp,
-                        theme: { ...editingCamp.theme, videoUrl: e.target.value }
-                      })}
-                      placeholder="https://www.youtube.com/watch?v=..."
-                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
-                    />
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                        Mẫu Khen Thưởng Khi Hoàn Thành Nhiệm Vụ
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCamp.theme?.careSuccessTpl || ""}
+                        onChange={(e) => setEditingCamp({
+                          ...editingCamp,
+                          theme: { ...editingCamp.theme, careSuccessTpl: e.target.value }
+                        })}
+                        placeholder="Chúc mừng {name} đã xuất sắc hoàn thành trọn vẹn nhiệm vụ..."
+                        style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                        Mẫu Nhắc Nhở Nộp Bài / Có Mặt Đúng Giờ
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCamp.theme?.careReminderTpl || ""}
+                        onChange={(e) => setEditingCamp({
+                          ...editingCamp,
+                          theme: { ...editingCamp.theme, careReminderTpl: e.target.value }
+                        })}
+                        placeholder="Nhắc nhở: Sắp đến giờ sinh hoạt hôm nay. Bạn {name} hãy chuẩn bị..."
+                        style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -2069,7 +2616,7 @@ export default function JourneyAdminPage() {
               background: "var(--background)",
             }}>
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                💡 Mọi thay đổi sẽ được cập nhật trực tiếp vào Supabase và hiển thị tức thì trên Web 2.
+                💡 Mọi thay đổi lịch tuần, nhiệm vụ và sự kiện sẽ được đồng bộ tức thì sang Web 2.
               </span>
 
               <div style={{ display: "flex", gap: "0.75rem" }}>
@@ -2099,6 +2646,7 @@ export default function JourneyAdminPage() {
                     if (res.success) {
                       setShowCampModal(false)
                       loadCamps()
+                      alert("✅ Đã lưu cấu hình toàn diện thành công!")
                     } else {
                       alert("Lỗi lưu camp: " + res.error)
                     }

@@ -39,6 +39,15 @@ export interface CampData {
     locationText?: string
     campaignTitle?: string
     campaignSlogan?: string
+    careSuccessTpl?: string
+    careReminderTpl?: string
+    weeklySchedule?: Array<{
+      dayOfWeek: number
+      dayLabel: string
+      timeStr: string
+      location: string
+      sessionTitle: string
+    }>
   }
   tasks?: Array<{
     id: string
