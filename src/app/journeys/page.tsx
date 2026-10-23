@@ -78,6 +78,36 @@ export default function JourneyAdminPage() {
   const [genStartDate, setGenStartDate] = useState("2026-11-02")
   const [genTotalCount, setGenTotalCount] = useState(24)
 
+  // Bộ lọc Phân quyền / Scope & Tìm kiếm cho Tab Khóa Học & CLB
+  const [scopeFilter, setScopeFilter] = useState<"all" | "admin_only" | "branch" | "partner" | "club">("all")
+  const [campSearch, setCampSearch] = useState("")
+
+  // Bộ lọc Phân Bảng Runner Nhí vs Runner Lớn cho Tab Thành Viên
+  const [memberDivisionFilter, setMemberDivisionFilter] = useState<"all" | "kids" | "adults">("all")
+
+  // Helper nhận diện Runner Nhí (U15) vs Người Lớn
+  const isKid = (m: any): boolean => {
+    if (!m) return false;
+    const n = (m.name || "").toLowerCase();
+    const t = (m.role_tag || "").toLowerCase();
+    if (n.startsWith("bé ") || t.includes("học sinh") || t.includes("nhí") || t.includes("u15") || t.includes("runner nhí")) {
+      return true;
+    }
+    if (
+      t.includes("phụ huynh") ||
+      t.includes("vicgroup") ||
+      t.includes("đội trưởng") ||
+      t.includes("bầu xô") ||
+      t.includes("huấn luyện viên") ||
+      n.startsWith("bố ") ||
+      n.startsWith("bác ") ||
+      n.startsWith("anh ")
+    ) {
+      return false;
+    }
+    return true;
+  };
+
   // Session editor modal state
   const [editingSessionItem, setEditingSessionItem] = useState<any | null>(null)
 
@@ -234,13 +264,19 @@ export default function JourneyAdminPage() {
 
       const defaultScoringRules = (camp.scoring_rules && Array.isArray(camp.scoring_rules) && camp.scoring_rules.length > 0)
         ? camp.scoring_rules
-        : [
+        : (camp.mode === 'clb_quanh_nam' ? [
             { label: 'Mỗi nhiệm vụ đạt', points: '+1' },
             { label: 'Buổi làm đủ nhiệm vụ', points: '+1' },
             { label: 'Có mặt offline đúng giờ', points: '+2' },
             { label: 'Tuần kỷ luật (đủ tất cả các buổi)', points: '+3' },
-            { label: 'Đạt mốc 100km / 200km / 300km (hoặc hoàn thành chặng)', points: '+10' },
-          ]
+            { label: 'Đạt mốc 100km / 200km / 300km', points: '+10' },
+          ] : [
+            { label: 'Mỗi bài tập hoàn thành', points: '+1' },
+            { label: 'Làm đủ bài tập trong buổi', points: '+1' },
+            { label: 'Học đúng giờ & tương tác tích cực', points: '+2' },
+            { label: 'Tuần học chuyên cần (đủ các buổi)', points: '+3' },
+            { label: 'Hoàn thành chặng học xuất sắc', points: '+10' },
+          ])
 
       setEditingCamp({
         ...camp,
@@ -280,6 +316,7 @@ export default function JourneyAdminPage() {
         status: "active",
         has_divisions: true,
         require_pin: true,
+        scope: "admin_only",
         tasks: [
           { id: 'chay_km', name: 'Chạy bộ', type: 'number', unit: 'km', target: 3, color: '#e11d48', description: 'Chạy tối thiểu 3km mỗi buổi' },
           { id: 'dap_tay', name: 'Đập tay giao lưu', type: 'boolean', color: '#f59e0b', description: 'Đập tay chào người chạy ngược chiều' },
@@ -945,8 +982,79 @@ export default function JourneyAdminPage() {
       {/* TAB 1: KHÓA HỌC & CLB */}
       {activeTab === "camps" && (
         <div>
+          {/* BỘ LỌC PHÂN LOẠI & TÌM KIẾM HÀNH TRÌNH */}
+          <div style={{
+            background: "var(--surface)",
+            borderRadius: "12px",
+            border: "1px solid var(--border)",
+            padding: "1rem 1.25rem",
+            marginBottom: "1.5rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.85rem",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
+                {[
+                  { key: "all", label: "🌟 Tất cả", count: camps.length },
+                  { key: "admin_only", label: "👑 Riêng tư / Admin", count: camps.filter(c => (c.scope || (c.theme as any)?.scope) === "admin_only").length },
+                  { key: "branch", label: "🏫 Chi nhánh VicEdu", count: camps.filter(c => (c.scope || (c.theme as any)?.scope || (c.slug.includes('ielts') ? 'branch' : '')) === "branch").length },
+                  { key: "partner", label: "🤝 Thầy cô Đối tác", count: camps.filter(c => (c.scope || (c.theme as any)?.scope) === "partner").length },
+                  { key: "club", label: "🏃 CLB Thể thao", count: camps.filter(c => (c.scope || (c.theme as any)?.scope || (c.mode === 'clb_quanh_nam' ? 'club' : '')) === "club").length },
+                ].map(f => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setScopeFilter(f.key as any)}
+                    style={{
+                      padding: "0.35rem 0.8rem",
+                      borderRadius: "8px",
+                      fontSize: "0.8rem",
+                      fontWeight: scopeFilter === f.key ? 700 : 500,
+                      background: scopeFilter === f.key ? "#4f46e5" : "var(--background)",
+                      color: scopeFilter === f.key ? "white" : "var(--text-main)",
+                      border: scopeFilter === f.key ? "1px solid #4f46e5" : "1px solid var(--border)",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    {f.label} ({f.count})
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ position: "relative", minWidth: "240px" }}>
+                <input
+                  type="text"
+                  value={campSearch}
+                  onChange={(e) => setCampSearch(e.target.value)}
+                  placeholder="🔍 Tìm theo tên hoặc mã slug..."
+                  style={{
+                    width: "100%",
+                    padding: "0.45rem 0.85rem",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    background: "var(--background)",
+                    color: "var(--text-main)",
+                    fontSize: "0.82rem",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "1.5rem" }}>
-            {camps.map((camp) => (
+            {camps
+              .filter(camp => {
+                const sc = camp.scope || (camp.theme as any)?.scope || (camp.mode === 'clb_quanh_nam' ? 'club' : (camp.slug.includes('ielts') ? 'branch' : 'admin_only'));
+                if (scopeFilter !== 'all' && sc !== scopeFilter) return false;
+                if (campSearch.trim()) {
+                  const q = campSearch.toLowerCase();
+                  return camp.title.toLowerCase().includes(q) || camp.slug.toLowerCase().includes(q);
+                }
+                return true;
+              })
+              .map((camp) => (
               <div
                 key={camp.id}
                 style={{
@@ -963,17 +1071,26 @@ export default function JourneyAdminPage() {
               >
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-                    <span style={{
-                      display: "inline-block",
-                      fontSize: "0.75rem",
-                      fontWeight: 700,
-                      padding: "3px 10px",
-                      borderRadius: "6px",
-                      background: camp.mode === "clb_quanh_nam" ? "#ffe4e6" : "#e0e7ff",
-                      color: camp.mode === "clb_quanh_nam" ? "#be123c" : "#4338ca",
-                    }}>
-                      {camp.mode === "clb_quanh_nam" ? "🏃‍♂️ CLB QUANH NĂM" : "📚 LỚP HỌC THEO BUỔI"}
-                    </span>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{
+                        display: "inline-block",
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: "6px",
+                        background: camp.mode === "clb_quanh_nam" ? "#ffe4e6" : "#e0e7ff",
+                        color: camp.mode === "clb_quanh_nam" ? "#be123c" : "#4338ca",
+                      }}>
+                        {camp.mode === "clb_quanh_nam" ? "🏃‍♂️ CLB QUANH NĂM" : "📚 LỚP HỌC BUỔI"}
+                      </span>
+                      {(() => {
+                        const sc = camp.scope || (camp.theme as any)?.scope || (camp.mode === 'clb_quanh_nam' ? 'club' : (camp.slug.includes('ielts') ? 'branch' : 'admin_only'));
+                        if (sc === 'admin_only') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#fef3c7', color: '#92400e' }}>👑 Chỉ Admin</span>;
+                        if (sc === 'branch') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#dbeafe', color: '#1e40af' }}>🏫 Chi Nhánh</span>;
+                        if (sc === 'partner') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#f3e8ff', color: '#6b21a8' }}>🤝 Đối Tác</span>;
+                        return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#ecfdf5', color: '#065f46' }}>🏃 CLB</span>;
+                      })()}
+                    </div>
                     <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                       Mã: <code>{camp.slug}</code>
                     </span>
@@ -1469,13 +1586,112 @@ export default function JourneyAdminPage() {
       {/* TAB 4: THÀNH VIÊN & MÃ PIN */}
       {activeTab === "members" && (
         <div style={{ background: "var(--surface)", borderRadius: "14px", border: "1px solid var(--border)", padding: "1.5rem" }}>
+          {/* BANNER CHỈ ĐỊNH RÕ HÀNH TRÌNH ĐANG QUẢN TRỊ */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "1rem",
+            padding: "0.85rem 1.25rem",
+            background: "linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%)",
+            border: "1px solid rgba(79, 70, 229, 0.25)",
+            borderRadius: "12px",
+            marginBottom: "1.25rem",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "0.9rem", fontWeight: 800, color: "#4f46e5", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>📍 Đang quản trị thành viên của:</span>
+              </span>
+              <select
+                value={selectedCampId}
+                onChange={(e) => {
+                  setSelectedCampId(e.target.value)
+                  loadMembers(e.target.value)
+                  loadReports(e.target.value, approvalFilter)
+                }}
+                style={{
+                  padding: "0.45rem 0.85rem",
+                  borderRadius: "8px",
+                  border: "2px solid #6366f1",
+                  background: "var(--surface)",
+                  color: "var(--text-main)",
+                  fontWeight: 800,
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                }}
+              >
+                {camps.map((c) => (
+                  <option key={c.id || c.slug} value={c.id}>
+                    {c.title} ({c.mode === 'clb_quanh_nam' ? '🏃 CLB Chạy' : '📚 Lớp Học'})
+                  </option>
+                ))}
+              </select>
+              <span style={{
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                padding: "3px 8px",
+                borderRadius: "6px",
+                background: selectedCamp?.mode === 'clb_quanh_nam' ? '#ffe4e6' : '#e0e7ff',
+                color: selectedCamp?.mode === 'clb_quanh_nam' ? '#be123c' : '#4338ca',
+              }}>
+                {selectedCamp?.mode === 'clb_quanh_nam' ? '🏃 CLB QUANH NĂM' : '📚 LỚP HỌC BUỔI'}
+              </span>
+            </div>
+            <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+              Tổng số: <b>{members.length}</b> thành viên
+            </div>
+          </div>
+
+          {/* BỘ LỌC PHÂN BẢNG RUNNER NHÍ VS RUNNER LỚN (CHO CLB CHẠY BỘ) */}
+          {selectedCamp?.mode === 'clb_quanh_nam' && (
+            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-muted)", marginRight: "0.25rem" }}>
+                🏁 Lọc bảng thi đua:
+              </span>
+              {[
+                { key: "all", label: "🌟 Tất cả", count: members.length },
+                { key: "kids", label: "🏃 Bảng Runner Nhí (U15)", count: members.filter(isKid).length },
+                { key: "adults", label: "👨‍👩‍👧 Bảng Runner Lớn & Phụ Huynh", count: members.filter(m => !isKid(m)).length },
+              ].map(div => (
+                <button
+                  key={div.key}
+                  type="button"
+                  onClick={() => setMemberDivisionFilter(div.key as any)}
+                  style={{
+                    padding: "0.4rem 0.85rem",
+                    borderRadius: "8px",
+                    fontSize: "0.82rem",
+                    fontWeight: memberDivisionFilter === div.key ? 700 : 500,
+                    background: memberDivisionFilter === div.key ? "#4f46e5" : "var(--background)",
+                    color: memberDivisionFilter === div.key ? "white" : "var(--text-main)",
+                    border: memberDivisionFilter === div.key ? "1px solid #4f46e5" : "1px solid var(--border)",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {div.label} ({div.count})
+                </button>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
             <div>
               <h3 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0 }}>
-                Danh Sách Thành Viên / Nhân Sự ({members.length} người)
+                {selectedCamp?.mode === 'clb_quanh_nam' ? 'Danh Sách Runner Rubisea' : 'Danh Sách Học Viên Lớp Học'} (
+                {members.filter(m => {
+                  if (selectedCamp?.mode === 'clb_quanh_nam') {
+                    if (memberDivisionFilter === 'kids') return isKid(m);
+                    if (memberDivisionFilter === 'adults') return !isKid(m);
+                  }
+                  return true;
+                }).length} người)
               </h3>
               <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: 0 }}>
-                Quản lý mã PIN 4 số, vai trò, số km tích lũy và quota vé quên công
+                {selectedCamp?.mode === 'clb_quanh_nam'
+                  ? 'Quản lý mã PIN 4 số, phân bảng Runner nhí/lớn, tổng km tích lũy'
+                  : 'Quản lý mã PIN 4 số, vai trò học viên và điểm tích lũy học tập'}
               </p>
             </div>
 
@@ -1486,8 +1702,9 @@ export default function JourneyAdminPage() {
                   name: "",
                   phone: "",
                   pin_code: "1234",
-                  role_tag: "Thành viên",
+                  role_tag: selectedCamp?.mode === 'clb_quanh_nam' ? "Runner Nhí" : "Học sinh",
                   total_km_all_time: 0,
+                  total_stars: 0,
                   forgot_pills_quota: 3,
                 })
                 setShowMemberModal(true)
@@ -1517,113 +1734,147 @@ export default function JourneyAdminPage() {
                 <tr style={{ background: "var(--background)", borderBottom: "2px solid var(--border)", textAlign: "left" }}>
                   <th style={{ padding: "0.75rem" }}>STT / ID</th>
                   <th style={{ padding: "0.75rem" }}>Họ và Tên</th>
+                  {selectedCamp?.mode === 'clb_quanh_nam' && (
+                    <th style={{ padding: "0.75rem" }}>Phân Bảng</th>
+                  )}
                   <th style={{ padding: "0.75rem" }}>Số Điện Thoại</th>
                   <th style={{ padding: "0.75rem" }}>Mã PIN (4 Số)</th>
                   <th style={{ padding: "0.75rem" }}>Vai Trò</th>
-                  <th style={{ padding: "0.75rem" }}>Tổng Tích Lũy</th>
-                  <th style={{ padding: "0.75rem" }}>Vé Quên Chấm Công</th>
+                  <th style={{ padding: "0.75rem" }}>
+                    {selectedCamp?.mode === 'clb_quanh_nam' ? 'Tổng Km Tích Lũy' : 'Điểm / Sao Tích Lũy'}
+                  </th>
+                  {selectedCamp?.mode === 'cham_cong' && (
+                    <th style={{ padding: "0.75rem" }}>Vé Quên Chấm Công</th>
+                  )}
                   <th style={{ padding: "0.75rem", textAlign: "right" }}>Thao Tác</th>
                 </tr>
               </thead>
               <tbody>
-                {members.map((m, idx) => (
-                  <tr key={m.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ padding: "0.75rem", color: "var(--text-muted)" }}>#{m.id}</td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{
-                          width: "32px",
-                          height: "32px",
-                          borderRadius: "50%",
-                          background: "rgba(79, 70, 229, 0.1)",
-                          color: "#4f46e5",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontWeight: 700,
-                          fontSize: "0.8rem",
-                          overflow: "hidden",
-                          flexShrink: 0,
-                        }}>
-                          {m.avatar_url ? (
-                            <img src={m.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          ) : (
-                            m.name ? m.name.charAt(0) : "U"
-                          )}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600, color: "var(--text-main)" }}>
-                            {m.name} {m.is_elite && <span title="Elite Runner">👑</span>}
+                {members
+                  .filter(m => {
+                    if (selectedCamp?.mode === 'clb_quanh_nam') {
+                      if (memberDivisionFilter === 'kids') return isKid(m);
+                      if (memberDivisionFilter === 'adults') return !isKid(m);
+                    }
+                    return true;
+                  })
+                  .map((m, idx) => (
+                    <tr key={m.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td style={{ padding: "0.75rem", color: "var(--text-muted)" }}>#{m.id}</td>
+                      <td style={{ padding: "0.75rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <div style={{
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "50%",
+                            background: "rgba(79, 70, 229, 0.1)",
+                            color: "#4f46e5",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 700,
+                            fontSize: "0.8rem",
+                            overflow: "hidden",
+                            flexShrink: 0,
+                          }}>
+                            {m.avatar_url ? (
+                              <img src={m.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            ) : (
+                              m.name ? m.name.charAt(0) : "U"
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, color: "var(--text-main)" }}>
+                              {m.name} {m.is_elite && <span title="Elite Runner">👑</span>}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>{m.phone || "---"}</td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <span style={{
-                        background: "rgba(79, 70, 229, 0.1)",
-                        color: "#4f46e5",
-                        fontWeight: 700,
-                        padding: "3px 8px",
-                        borderRadius: "6px",
-                        letterSpacing: "1px",
-                      }}>
-                        {m.pin_code || m.phone_last4 || "----"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{m.role_tag || "Thành viên"}</span>
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <strong style={{ color: "#f59e0b" }}>{m.total_km_all_time || 0} km</strong>
-                    </td>
-                    <td style={{ padding: "0.75rem" }}>
-                      <span style={{ background: "#fef3c7", color: "#b45309", padding: "2px 8px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 700 }}>
-                        {m.forgot_pills_quota !== undefined ? m.forgot_pills_quota : 3} vé
-                      </span>
-                    </td>
-                    <td style={{ padding: "0.75rem", textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: "0.5rem" }}>
-                        <button
-                          onClick={() => {
-                            setEditingMember(m)
-                            setShowMemberModal(true)
-                          }}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid var(--border)",
-                            color: "var(--text-main)",
-                            padding: "4px 8px",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                          }}
-                          title="Sửa thành viên"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (confirm(`Bố Hoàng có chắc muốn xóa thành viên ${m.name}?`)) {
-                              await deleteMember(m.id)
-                              loadMembers(selectedCampId)
-                            }
-                          }}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid #fee2e2",
-                            color: "#ef4444",
-                            padding: "4px 8px",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                          }}
-                          title="Xóa thành viên"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      {selectedCamp?.mode === 'clb_quanh_nam' && (
+                        <td style={{ padding: "0.75rem" }}>
+                          {isKid(m) ? (
+                            <span style={{ background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 800 }}>
+                              🌟 Runner Nhí
+                            </span>
+                          ) : (
+                            <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700 }}>
+                              👨‍👩‍👧 Runner Lớn
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td style={{ padding: "0.75rem" }}>{m.phone || "---"}</td>
+                      <td style={{ padding: "0.75rem" }}>
+                        <span style={{
+                          background: "rgba(79, 70, 229, 0.1)",
+                          color: "#4f46e5",
+                          fontWeight: 700,
+                          padding: "3px 8px",
+                          borderRadius: "6px",
+                          letterSpacing: "1px",
+                        }}>
+                          {m.pin_code || m.phone_last4 || "----"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "0.75rem" }}>
+                        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{m.role_tag || "Thành viên"}</span>
+                      </td>
+                      <td style={{ padding: "0.75rem" }}>
+                        {selectedCamp?.mode === 'clb_quanh_nam' ? (
+                          <strong style={{ color: "#f59e0b" }}>{m.total_km_all_time || 0} km</strong>
+                        ) : (
+                          <strong style={{ color: "#4f46e5" }}>{m.total_stars || 0} ⭐ · {m.weekly_streak || 0} streak</strong>
+                        )}
+                      </td>
+                      {selectedCamp?.mode === 'cham_cong' && (
+                        <td style={{ padding: "0.75rem" }}>
+                          <span style={{ background: "#fef3c7", color: "#b45309", padding: "2px 8px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 700 }}>
+                            {m.forgot_pills_quota !== undefined ? m.forgot_pills_quota : 3} vé
+                          </span>
+                        </td>
+                      )}
+                      <td style={{ padding: "0.75rem", textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: "0.5rem" }}>
+                          <button
+                            onClick={() => {
+                              setEditingMember(m)
+                              setShowMemberModal(true)
+                            }}
+                            style={{
+                              background: "transparent",
+                              border: "1px solid var(--border)",
+                              color: "var(--text-main)",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                            }}
+                            title="Sửa thành viên"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Bố Hoàng có chắc muốn xóa thành viên ${m.name}?`)) {
+                                await deleteMember(m.id)
+                                loadMembers(selectedCampId)
+                              }
+                            }}
+                            style={{
+                              background: "transparent",
+                              border: "1px solid #fee2e2",
+                              color: "#ef4444",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                            }}
+                            title="Xóa thành viên"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -1665,6 +1916,7 @@ export default function JourneyAdminPage() {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              flexShrink: 0,
             }}>
               <div>
                 <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, letterSpacing: "-0.01em" }}>
@@ -1702,6 +1954,11 @@ export default function JourneyAdminPage() {
               background: "var(--background)",
               padding: "0 1rem",
               overflowX: "auto",
+              flexShrink: 0,
+              position: "sticky",
+              top: 0,
+              zIndex: 20,
+              boxShadow: "0 2px 4px rgba(0, 0, 0, 0.04)",
             }}>
               {[
                 { key: "general", label: "📋 Thông Tin & Slogan", icon: Edit },
@@ -1753,7 +2010,7 @@ export default function JourneyAdminPage() {
             </div>
 
             {/* Modal Body Content */}
-            <div style={{ padding: "1.5rem 1.75rem", overflowY: "auto", flex: 1, maxHeight: "65vh" }}>
+            <div style={{ padding: "1.5rem 1.75rem", overflowY: "auto", flex: "1 1 0%", minHeight: 0 }}>
               {/* PHẦN 1: THÔNG TIN CƠ BẢN & SLOGAN */}
               {modalSubTab === "general" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
@@ -1812,6 +2069,33 @@ export default function JourneyAdminPage() {
                     />
                     <span style={{ fontSize: "0.75rem", color: "#b45309", display: "block", marginTop: "0.25rem" }}>
                       💡 Khẩu hiệu này sẽ hiển thị trang trọng trên đầu trang Báo Cáo Học Viên và Banner vinh danh.
+                    </span>
+                  </div>
+
+                  {/* Phân loại & Đối tượng sử dụng */}
+                  <div style={{ background: "rgba(99, 102, 241, 0.05)", border: "1px solid rgba(99, 102, 241, 0.2)", borderRadius: "10px", padding: "1rem" }}>
+                    <label style={{ fontSize: "0.88rem", fontWeight: 700, color: "#4338ca", display: "flex", alignItems: "center", gap: "6px", marginBottom: "0.35rem" }}>
+                      <span>🎯 Phân Loại Quyền Sử Dụng & Đối Tượng Vận Hành</span>
+                    </label>
+                    <select
+                      value={editingCamp.scope || (editingCamp.theme as any)?.scope || (editingCamp.mode === "clb_quanh_nam" ? "club" : "branch")}
+                      onChange={(e) => {
+                        const val = e.target.value as any;
+                        setEditingCamp({
+                          ...editingCamp,
+                          scope: val,
+                          theme: { ...(editingCamp.theme || {}), scope: val }
+                        });
+                      }}
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid #c7d2fe", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 700 }}
+                    >
+                      <option value="admin_only">👑 Chỉ Super Admin (Bố Hoàng / Riêng tư thử nghiệm)</option>
+                      <option value="branch">🏫 Chi Nhánh Áp Dụng (Giáo viên đào tạo VicEdu các cơ sở)</option>
+                      <option value="partner">🤝 Lớp Thầy Cô Đối Tác (Liên kết đào tạo & Khóa học đối tác)</option>
+                      <option value="club">🏃 CLB Rèn Luyện & Thể Thao (Cộng đồng phụ huynh & runner nhí)</option>
+                    </select>
+                    <span style={{ fontSize: "0.75rem", color: "#6366f1", display: "block", marginTop: "0.35rem" }}>
+                      💡 Tiêu chí giúp lọc nhanh tại Trung Tâm Điều Hành và phân quyền truy cập quản trị sau này.
                     </span>
                   </div>
 
@@ -2597,6 +2881,49 @@ export default function JourneyAdminPage() {
                     </p>
                   </div>
 
+                  {/* Nút bấm chọn nhanh mẫu tính điểm chuẩn */}
+                  <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)" }}>
+                      ⚡ Nạp mẫu 1-chạm:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingCamp({
+                          ...editingCamp,
+                          scoring_rules: [
+                            { label: 'Mỗi bài tập hoàn thành', points: '+1' },
+                            { label: 'Làm đủ bài tập trong buổi', points: '+1' },
+                            { label: 'Học đúng giờ & tương tác tích cực', points: '+2' },
+                            { label: 'Tuần học chuyên cần (đủ các buổi)', points: '+3' },
+                            { label: 'Hoàn thành chặng học xuất sắc', points: '+10' },
+                          ]
+                        });
+                      }}
+                      style={{ padding: "4px 10px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      📚 Dùng mẫu Lớp Học VicEdu
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingCamp({
+                          ...editingCamp,
+                          scoring_rules: [
+                            { label: 'Mỗi nhiệm vụ đạt', points: '+1' },
+                            { label: 'Buổi làm đủ nhiệm vụ', points: '+1' },
+                            { label: 'Có mặt offline đúng giờ', points: '+2' },
+                            { label: 'Tuần kỷ luật (đủ tất cả các buổi)', points: '+3' },
+                            { label: 'Đạt mốc 100km / 200km / 300km', points: '+10' },
+                          ]
+                        });
+                      }}
+                      style={{ padding: "4px 10px", borderRadius: "6px", background: "#fff1f2", color: "#e11d48", border: "1px solid #fecdd3", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      🏃 Dùng mẫu CLB Chạy (Rubisea)
+                    </button>
+                  </div>
+
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                     {(editingCamp.scoring_rules || []).map((rule, idx) => (
                       <div
@@ -2962,6 +3289,7 @@ export default function JourneyAdminPage() {
               padding: "1rem 1.75rem",
               borderTop: "1px solid var(--border)",
               background: "var(--background)",
+              flexShrink: 0,
             }}>
               <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
                 💡 Mọi thay đổi lịch tuần, nhiệm vụ và sự kiện sẽ được đồng bộ tức thì sang Web 2.
@@ -3557,25 +3885,82 @@ export default function JourneyAdminPage() {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              {/* Phân bảng cho CLB chạy bộ */}
+              {selectedCamp?.mode === 'clb_quanh_nam' && (
                 <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Tổng Km Tích Lũy</label>
+                  <label style={{ fontSize: "0.85rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                    Phân Bảng Thi Đua Runner
+                  </label>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditingMember({ ...editingMember, role_tag: "Runner Nhí" })}
+                      style={{
+                        flex: 1,
+                        padding: "0.5rem",
+                        borderRadius: "6px",
+                        border: isKid(editingMember) ? "2px solid #e11d48" : "1px solid var(--border)",
+                        background: isKid(editingMember) ? "#ffe4e6" : "var(--background)",
+                        color: isKid(editingMember) ? "#be123c" : "var(--text-main)",
+                        fontWeight: 700,
+                        fontSize: "0.8rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🌟 Bảng Runner Nhí (U15)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingMember({ ...editingMember, role_tag: "Runner Lớn / Phụ Huynh" })}
+                      style={{
+                        flex: 1,
+                        padding: "0.5rem",
+                        borderRadius: "6px",
+                        border: !isKid(editingMember) ? "2px solid #4f46e5" : "1px solid var(--border)",
+                        background: !isKid(editingMember) ? "#e0e7ff" : "var(--background)",
+                        color: !isKid(editingMember) ? "#4338ca" : "var(--text-main)",
+                        fontWeight: 700,
+                        fontSize: "0.8rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      👨‍👩‍👧 Runner Lớn / Phụ Huynh
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tích lũy điểm/km & Chỉ hiển thị vé quên công khi ở chế độ Chấm Công GPS */}
+              <div style={{ display: "grid", gridTemplateColumns: selectedCamp?.mode === 'cham_cong' ? "1fr 1fr" : "1fr", gap: "1rem" }}>
+                <div>
+                  <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                    {selectedCamp?.mode === 'clb_quanh_nam' ? 'Tổng Km Tích Lũy' : 'Tổng Sao / Điểm Tích Lũy'}
+                  </label>
                   <input
                     type="number"
-                    value={editingMember.total_km_all_time || 0}
-                    onChange={(e) => setEditingMember({ ...editingMember, total_km_all_time: parseFloat(e.target.value) || 0 })}
+                    value={selectedCamp?.mode === 'clb_quanh_nam' ? (editingMember.total_km_all_time || 0) : (editingMember.total_stars || 0)}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      if (selectedCamp?.mode === 'clb_quanh_nam') {
+                        setEditingMember({ ...editingMember, total_km_all_time: val });
+                      } else {
+                        setEditingMember({ ...editingMember, total_stars: val });
+                      }
+                    }}
                     style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
                   />
                 </div>
-                <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Vé Quên Chấm Công</label>
-                  <input
-                    type="number"
-                    value={editingMember.forgot_pills_quota !== undefined ? editingMember.forgot_pills_quota : 3}
-                    onChange={(e) => setEditingMember({ ...editingMember, forgot_pills_quota: parseInt(e.target.value) || 0 })}
-                    style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                  />
-                </div>
+                {selectedCamp?.mode === 'cham_cong' && (
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Vé Quên Chấm Công</label>
+                    <input
+                      type="number"
+                      value={editingMember.forgot_pills_quota !== undefined ? editingMember.forgot_pills_quota : 3}
+                      onChange={(e) => setEditingMember({ ...editingMember, forgot_pills_quota: parseInt(e.target.value) || 0 })}
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

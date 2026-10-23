@@ -17,6 +17,7 @@ export interface CampData {
   subtitle?: string
   slogan?: string
   mode: 'clb_quanh_nam' | 'lop_hoc_buoi'
+  scope?: 'admin_only' | 'branch' | 'partner' | 'club'
   status?: string
   target_days?: number
   has_divisions?: boolean
@@ -33,6 +34,7 @@ export interface CampData {
     light?: string
     badgeBg?: string
     heroGradient?: string
+    scope?: 'admin_only' | 'branch' | 'partner' | 'club'
     canvaUrl?: string
     videoUrl?: string
     scheduleText?: string
