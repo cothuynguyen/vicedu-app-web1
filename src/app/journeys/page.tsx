@@ -1541,8 +1541,14 @@ export default function JourneyAdminPage() {
                           justifyContent: "center",
                           fontWeight: 700,
                           fontSize: "0.8rem",
+                          overflow: "hidden",
+                          flexShrink: 0,
                         }}>
-                          {m.name ? m.name.charAt(0) : "U"}
+                          {m.avatar_url ? (
+                            <img src={m.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            m.name ? m.name.charAt(0) : "U"
+                          )}
                         </div>
                         <div>
                           <div style={{ fontWeight: 600, color: "var(--text-main)" }}>
@@ -3407,6 +3413,102 @@ export default function JourneyAdminPage() {
             </h2>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1.25rem" }}>
+              {/* Tải ảnh đại diện cho thành viên */}
+              <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.85rem", background: "var(--background)", borderRadius: "10px", border: "1px dashed var(--border)" }}>
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  background: "#e0e7ff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "2px solid #818cf8",
+                  flexShrink: 0
+                }}>
+                  {editingMember.avatar_url ? (
+                    <img src={editingMember.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span style={{ fontSize: "1.2rem", fontWeight: 700, color: "#4f46e5" }}>
+                      {editingMember.name ? editingMember.name.charAt(0) : "👤"}
+                    </span>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.25rem" }}>Ảnh Đại Diện Thành Viên</div>
+                  <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "0.4rem" }}>
+                    Admin có thể tải ảnh giúp thành viên khi họ dùng hết 3 lượt tự đổi.
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                    <label style={{
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      background: "#4f46e5",
+                      color: "white",
+                      fontSize: "0.78rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px"
+                    }}>
+                      <span>📷 Tải ảnh từ máy</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = (re) => {
+                            const img = new Image();
+                            img.onload = () => {
+                              const canvas = document.createElement("canvas");
+                              const SIZE = 250;
+                              canvas.width = SIZE;
+                              canvas.height = SIZE;
+                              const ctx = canvas.getContext("2d");
+                              let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+                              if (img.width > img.height) {
+                                sWidth = img.height;
+                                sx = (img.width - img.height) / 2;
+                              } else {
+                                sHeight = img.width;
+                                sy = (img.height - img.width) / 2;
+                              }
+                              ctx?.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, SIZE, SIZE);
+                              const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+                              setEditingMember({ ...editingMember, avatar_url: dataUrl });
+                            };
+                            img.src = (re.target?.result as string) || "";
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    {editingMember.avatar_url && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingMember({ ...editingMember, avatar_url: "" })}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid var(--border)",
+                          background: "transparent",
+                          color: "#ef4444",
+                          fontSize: "0.75rem",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Xóa ảnh
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Họ và Tên</label>
                 <input

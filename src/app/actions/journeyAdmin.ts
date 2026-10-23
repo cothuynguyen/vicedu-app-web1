@@ -125,8 +125,8 @@ export async function getAdminCamps() {
 
       return {
         ...camp,
-        has_divisions: camp.has_divisions ?? camp.theme?.has_divisions ?? true,
-        require_pin: camp.require_pin ?? camp.theme?.require_pin ?? true,
+        has_divisions: camp.has_divisions ?? (camp.theme as any)?.has_divisions ?? true,
+        require_pin: camp.require_pin ?? (camp.theme as any)?.require_pin ?? true,
         memberCount: campMembers.length,
         reportCount: campReports.length,
         pendingCount: pendingReports.length,
