@@ -18,18 +18,41 @@ export interface CampData {
   slogan?: string
   mode: 'clb_quanh_nam' | 'lop_hoc_buoi'
   status?: string
+  target_days?: number
+  has_divisions?: boolean
+  require_pin?: boolean
   logo?: {
     icon?: string
     text?: string
     badgeLabel?: string
+    imageUrl?: string
   }
   theme?: {
     primary?: string
     accent?: string
     light?: string
+    badgeBg?: string
+    heroGradient?: string
+    canvaUrl?: string
+    videoUrl?: string
+    scheduleText?: string
+    locationText?: string
+    campaignTitle?: string
+    campaignSlogan?: string
   }
-  tasks?: any[]
+  tasks?: Array<{
+    id: string
+    name: string
+    type: 'number' | 'boolean' | 'link'
+    unit?: string
+    target?: number
+    color: string
+    description: string
+  }>
   sessions?: any[]
+  club_months?: any[]
+  scoring_rules?: Array<{ label: string; points: string }>
+  highlight_badges?: any[]
   branch_gps?: {
     lat: number
     lng: number
@@ -123,6 +146,9 @@ export async function saveCamp(camp: CampData) {
       theme: camp.theme || { primary: '#4f46e5', accent: '#4338ca', light: '#eef2ff' },
       tasks: camp.tasks || [],
       sessions: camp.sessions || [],
+      club_months: camp.club_months || [],
+      scoring_rules: camp.scoring_rules || [],
+      highlight_badges: camp.highlight_badges || [],
       branch_gps: camp.branch_gps || { lat: 21.321852, lng: 105.398214, radius: 50, branch_name: 'VP VicEdu Việt Trì' },
       shifts_config: camp.shifts_config || [
         { id: 'P1', name: 'Ca P1', start: '07:30', end: '17:30' },

@@ -25,6 +25,9 @@ import {
   Lock,
   ChevronRight,
   Info,
+  Layers,
+  Palette,
+  Flag,
 } from "lucide-react"
 import * as XLSX from "xlsx"
 import {
@@ -51,6 +54,18 @@ export default function JourneyAdminPage() {
   const [selectedCampId, setSelectedCampId] = useState<string>("")
   const [editingCamp, setEditingCamp] = useState<CampData | null>(null)
   const [showCampModal, setShowCampModal] = useState(false)
+  const [modalSubTab, setModalSubTab] = useState<"general" | "tasks" | "schedule" | "special_events" | "branding">("general")
+
+  // State cho sự kiện đặc biệt mới
+  const [newEvent, setNewEvent] = useState({
+    title: "",
+    dateStr: "",
+    timeStr: "T7 05:30",
+    location: "",
+    specialBadge: "🏆 GIẢI ĐẤU",
+    desc: "",
+    eventType: "race" as const,
+  })
 
   // Members state
   const [members, setMembers] = useState<any[]>([])
@@ -77,6 +92,85 @@ export default function JourneyAdminPage() {
   ])
   const [detectingGps, setDetectingGps] = useState(false)
   const [gpsMessage, setGpsMessage] = useState<string | null>(null)
+
+  // Mở modal cấu hình Camp chi tiết
+  const openCampModal = (camp?: any) => {
+    if (camp) {
+      const defaultTasks = (camp.tasks && Array.isArray(camp.tasks) && camp.tasks.length > 0)
+        ? camp.tasks
+        : (camp.mode === 'clb_quanh_nam' ? [
+            { id: 'chay_km', name: 'Chạy bộ', type: 'number', unit: 'km', target: 3, color: '#e11d48', description: 'Chạy tối thiểu 3km mỗi buổi' },
+            { id: 'dap_tay', name: 'Đập tay giao lưu', type: 'boolean', color: '#f59e0b', description: 'Đập tay chào người chạy ngược chiều' },
+            { id: 'dung_gio', name: 'Có mặt đúng giờ', type: 'boolean', color: '#10b981', description: 'T6 17h30 / CN 05h30 có mặt đúng giờ' },
+            { id: 'giup_ban', name: 'Hỗ trợ đồng đội', type: 'boolean', color: '#3b82f6', description: 'Chạy kèm bạn yếu hơn hoặc nhặt rác đường chạy' }
+          ] : [
+            { id: 'bai_tap', name: 'Làm bài tập Cambridge', type: 'boolean', color: '#4f46e5', description: 'Hoàn thành 100% bài tập Cambridge về nhà' },
+            { id: 'tu_vung', name: 'Ôn tập từ vựng', type: 'number', unit: 'từ', target: 20, color: '#10b981', description: 'Ghi nhớ và viết lại ít nhất 20 từ vựng theo chủ đề' },
+            { id: 'dung_gio', name: 'Vào lớp đúng giờ', type: 'boolean', color: '#f59e0b', description: 'Có mặt trước giờ học 5 phút và chuẩn bị tài liệu' },
+            { id: 'tu_hoc', name: 'Tự học thêm', type: 'number', unit: 'phút', target: 30, color: '#8b5cf6', description: 'Luyện nghe podcast hoặc đọc báo tiếng Anh 30 phút' }
+          ])
+
+      setEditingCamp({
+        ...camp,
+        tasks: defaultTasks,
+        has_divisions: camp.has_divisions ?? true,
+        require_pin: camp.require_pin ?? true,
+        theme: {
+          primary: camp.theme?.primary || '#e11d48',
+          accent: camp.theme?.accent || '#be123c',
+          light: camp.theme?.light || '#ffe4e6',
+          campaignTitle: camp.theme?.campaignTitle || (camp.club_months?.[0]?.themeTitle || 'CHIẾN DỊCH THÁNG 10 · BÀN TAY GẮN KẾT & KỶ LUẬT THÉP'),
+          campaignSlogan: camp.theme?.campaignSlogan || (camp.club_months?.[0]?.themeSlogan || 'Đập tay 5 người ngược chiều · Hoàn thành cự ly · Giữ chuỗi tuần rực lửa'),
+          locationText: camp.theme?.locationText || 'Công viên Văn Lang',
+          scheduleText: camp.theme?.scheduleText || 'Tuần 2 buổi · T6 17h30 & CN 05h30',
+          canvaUrl: camp.theme?.canvaUrl || '',
+          videoUrl: camp.theme?.videoUrl || '',
+        },
+        logo: {
+          icon: camp.logo?.icon || (camp.mode === 'clb_quanh_nam' ? '🏃‍♂️🔥' : '🎯📚'),
+          text: camp.logo?.text || camp.title || 'RUBISEA 19',
+          badgeLabel: camp.logo?.badgeLabel || (camp.mode === 'clb_quanh_nam' ? 'RUNNER NHÍ · RUNNER 19' : 'CAMBRIDGE IELTS'),
+        },
+        sessions: camp.sessions || [],
+      })
+    } else {
+      setEditingCamp({
+        slug: "",
+        title: "",
+        subtitle: "",
+        slogan: "KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ",
+        mode: "clb_quanh_nam",
+        status: "active",
+        has_divisions: true,
+        require_pin: true,
+        tasks: [
+          { id: 'chay_km', name: 'Chạy bộ', type: 'number', unit: 'km', target: 3, color: '#e11d48', description: 'Chạy tối thiểu 3km mỗi buổi' },
+          { id: 'dap_tay', name: 'Đập tay giao lưu', type: 'boolean', color: '#f59e0b', description: 'Đập tay chào người chạy ngược chiều' },
+          { id: 'dung_gio', name: 'Có mặt đúng giờ', type: 'boolean', color: '#10b981', description: 'T6 17h30 / CN 05h30 có mặt đúng giờ' },
+          { id: 'giup_ban', name: 'Hỗ trợ đồng đội', type: 'boolean', color: '#3b82f6', description: 'Chạy kèm bạn yếu hơn hoặc nhặt rác đường chạy' }
+        ],
+        theme: {
+          primary: '#e11d48',
+          accent: '#be123c',
+          light: '#ffe4e6',
+          campaignTitle: 'CHIẾN DỊCH THÁNG 10 · BÀN TAY GẮN KẾT & KỶ LUẬT THÉP',
+          campaignSlogan: 'Đập tay 5 người ngược chiều · Hoàn thành cự ly · Giữ chuỗi tuần rực lửa',
+          locationText: 'Công viên Văn Lang',
+          scheduleText: 'Tuần 2 buổi · T6 17h30 & CN 05h30',
+          canvaUrl: '',
+          videoUrl: '',
+        },
+        logo: {
+          icon: '🏃‍♂️🔥',
+          text: 'RUBISEA 19',
+          badgeLabel: 'RUNNER NHÍ · RUNNER 19',
+        },
+        sessions: [],
+      })
+    }
+    setModalSubTab("general")
+    setShowCampModal(true)
+  }
 
   // Load initial camps
   const loadCamps = async () => {
@@ -253,6 +347,80 @@ export default function JourneyAdminPage() {
     XLSX.writeFile(workbook, `Bang_Cham_Cong_${safeTitle}_${dateStr}.xlsx`)
   }
 
+  // Quản lý Tasks trong editingCamp
+  const handleTaskChange = (index: number, field: string, value: any) => {
+    if (!editingCamp || !editingCamp.tasks) return
+    const updatedTasks = [...editingCamp.tasks]
+    updatedTasks[index] = { ...updatedTasks[index], [field]: value }
+    setEditingCamp({ ...editingCamp, tasks: updatedTasks })
+  }
+
+  const handleAddTask = () => {
+    if (!editingCamp) return
+    const currentTasks = editingCamp.tasks || []
+    const newTask = {
+      id: `task_${Date.now()}`,
+      name: `Thử thách mới #${currentTasks.length + 1}`,
+      type: "boolean" as const,
+      color: "#3b82f6",
+      description: "Mô tả yêu cầu nhiệm vụ này",
+    }
+    setEditingCamp({ ...editingCamp, tasks: [...currentTasks, newTask] })
+  }
+
+  const handleDeleteTask = (index: number) => {
+    if (!editingCamp || !editingCamp.tasks || editingCamp.tasks.length <= 1) {
+      alert("Hành trình cần duy trì tối thiểu 1 thử thách!")
+      return
+    }
+    const updatedTasks = editingCamp.tasks.filter((_, i) => i !== index)
+    setEditingCamp({ ...editingCamp, tasks: updatedTasks })
+  }
+
+  // Thêm sự kiện đặc biệt mới vào editingCamp
+  const handleAddSpecialEvent = () => {
+    if (!newEvent.title.trim() || !newEvent.dateStr) {
+      alert("Vui lòng nhập tên sự kiện và ngày diễn ra!")
+      return
+    }
+    const eventSession = {
+      id: `event_${Date.now()}`,
+      sessionCode: `${newEvent.timeStr ? newEvent.timeStr.slice(0, 2) : 'SK'} · ${newEvent.dateStr.slice(5).replace('-', '/')}`,
+      title: newEvent.title.trim(),
+      dateStr: newEvent.dateStr,
+      timeStr: newEvent.timeStr || 'T7 05:30',
+      location: newEvent.location.trim() || 'Địa điểm tổ chức',
+      isSpecialEvent: true,
+      eventType: newEvent.eventType || 'race',
+      specialBadge: newEvent.specialBadge.trim() || '🏆 GIẢI ĐẤU',
+      desc: newEvent.desc.trim() || '',
+    }
+
+    const currentSessions = editingCamp?.sessions || []
+    setEditingCamp({
+      ...editingCamp!,
+      sessions: [...currentSessions, eventSession],
+    })
+    setNewEvent({
+      title: "",
+      dateStr: "",
+      timeStr: "T7 05:30",
+      location: "",
+      specialBadge: "🏆 GIẢI ĐẤU",
+      desc: "",
+      eventType: "race",
+    })
+  }
+
+  const handleDeleteSpecialEvent = (sessionId: string) => {
+    if (!editingCamp) return
+    const updatedSessions = (editingCamp.sessions || []).filter((s: any) => s.id !== sessionId)
+    setEditingCamp({
+      ...editingCamp,
+      sessions: updatedSessions,
+    })
+  }
+
   // --- BẢO VỆ TUYỆT ĐỐI: CHỈ SUPER ADMIN ĐƯỢC XEM & SỬ DỤNG ---
   if (authLoading) {
     return (
@@ -323,17 +491,7 @@ export default function JourneyAdminPage() {
 
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
             <button
-              onClick={() => {
-                setEditingCamp({
-                  slug: "",
-                  title: "",
-                  subtitle: "",
-                  slogan: "KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ",
-                  mode: "clb_quanh_nam",
-                  status: "active",
-                })
-                setShowCampModal(true)
-              }}
+              onClick={() => openCampModal()}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -568,8 +726,7 @@ export default function JourneyAdminPage() {
                   <button
                     onClick={() => {
                       setSelectedCampId(camp.id)
-                      setEditingCamp(camp)
-                      setShowCampModal(true)
+                      openCampModal(camp)
                     }}
                     style={{
                       flex: 1,
@@ -577,7 +734,7 @@ export default function JourneyAdminPage() {
                       alignItems: "center",
                       justifyContent: "center",
                       gap: "6px",
-                      padding: "0.5rem",
+                      padding: "0.55rem",
                       borderRadius: "8px",
                       border: "1px solid var(--border)",
                       background: "var(--surface)",
@@ -588,7 +745,7 @@ export default function JourneyAdminPage() {
                     }}
                   >
                     <Edit size={14} />
-                    <span>Cấu hình Slogan & Giao diện</span>
+                    <span>⚙️ Cấu Hình Toàn Diện (Nhiệm vụ & Sự kiện)</span>
                   </button>
 
                   <button
@@ -1132,13 +1289,15 @@ export default function JourneyAdminPage() {
         </div>
       )}
 
-      {/* MODAL CẤU HÌNH CAMP & SLOGAN TÙY BIẾN */}
+      {/* ============================================================ */}
+      {/* MODAL CẤU HÌNH TOÀN DIỆN (NHIỆM VỤ, LỊCH TRÌNH, SỰ KIỆN...) */}
+      {/* ============================================================ */}
       {showCampModal && editingCamp && (
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0, 0, 0, 0.5)",
-          backdropFilter: "blur(4px)",
+          background: "rgba(0, 0, 0, 0.65)",
+          backdropFilter: "blur(6px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1148,119 +1307,817 @@ export default function JourneyAdminPage() {
           <div style={{
             background: "var(--surface)",
             borderRadius: "16px",
-            padding: "2rem",
-            maxWidth: "600px",
+            maxWidth: "920px",
             width: "100%",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
-            maxHeight: "90vh",
-            overflowY: "auto",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
+            maxHeight: "92vh",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: "1px solid var(--border)",
           }}>
-            <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-              {editingCamp.id ? "✏️ Cấu Hình Hành Trình" : "✨ Tạo Hành Trình Mới"}
-            </h2>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "1.5rem" }}>
-              Tùy biến tiêu đề, slogan khẩu hiệu truyền cảm hứng, và chế độ hoạt động
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: "1.25rem 1.75rem",
+              background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)",
+              color: "white",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
               <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                  Mã Slug (Đường link URL)
-                </label>
-                <input
-                  type="text"
-                  value={editingCamp.slug}
-                  onChange={(e) => setEditingCamp({ ...editingCamp, slug: e.target.value })}
-                  placeholder="vi-du: rubisea-19 hoac vicedu-ielts"
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                />
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, letterSpacing: "-0.01em" }}>
+                  {editingCamp.id ? `⚙️ Cấu Hình Toàn Diện: ${editingCamp.title}` : "✨ Tạo Hành Trình Mới"}
+                </h2>
+                <p style={{ fontSize: "0.8rem", opacity: 0.85, margin: "0.2rem 0 0" }}>
+                  Tùy biến Slogan, 4 Thử thách cốt lõi, Chiến dịch tháng, Sự kiện đặc biệt & Tông màu
+                </p>
               </div>
-
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                  Tên Hành Trình / Lớp Học
-                </label>
-                <input
-                  type="text"
-                  value={editingCamp.title}
-                  onChange={(e) => setEditingCamp({ ...editingCamp, title: e.target.value })}
-                  placeholder="Ví dụ: RUBISEA 19 · CLB RUNNER NHÍ"
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                  Phụ Đề / Lịch Sinh Hoạt
-                </label>
-                <input
-                  type="text"
-                  value={editingCamp.subtitle || ""}
-                  onChange={(e) => setEditingCamp({ ...editingCamp, subtitle: e.target.value })}
-                  placeholder="Lịch chạy T6 17h30 & CN 05h30..."
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                />
-              </div>
-
-              {/* SLOGAN TÙY BIẾN THEO YÊU CẦU BỐ HOÀNG */}
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                  🌟 Slogan / Khẩu Hiệu Cốt Lõi (Tùy biến 100%)
-                </label>
-                <textarea
-                  rows={2}
-                  value={editingCamp.slogan || ""}
-                  onChange={(e) => setEditingCamp({ ...editingCamp, slogan: e.target.value })}
-                  placeholder="KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ"
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
-                />
-                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                  Slogan này sẽ hiển thị trang trọng trên đầu trang Báo Cáo Học Viên và Banner vinh danh.
-                </span>
-              </div>
-
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                  Chế Độ Vận Hành
-                </label>
-                <select
-                  value={editingCamp.mode}
-                  onChange={(e) => setEditingCamp({ ...editingCamp, mode: e.target.value as any })}
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                >
-                  <option value="clb_quanh_nam">🏃‍♂️ CLB Quanh Năm (Tích lũy km, phân hạng Tân binh / Bàn chân thép / 300km)</option>
-                  <option value="lop_hoc_buoi">📚 Lớp Học Theo Buổi (Lộ trình 24/32 buổi Cambridge, BTVN & Điểm danh)</option>
-                </select>
-              </div>
+              <button
+                onClick={() => setShowCampModal(false)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.15)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "32px",
+                  height: "32px",
+                  cursor: "pointer",
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ✕
+              </button>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.75rem", borderTop: "1px solid var(--border)", paddingTop: "1.25rem" }}>
-              <button
-                type="button"
-                onClick={() => setShowCampModal(false)}
-                style={{ padding: "0.6rem 1.25rem", borderRadius: "8px", border: "1px solid var(--border)", background: "transparent", color: "var(--text-main)", cursor: "pointer" }}
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!editingCamp.slug || !editingCamp.title) {
-                    alert("Vui lòng điền mã slug và tên hành trình!")
-                    return
-                  }
-                  const res = await saveCamp(editingCamp)
-                  if (res.success) {
-                    setShowCampModal(false)
-                    loadCamps()
-                  } else {
-                    alert("Lỗi lưu camp: " + res.error)
-                  }
-                }}
-                style={{ padding: "0.6rem 1.25rem", borderRadius: "8px", border: "none", background: "#4f46e5", color: "white", fontWeight: 700, cursor: "pointer" }}
-              >
-                Lưu Thay Đổi
-              </button>
+            {/* Modal Sub-Tabs */}
+            <div style={{
+              display: "flex",
+              borderBottom: "1px solid var(--border)",
+              background: "var(--background)",
+              padding: "0 1rem",
+              overflowX: "auto",
+            }}>
+              {[
+                { key: "general", label: "📋 Thông Tin & Slogan", icon: Edit },
+                { key: "tasks", label: "🎯 4 Thử Thách Tháng", icon: Layers, badge: editingCamp.tasks?.length || 4 },
+                { key: "schedule", label: "🗓️ Chiến Dịch & Lịch", icon: Calendar },
+                { key: "special_events", label: "🏆 Sự Kiện Đặc Biệt", icon: Flag, badge: (editingCamp.sessions || []).filter((s: any) => s.isSpecialEvent).length },
+                { key: "branding", label: "🎨 Giao Diện & Media", icon: Palette },
+              ].map((subTab) => {
+                const Icon = subTab.icon
+                const isActive = modalSubTab === subTab.key
+                return (
+                  <button
+                    key={subTab.key}
+                    type="button"
+                    onClick={() => setModalSubTab(subTab.key as any)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "0.85rem 1rem",
+                      fontSize: "0.82rem",
+                      fontWeight: isActive ? 700 : 500,
+                      color: isActive ? "#4f46e5" : "var(--text-muted)",
+                      background: "transparent",
+                      border: "none",
+                      borderBottom: isActive ? "3px solid #4f46e5" : "3px solid transparent",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <Icon size={15} />
+                    <span>{subTab.label}</span>
+                    {subTab.badge !== undefined && subTab.badge > 0 && (
+                      <span style={{
+                        background: isActive ? "#4f46e5" : "#94a3b8",
+                        color: "white",
+                        fontSize: "0.7rem",
+                        padding: "1px 6px",
+                        borderRadius: "999px",
+                        fontWeight: 700,
+                      }}>
+                        {subTab.badge}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Modal Body Content */}
+            <div style={{ padding: "1.5rem 1.75rem", overflowY: "auto", flex: 1, maxHeight: "65vh" }}>
+              {/* PHẦN 1: THÔNG TIN CƠ BẢN & SLOGAN */}
+              {modalSubTab === "general" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Mã Slug (Đường dẫn URL)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCamp.slug}
+                        onChange={(e) => setEditingCamp({ ...editingCamp, slug: e.target.value })}
+                        placeholder="vi-du: rubisea-19"
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Tên Hành Trình / Lớp Học
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCamp.title}
+                        onChange={(e) => setEditingCamp({ ...editingCamp, title: e.target.value })}
+                        placeholder="Ví dụ: RUBISEA 19 · CLB RUNNER NHÍ"
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                      Phụ Đề / Lịch Sinh Hoạt
+                    </label>
+                    <input
+                      type="text"
+                      value={editingCamp.subtitle || ""}
+                      onChange={(e) => setEditingCamp({ ...editingCamp, subtitle: e.target.value })}
+                      placeholder="Lịch chạy T6 17h30 & CN 05h30 (Công viên Văn Lang)..."
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                    />
+                  </div>
+
+                  {/* SLOGAN CỐT LÕI (100% TÙY BIẾN) */}
+                  <div style={{ background: "rgba(245, 158, 11, 0.08)", padding: "1rem", borderRadius: "10px", border: "1px solid #fde68a" }}>
+                    <label style={{ fontSize: "0.88rem", fontWeight: 700, color: "#92400e", display: "flex", alignItems: "center", gap: "6px", marginBottom: "0.35rem" }}>
+                      <Sparkles size={16} />
+                      <span>🌟 Slogan / Khẩu Hiệu Cốt Lõi (Tùy Biến 100%)</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={editingCamp.slogan || ""}
+                      onChange={(e) => setEditingCamp({ ...editingCamp, slogan: e.target.value })}
+                      placeholder="KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ"
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid #f59e0b", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.88rem", fontWeight: 600 }}
+                    />
+                    <span style={{ fontSize: "0.75rem", color: "#b45309", display: "block", marginTop: "0.25rem" }}>
+                      💡 Khẩu hiệu này sẽ hiển thị trang trọng trên đầu trang Báo Cáo Học Viên và Banner vinh danh.
+                    </span>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "1rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Chế Độ Vận Hành
+                      </label>
+                      <select
+                        value={editingCamp.mode}
+                        onChange={(e) => setEditingCamp({ ...editingCamp, mode: e.target.value as any })}
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                      >
+                        <option value="clb_quanh_nam">🏃‍♂️ CLB Quanh Năm (Tích lũy km, phân hạng Tân binh / Bàn chân thép / 300km)</option>
+                        <option value="lop_hoc_buoi">📚 Lớp Học Theo Buổi (Lộ trình 24/32 buổi Cambridge, BTVN & Điểm danh)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Trạng Thái Hoạt Động
+                      </label>
+                      <select
+                        value={editingCamp.status || "active"}
+                        onChange={(e) => setEditingCamp({ ...editingCamp, status: e.target.value })}
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                      >
+                        <option value="active">🟢 Đang hoạt động (Active)</option>
+                        <option value="archived">⚪ Tạm dừng / Lưu trữ (Archived)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Tùy chọn bảo mật & phân khu */}
+                  <div style={{ display: "flex", gap: "1.5rem", padding: "0.75rem 0" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={editingCamp.has_divisions ?? true}
+                        onChange={(e) => setEditingCamp({ ...editingCamp, has_divisions: e.target.checked })}
+                        style={{ width: "16px", height: "16px", accentColor: "#4f46e5" }}
+                      />
+                      <span>Phân chia Bảng Runner Nhí (U15) & Người Lớn</span>
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={editingCamp.require_pin ?? true}
+                        onChange={(e) => setEditingCamp({ ...editingCamp, require_pin: e.target.checked })}
+                        style={{ width: "16px", height: "16px", accentColor: "#4f46e5" }}
+                      />
+                      <span>Bắt buộc mã PIN 4 số khi nộp bài</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* PHẦN 2: CẤU HÌNH 4 THỬ THÁCH THÁNG (TASKS) */}
+              {modalSubTab === "tasks" && (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <div>
+                      <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0 }}>
+                        🎯 Danh Sách Thử Thách & Nhiệm Vụ Học Viên ({editingCamp.tasks?.length || 0} nhiệm vụ)
+                      </h4>
+                      <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.15rem 0 0" }}>
+                        Cấu hình kiểu thử thách 1, 2, 3, 4 (Nhập số km / từ vựng hoặc tích chọn hoàn thành)
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddTask}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        background: "#4f46e5",
+                        color: "white",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        padding: "0.45rem 0.85rem",
+                        borderRadius: "6px",
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Plus size={14} />
+                      <span>Thêm Thử Thách</span>
+                    </button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    {(editingCamp.tasks || []).map((task, idx) => (
+                      <div
+                        key={task.id || idx}
+                        style={{
+                          background: "var(--background)",
+                          borderRadius: "10px",
+                          border: `1px solid ${task.color || "var(--border)"}`,
+                          padding: "1rem",
+                          position: "relative",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{
+                              background: task.color || "#4f46e5",
+                              color: "white",
+                              fontWeight: 800,
+                              fontSize: "0.75rem",
+                              padding: "2px 8px",
+                              borderRadius: "6px",
+                            }}>
+                              Thử thách #{idx + 1}
+                            </span>
+                            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-main)" }}>
+                              {task.name || "Chưa đặt tên"}
+                            </span>
+                          </div>
+
+                          {editingCamp.tasks && editingCamp.tasks.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTask(idx)}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "#ef4444",
+                                cursor: "pointer",
+                                fontSize: "0.8rem",
+                                fontWeight: 600,
+                              }}
+                              title="Xóa thử thách này"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr", gap: "0.85rem", marginBottom: "0.75rem" }}>
+                          <div>
+                            <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                              Tên Thử Thách
+                            </label>
+                            <input
+                              type="text"
+                              value={task.name}
+                              onChange={(e) => handleTaskChange(idx, "name", e.target.value)}
+                              placeholder="Ví dụ: Chạy bộ, Đập tay giao lưu, Làm BTVN..."
+                              style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                              Kiểu Dữ Liệu
+                            </label>
+                            <select
+                              value={task.type}
+                              onChange={(e) => handleTaskChange(idx, "type", e.target.value)}
+                              style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                            >
+                              <option value="number">🔢 Nhập Số (Số km, từ vựng, phút...)</option>
+                              <option value="boolean">☑️ Tích Chọn (Hoàn thành / Chưa hoàn thành)</option>
+                              <option value="link">🔗 Nộp Link (Drive, Padlet...)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {task.type === "number" && (
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.85rem", marginBottom: "0.75rem" }}>
+                            <div>
+                              <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                                Mục Tiêu Tối Thiểu
+                              </label>
+                              <input
+                                type="number"
+                                value={task.target || 3}
+                                onChange={(e) => handleTaskChange(idx, "target", parseFloat(e.target.value) || 0)}
+                                placeholder="3"
+                                style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                                Đơn Vị Đo
+                              </label>
+                              <input
+                                type="text"
+                                value={task.unit || "km"}
+                                onChange={(e) => handleTaskChange(idx, "unit", e.target.value)}
+                                placeholder="km, từ, phút..."
+                                style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div style={{ marginBottom: "0.75rem" }}>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                            Mô Tả Hướng Dẫn Cho Học Viên
+                          </label>
+                          <input
+                            type="text"
+                            value={task.description}
+                            onChange={(e) => handleTaskChange(idx, "description", e.target.value)}
+                            placeholder="Ví dụ: Chạy tối thiểu 3km mỗi buổi, Đập tay chào người chạy ngược chiều..."
+                            style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                          />
+                        </div>
+
+                        {/* Chọn màu sắc */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          <span style={{ fontSize: "0.75rem", fontWeight: 600 }}>Màu sắc nhận diện:</span>
+                          {[
+                            { color: "#e11d48", label: "Đỏ Ruby" },
+                            { color: "#f59e0b", label: "Vàng Cam" },
+                            { color: "#10b981", label: "Xanh Lá" },
+                            { color: "#3b82f6", label: "Xanh Dương" },
+                            { color: "#8b5cf6", label: "Tím" },
+                          ].map((col) => (
+                            <button
+                              key={col.color}
+                              type="button"
+                              onClick={() => handleTaskChange(idx, "color", col.color)}
+                              style={{
+                                width: "22px",
+                                height: "22px",
+                                borderRadius: "50%",
+                                background: col.color,
+                                border: task.color === col.color ? "3px solid #000" : "1px solid rgba(0,0,0,0.1)",
+                                cursor: "pointer",
+                              }}
+                              title={col.label}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PHẦN 3: CHIẾN DỊCH & LỊCH SINH HOẠT */}
+              {modalSubTab === "schedule" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                      Tên Chiến Dịch Tháng Này
+                    </label>
+                    <input
+                      type="text"
+                      value={editingCamp.theme?.campaignTitle || ""}
+                      onChange={(e) => setEditingCamp({
+                        ...editingCamp,
+                        theme: { ...editingCamp.theme, campaignTitle: e.target.value }
+                      })}
+                      placeholder="Ví dụ: CHIẾN DỊCH THÁNG 10 · BÀN TAY GẮN KẾT & KỶ LUẬT THÉP"
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                      Khẩu Hiệu / Chủ Đề Tháng
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={editingCamp.theme?.campaignSlogan || ""}
+                      onChange={(e) => setEditingCamp({
+                        ...editingCamp,
+                        theme: { ...editingCamp.theme, campaignSlogan: e.target.value }
+                      })}
+                      placeholder="Ví dụ: Đập tay 5 người ngược chiều · Hoàn thành cự ly · Giữ chuỗi tuần rực lửa"
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                    />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Địa Điểm Tập Trung Chính
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCamp.theme?.locationText || ""}
+                        onChange={(e) => setEditingCamp({
+                          ...editingCamp,
+                          theme: { ...editingCamp.theme, locationText: e.target.value }
+                        })}
+                        placeholder="Công viên Văn Lang / VP VicEdu..."
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Lịch Sinh Hoạt Định Kỳ
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCamp.theme?.scheduleText || ""}
+                        onChange={(e) => setEditingCamp({
+                          ...editingCamp,
+                          theme: { ...editingCamp.theme, scheduleText: e.target.value }
+                        })}
+                        placeholder="Tuần 2 buổi · T6 17h30 & CN 05h30"
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PHẦN 4: THÊM SỰ KIỆN ĐẶC BIỆT (GIẢI CHẠY, THI THỬ...) */}
+              {modalSubTab === "special_events" && (
+                <div>
+                  <div style={{ marginBottom: "1.25rem" }}>
+                    <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0 }}>
+                      🏆 Sự Kiện Đặc Biệt Trong Lịch Trình
+                    </h4>
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.15rem 0 0" }}>
+                      Thêm giải chạy việt dã (Vĩnh Yên, Hải Phòng), thi thử IELTS Mock Test hoặc ngoại khóa dã ngoại
+                    </p>
+                  </div>
+
+                  {/* Danh sách sự kiện hiện có */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1.5rem" }}>
+                    {(editingCamp.sessions || []).filter((s: any) => s.isSpecialEvent).map((ev: any) => (
+                      <div
+                        key={ev.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "0.75rem 1rem",
+                          background: "var(--background)",
+                          borderRadius: "8px",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ background: "#fef3c7", color: "#b45309", padding: "2px 8px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 700 }}>
+                              {ev.specialBadge || "🏆 SỰ KIỆN"}
+                            </span>
+                            <strong style={{ fontSize: "0.9rem" }}>{ev.title}</strong>
+                          </div>
+                          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                            📅 {ev.dateStr} · ⏰ {ev.timeStr} · 📍 {ev.location}
+                          </div>
+                          {ev.desc && <div style={{ fontSize: "0.78rem", fontStyle: "italic", marginTop: "0.2rem" }}>{ev.desc}</div>}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSpecialEvent(ev.id)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#ef4444",
+                            cursor: "pointer",
+                            padding: "4px",
+                          }}
+                          title="Xóa sự kiện này"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+
+                    {(editingCamp.sessions || []).filter((s: any) => s.isSpecialEvent).length === 0 && (
+                      <div style={{ textAlign: "center", padding: "1.5rem", color: "var(--text-muted)", fontSize: "0.85rem", background: "var(--background)", borderRadius: "8px" }}>
+                        Chưa có sự kiện đặc biệt nào được thêm vào lịch trình này.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Form Thêm Sự Kiện */}
+                  <div style={{
+                    background: "rgba(79, 70, 229, 0.04)",
+                    border: "1px dashed #818cf8",
+                    borderRadius: "10px",
+                    padding: "1rem",
+                  }}>
+                    <h5 style={{ fontSize: "0.88rem", fontWeight: 700, margin: "0 0 0.75rem", color: "#4f46e5" }}>
+                      + Thêm Sự Kiện Mới Vào Lịch
+                    </h5>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>Tên Sự Kiện</label>
+                        <input
+                          type="text"
+                          value={newEvent.title}
+                          onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                          placeholder="Ví dụ: Giải Marathon Vĩnh Yên / Thi thử IELTS"
+                          style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>Huy Hiệu (Badge)</label>
+                        <input
+                          type="text"
+                          value={newEvent.specialBadge}
+                          onChange={(e) => setNewEvent({ ...newEvent, specialBadge: e.target.value })}
+                          placeholder="🏆 GIẢI ĐẤU"
+                          style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>Ngày Diễn Ra</label>
+                        <input
+                          type="date"
+                          value={newEvent.dateStr}
+                          onChange={(e) => setNewEvent({ ...newEvent, dateStr: e.target.value })}
+                          style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>Giờ Tập Trung</label>
+                        <input
+                          type="text"
+                          value={newEvent.timeStr}
+                          onChange={(e) => setNewEvent({ ...newEvent, timeStr: e.target.value })}
+                          placeholder="T7 05:30"
+                          style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>Địa Điểm</label>
+                        <input
+                          type="text"
+                          value={newEvent.location}
+                          onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+                          placeholder="Quảng trường Đầm Vạc..."
+                          style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>Mô Tả Chi Tiết</label>
+                      <input
+                        type="text"
+                        value={newEvent.desc}
+                        onChange={(e) => setNewEvent({ ...newEvent, desc: e.target.value })}
+                        placeholder="Tham gia cự ly 3km - 5km cùng 500 runner nhí toàn quốc..."
+                        style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddSpecialEvent}
+                      style={{
+                        background: "#4f46e5",
+                        color: "white",
+                        padding: "0.5rem 1rem",
+                        borderRadius: "6px",
+                        border: "none",
+                        fontSize: "0.82rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      + Thêm Vào Lịch Trình Học Viên
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* PHẦN 5: GIAO DIỆN, TÔNG MÀU & ĐA PHƯƠNG TIỆN */}
+              {modalSubTab === "branding" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Icon Logo
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCamp.logo?.icon || "🏃‍♂️🔥"}
+                        onChange={(e) => setEditingCamp({
+                          ...editingCamp,
+                          logo: { ...editingCamp.logo, icon: e.target.value }
+                        })}
+                        placeholder="🏃‍♂️🔥 hoặc 🎯📚"
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Nhãn Danh Hiệu Logo
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCamp.logo?.badgeLabel || ""}
+                        onChange={(e) => setEditingCamp({
+                          ...editingCamp,
+                          logo: { ...editingCamp.logo, badgeLabel: e.target.value }
+                        })}
+                        placeholder="RUNNER NHÍ · RUNNER 19 hoặc CAMBRIDGE IELTS"
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>
+                      Tông Màu Nhận Diện Chủ Đạo
+                    </label>
+                    <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+                      {[
+                        { color: "#e11d48", label: "Đỏ Ruby Rubisea" },
+                        { color: "#4f46e5", label: "Xanh Indigo VicEdu" },
+                        { color: "#10b981", label: "Xanh Ngọc Chuyển Hóa" },
+                        { color: "#f59e0b", label: "Vàng Cam Nhiệt Huyết" },
+                        { color: "#7c3aed", label: "Tím Bứt Phá" },
+                      ].map((preset) => (
+                        <button
+                          key={preset.color}
+                          type="button"
+                          onClick={() => setEditingCamp({
+                            ...editingCamp,
+                            theme: {
+                              ...editingCamp.theme,
+                              primary: preset.color,
+                              accent: preset.color,
+                            }
+                          })}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "0.45rem 0.85rem",
+                            borderRadius: "8px",
+                            border: editingCamp.theme?.primary === preset.color ? "2px solid #000" : "1px solid var(--border)",
+                            background: "var(--surface)",
+                            cursor: "pointer",
+                            fontSize: "0.82rem",
+                          }}
+                        >
+                          <span style={{ width: "16px", height: "16px", borderRadius: "50%", background: preset.color }} />
+                          <span>{preset.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                      Link Nhúng Slide Canva Bài Giảng
+                    </label>
+                    <input
+                      type="url"
+                      value={editingCamp.theme?.canvaUrl || ""}
+                      onChange={(e) => setEditingCamp({
+                        ...editingCamp,
+                        theme: { ...editingCamp.theme, canvaUrl: e.target.value }
+                      })}
+                      placeholder="https://www.canva.com/design/.../view?embed"
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                      Link Video Buổi Học (YouTube / Google Drive)
+                    </label>
+                    <input
+                      type="url"
+                      value={editingCamp.theme?.videoUrl || ""}
+                      onChange={(e) => setEditingCamp({
+                        ...editingCamp,
+                        theme: { ...editingCamp.theme, videoUrl: e.target.value }
+                      })}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "1rem 1.75rem",
+              borderTop: "1px solid var(--border)",
+              background: "var(--background)",
+            }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                💡 Mọi thay đổi sẽ được cập nhật trực tiếp vào Supabase và hiển thị tức thì trên Web 2.
+              </span>
+
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCampModal(false)}
+                  style={{
+                    padding: "0.6rem 1.25rem",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    background: "transparent",
+                    color: "var(--text-main)",
+                    cursor: "pointer",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!editingCamp.slug || !editingCamp.title) {
+                      alert("Vui lòng điền mã slug và tên hành trình!")
+                      return
+                    }
+                    const res = await saveCamp(editingCamp)
+                    if (res.success) {
+                      setShowCampModal(false)
+                      loadCamps()
+                    } else {
+                      alert("Lỗi lưu camp: " + res.error)
+                    }
+                  }}
+                  style={{
+                    padding: "0.6rem 1.5rem",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "#4f46e5",
+                    color: "white",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontSize: "0.85rem",
+                    boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
+                  }}
+                >
+                  💾 Lưu Cấu Hình Toàn Diện
+                </button>
+              </div>
             </div>
           </div>
         </div>
