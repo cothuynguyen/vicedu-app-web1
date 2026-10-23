@@ -133,7 +133,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
   const canSeeAdmission = !isPartner && ["Super Admin", "Admin", "Sale", "Kế toán HO", "Kế toán Chi nhánh", "Giáo viên"].includes(activeRole) && !isForeignTeacher;
   const canSeeFinance = !isPartner && ["Super Admin", "Kế toán HO", "Admin", "Kế toán Chi nhánh"].includes(activeRole);
   const canSeeSystem = !isPartner && ["Super Admin", "Admin", "Kế toán HO", "Kế toán Chi nhánh"].includes(activeRole);
-  const canSeeJourneyEngine = activeRole === "Super Admin";
+  const canSeeJourneyEngine = ["Super Admin", "Admin", "Giáo viên", "Giám đốc"].includes(activeRole);
 
   let currentTrainingMenu = trainingMenu;
   if (activeRole === "Sale") {

@@ -400,3 +400,50 @@ export async function getCampExportData(campId: string) {
     return { success: false, error: err.message }
   }
 }
+
+// 7. Lấy danh sách nhân sự / giáo viên VicEdu từ bảng users
+export async function getVicEduStaff() {
+  try {
+    const supabaseAdmin = getAdminClient();
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('id, full_name, email, role, phone')
+      .order('full_name', { ascending: true });
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// 8. Cập nhật Ban Quản Trị / Giáo viên phụ trách của Camp
+export async function saveCampAdmins(campId: string, admins: any[]) {
+  try {
+    const supabaseAdmin = getAdminClient();
+    const { data: camp, error: fetchErr } = await supabaseAdmin
+      .from('journey_camps')
+      .select('theme')
+      .eq('id', campId)
+      .single();
+
+    if (fetchErr || !camp) return { success: false, error: fetchErr?.message || 'Không tìm thấy camp' };
+
+    const updatedTheme = {
+      ...(camp.theme || {}),
+      admins: admins || [],
+    };
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('journey_camps')
+      .update({
+        theme: updatedTheme,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', campId);
+
+    if (updateErr) return { success: false, error: updateErr.message };
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}

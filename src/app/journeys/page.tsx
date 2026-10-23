@@ -45,6 +45,8 @@ import {
   getCampReports,
   updateReportApproval,
   getCampExportData,
+  getVicEduStaff,
+  saveCampAdmins,
   CampData,
   MemberData,
 } from "@/app/actions/journeyAdmin"
@@ -78,6 +80,76 @@ export default function JourneyAdminPage() {
 
   // Session editor modal state
   const [editingSessionItem, setEditingSessionItem] = useState<any | null>(null)
+
+  // Ban Quản Trị / Phân Quyền Giáo Viên
+  const [showAdminModal, setShowAdminModal] = useState(false)
+  const [adminCamp, setAdminCamp] = useState<any | null>(null)
+  const [campAdmins, setCampAdmins] = useState<any[]>([])
+  const [staffList, setStaffList] = useState<any[]>([])
+  const [newAdmin, setNewAdmin] = useState({
+    name: "",
+    phone: "",
+    pinLast4: "",
+    roleTitle: "Giáo viên Phụ trách",
+    avatar: "👨‍🏫",
+    canAccessCRM: true,
+  })
+
+  const openAdminModal = async (camp: any) => {
+    setAdminCamp(camp)
+    const existing = camp.theme?.admins && camp.theme.admins.length > 0
+      ? camp.theme.admins
+      : [
+          { id: "admin_1", name: "Bố Hoàng (Bầu Xô)", phone: "0912345678", pinLast4: "5678", roleTitle: "Tổng Chỉ Huy · Super Admin", avatar: "🦁", canAccessCRM: true }
+        ]
+    setCampAdmins(existing)
+    setShowAdminModal(true)
+    if (staffList.length === 0) {
+      const staff = await getVicEduStaff()
+      setStaffList(staff)
+    }
+  }
+
+  const handleAddAdmin = () => {
+    if (!newAdmin.name.trim() || !newAdmin.pinLast4.trim()) {
+      alert("Vui lòng nhập Họ tên và Mã PIN 4 số cho Quản trị viên!")
+      return
+    }
+    const adminObj = {
+      id: `admin_${Date.now()}`,
+      name: newAdmin.name.trim(),
+      phone: newAdmin.phone.trim(),
+      pinLast4: newAdmin.pinLast4.trim(),
+      roleTitle: newAdmin.roleTitle.trim() || "Quản trị viên",
+      avatar: newAdmin.avatar || "👤",
+      canAccessCRM: newAdmin.canAccessCRM,
+    }
+    setCampAdmins([...campAdmins, adminObj])
+    setNewAdmin({
+      name: "",
+      phone: "",
+      pinLast4: "",
+      roleTitle: "Giáo viên Phụ trách",
+      avatar: "👨‍🏫",
+      canAccessCRM: true,
+    })
+  }
+
+  const handleRemoveAdmin = (id: string | number) => {
+    setCampAdmins(campAdmins.filter(a => a.id !== id))
+  }
+
+  const handleSaveAdmins = async () => {
+    if (!adminCamp) return
+    const res = await saveCampAdmins(adminCamp.id, campAdmins)
+    if (res.success) {
+      alert("✅ Đã cập nhật Ban Quản Trị & Giáo viên phụ trách thành công!")
+      setCamps(prev => prev.map(c => c.id === adminCamp.id ? { ...c, theme: { ...(c.theme || {}), admins: campAdmins } } : c))
+      setShowAdminModal(false)
+    } else {
+      alert("❌ Lỗi lưu Ban quản trị: " + res.error)
+    }
+  }
 
   const handleSaveSessionItem = (updated: any) => {
     if (!editingCamp) return
@@ -654,7 +726,8 @@ export default function JourneyAdminPage() {
     )
   }
 
-  if (user?.role !== "Super Admin") {
+  const isAllowedUser = ["Super Admin", "Admin", "Giáo viên", "Giám đốc"].includes(user?.role || "");
+  if (!isAllowedUser) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "75vh", padding: "2rem" }}>
         <div style={{
@@ -945,7 +1018,30 @@ export default function JourneyAdminPage() {
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: "flex", gap: "0.5rem", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
+                <div style={{ display: "flex", gap: "0.5rem", borderTop: "1px solid var(--border)", paddingTop: "1rem", flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => openAdminModal(camp)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      padding: "0.55rem 0.95rem",
+                      borderRadius: "8px",
+                      background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+                      color: "white",
+                      fontSize: "0.82rem",
+                      fontWeight: 700,
+                      border: "none",
+                      cursor: "pointer",
+                      boxShadow: "0 2px 6px rgba(124, 58, 237, 0.25)",
+                    }}
+                    title="Phân quyền Ban Quản Trị & Giáo viên phụ trách"
+                  >
+                    <Shield size={14} />
+                    <span>🛡️ Phân Quyền QTV ({(camp.theme?.admins || []).length || 1})</span>
+                  </button>
+
                   <button
                     onClick={() => {
                       setSelectedCampId(camp.id)
@@ -3230,6 +3326,303 @@ export default function JourneyAdminPage() {
                 style={{ padding: "0.6rem 1.25rem", borderRadius: "8px", border: "none", background: "#4f46e5", color: "white", fontWeight: 700, cursor: "pointer" }}
               >
                 Lưu Thành Viên
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+{/* MODAL PHÂN QUYỀN BAN QUẢN TRỊ & GIÁO VIÊN PHỤ TRÁCH */}
+      {showAdminModal && adminCamp && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0, 0, 0, 0.65)",
+          backdropFilter: "blur(6px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 160,
+          padding: "1rem",
+        }}>
+          <div style={{
+            background: "var(--surface)",
+            borderRadius: "16px",
+            maxWidth: "780px",
+            width: "100%",
+            maxHeight: "90vh",
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
+            border: "1px solid var(--border)",
+            overflow: "hidden",
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: "1.25rem 1.5rem",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(79, 70, 229, 0.1) 100%)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ width: "38px", height: "38px", borderRadius: "10px", background: "#7c3aed", color: "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase", color: "#7c3aed", letterSpacing: "0.05em" }}>
+                    Phân Quyền Đồng Quản Trị
+                  </span>
+                  <h3 style={{ margin: "0.15rem 0 0", fontSize: "1.15rem", fontWeight: 700 }}>
+                    {adminCamp.title}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdminModal(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  color: "var(--text-muted)",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div style={{ padding: "1.5rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <div style={{ background: "rgba(124, 58, 237, 0.05)", border: "1px solid rgba(124, 58, 237, 0.2)", borderRadius: "10px", padding: "1rem" }}>
+                <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-main)", lineHeight: 1.6 }}>
+                  💡 <b>Cơ chế phân quyền 2 tầng:</b><br />
+                  1. <b>Mở khóa Cổng Học Viên (Web 2):</b> Quản trị viên/Giáo viên sử dụng <b>Mã PIN 4 số</b> để mở khóa chế độ Quản trị trên Web 2 (điểm danh hộ, nộp bài hộ, xuất Excel, soạn Zalo gửi phụ huynh).<br />
+                  2. <b>Cổng Quản Trị CRM (Web 1):</b> Được cấp quyền vào hệ thống CRM này để cùng Bố Hoàng cấu hình lớp học, kiểm duyệt báo cáo và theo dõi tiến độ.
+                </p>
+              </div>
+
+              {/* Form Thêm Quản Trị Viên Mới */}
+              <div style={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1.25rem" }}>
+                <h4 style={{ fontSize: "0.92rem", fontWeight: 700, margin: "0 0 1rem", color: "#4f46e5", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>➕</span> Thêm Quản Trị Viên / Giáo Viên Mới
+                </h4>
+
+                <div style={{ marginBottom: "0.85rem" }}>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                    1. Chọn Nhanh Giáo Viên / Nhân Sự Từ Hệ Thống VicEdu
+                  </label>
+                  <select
+                    style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 600 }}
+                    onChange={(e) => {
+                      const selectedId = e.target.value
+                      const found = staffList.find(s => s.id === selectedId)
+                      if (found) {
+                        setNewAdmin({
+                          ...newAdmin,
+                          name: found.full_name || "",
+                          phone: found.phone || "",
+                          pinLast4: found.phone ? found.phone.slice(-4) : "1234",
+                          roleTitle: found.role === "Giáo viên" ? "Giáo viên Chủ nhiệm" : `${found.role} Phụ trách`,
+                          avatar: found.role === "Giáo viên" ? "👩‍🏫" : "👤",
+                        })
+                      }
+                    }}
+                  >
+                    <option value="">-- Bấm vào đây để chọn nhanh Nhân sự / Giáo viên VicEdu --</option>
+                    {staffList.map(st => (
+                      <option key={st.id} value={st.id}>
+                        {st.full_name} · [{st.role}] · SĐT: {st.phone || "Chưa có"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "0.75rem", marginBottom: "0.85rem" }}>
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                      Họ và Tên Quản Trị Viên
+                    </label>
+                    <input
+                      type="text"
+                      value={newAdmin.name}
+                      onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })}
+                      placeholder="VD: Cô Mai Anh hoặc Thầy Tuấn"
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                      Số Điện Thoại
+                    </label>
+                    <input
+                      type="text"
+                      value={newAdmin.phone}
+                      onChange={(e) => setNewAdmin({ ...newAdmin, phone: e.target.value })}
+                      placeholder="0988..."
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 700, color: "#7c3aed", display: "block", marginBottom: "0.25rem" }}>
+                      Mã PIN QTV (4 số) *
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={newAdmin.pinLast4}
+                      onChange={(e) => setNewAdmin({ ...newAdmin, pinLast4: e.target.value })}
+                      placeholder="VD: 5566"
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1.5px solid #7c3aed", background: "var(--surface)", color: "#7c3aed", fontSize: "0.85rem", fontWeight: 800, letterSpacing: "2px" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr", gap: "0.75rem", alignItems: "center" }}>
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                      Vai Trò / Chức Danh Trong Nhóm
+                    </label>
+                    <input
+                      type="text"
+                      value={newAdmin.roleTitle}
+                      onChange={(e) => setNewAdmin({ ...newAdmin, roleTitle: e.target.value })}
+                      placeholder="VD: Giáo viên Chủ nhiệm, HLV Thể lực, Trợ giảng..."
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
+                    <button
+                      type="button"
+                      onClick={handleAddAdmin}
+                      style={{
+                        flex: 1,
+                        padding: "0.55rem 1rem",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: "#4f46e5",
+                        color: "white",
+                        fontWeight: 700,
+                        fontSize: "0.82rem",
+                        cursor: "pointer",
+                        boxShadow: "0 2px 8px rgba(79, 70, 229, 0.25)",
+                      }}
+                    >
+                      + Thêm Vào Ban QTV
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Danh Sách Quản Trị Viên Hiện Tại */}
+              <div>
+                <h4 style={{ fontSize: "0.92rem", fontWeight: 700, margin: "0 0 0.75rem", color: "var(--text-main)" }}>
+                  📋 Danh Sách Ban Quản Trị ({campAdmins.length} người)
+                </h4>
+
+                <div style={{ border: "1px solid var(--border)", borderRadius: "10px", overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                    <thead>
+                      <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)", textAlign: "left" }}>
+                        <th style={{ padding: "0.6rem 0.85rem" }}>Quản Trị Viên</th>
+                        <th style={{ padding: "0.6rem 0.85rem" }}>Số Điện Thoại</th>
+                        <th style={{ padding: "0.6rem 0.85rem" }}>Mã PIN Web 2</th>
+                        <th style={{ padding: "0.6rem 0.85rem" }}>Chức Danh</th>
+                        <th style={{ padding: "0.6rem 0.85rem", textAlign: "right" }}>Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {campAdmins.map((adm, idx) => (
+                        <tr key={adm.id || idx} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <td style={{ padding: "0.65rem 0.85rem", fontWeight: 700 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ fontSize: "1.2rem" }}>{adm.avatar || "👤"}</span>
+                              <span>{adm.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: "0.65rem 0.85rem", color: "var(--text-muted)" }}>
+                            {adm.phone || "---"}
+                          </td>
+                          <td style={{ padding: "0.65rem 0.85rem" }}>
+                            <span style={{ background: "#ede9fe", color: "#6d28d9", padding: "2px 8px", borderRadius: "4px", fontWeight: 800, letterSpacing: "1px" }}>
+                              {adm.pinLast4 || "----"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "0.65rem 0.85rem" }}>
+                            <span style={{ background: "var(--background)", border: "1px solid var(--border)", padding: "2px 8px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600 }}>
+                              {adm.roleTitle}
+                            </span>
+                          </td>
+                          <td style={{ padding: "0.65rem 0.85rem", textAlign: "right" }}>
+                            {adm.name.includes("Bầu Xô") ? (
+                              <span style={{ fontSize: "0.72rem", color: "#10b981", fontWeight: 700 }}>Chủ Sở Hữu</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAdmin(adm.id)}
+                                style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px" }}
+                                title="Xóa quyền quản trị viên này"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: "1rem 1.5rem",
+              borderTop: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "0.75rem",
+              background: "var(--background)",
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowAdminModal(false)}
+                style={{
+                  padding: "0.6rem 1.25rem",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-main)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                }}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAdmins}
+                style={{
+                  padding: "0.6rem 1.5rem",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#7c3aed",
+                  color: "white",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  boxShadow: "0 4px 12px rgba(124, 58, 237, 0.3)",
+                }}
+              >
+                💾 Lưu Thay Đổi Ban Quản Trị
               </button>
             </div>
           </div>
