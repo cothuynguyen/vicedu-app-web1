@@ -85,6 +85,7 @@ export default function JourneyAdminPage() {
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [adminCamp, setAdminCamp] = useState<any | null>(null)
   const [campAdmins, setCampAdmins] = useState<any[]>([])
+  const [previewProofImage, setPreviewProofImage] = useState<string | null>(null)
   const [staffList, setStaffList] = useState<any[]>([])
   const [newAdmin, setNewAdmin] = useState({
     name: "",
@@ -1380,6 +1381,20 @@ export default function JourneyAdminPage() {
                             🏃 Đã chạy: {r.tasks.chay_km} km
                           </div>
                         )}
+                        {r.tasks?.proof_image && (
+                          <div style={{ marginTop: "6px" }}>
+                            <img
+                              src={r.tasks.proof_image}
+                              alt="Ảnh minh chứng"
+                              style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px", border: "1.5px solid #6366f1", cursor: "pointer" }}
+                              onClick={() => setPreviewProofImage(r.tasks.proof_image)}
+                              title="Bấm để phóng to xem ảnh minh chứng"
+                            />
+                            <div style={{ fontSize: "0.7rem", color: "#6366f1", fontWeight: 600, cursor: "pointer" }} onClick={() => setPreviewProofImage(r.tasks.proof_image)}>
+                              🔍 Xem ảnh
+                            </div>
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: "0.75rem", maxWidth: "250px" }}>
                         {r.difficulty_note ? (
@@ -2652,36 +2667,198 @@ export default function JourneyAdminPage() {
               {/* PHẦN 6: GIAO DIỆN, TÔNG MÀU & TIN NHẮN ZALO */}
               {modalSubTab === "branding" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
-                    <div>
-                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                        Icon Logo
-                      </label>
-                      <input
-                        type="text"
-                        value={editingCamp.logo?.icon || "🏃‍♂️🔥"}
-                        onChange={(e) => setEditingCamp({
-                          ...editingCamp,
-                          logo: { ...editingCamp.logo, icon: e.target.value }
-                        })}
-                        placeholder="🏃‍♂️🔥 hoặc 🎯📚"
-                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
-                      />
+                  <div style={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1.25rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem", flexWrap: "wrap", gap: "1rem" }}>
+                      <div>
+                        <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0, color: "#4f46e5", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span>🎨</span> Logo & Nhận Diện Thương Hiệu Hành Trình
+                        </h4>
+                        <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.2rem 0 0" }}>
+                          Tải ảnh logo câu lạc bộ / trung tâm để hiển thị ở góc trên cùng của Cổng học viên Web 2
+                        </p>
+                      </div>
+
+                      {/* Khung Xem Trước Logo Thực Tế */}
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "10px",
+                        padding: "0.5rem 0.85rem",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
+                      }}>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 600 }}>Xem trước:</span>
+                        {editingCamp.logo?.imageUrl ? (
+                          <img
+                            src={editingCamp.logo.imageUrl}
+                            alt="Logo preview"
+                            style={{ width: "38px", height: "38px", objectFit: "contain", borderRadius: "8px", border: "1px solid var(--border)" }}
+                          />
+                        ) : (
+                          <div style={{
+                            width: "38px",
+                            height: "38px",
+                            borderRadius: "8px",
+                            background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+                            color: "white",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "1.3rem",
+                          }}>
+                            {editingCamp.logo?.icon || "🏃‍♂️🔥"}
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "var(--text-main)" }}>
+                            {editingCamp.logo?.text || editingCamp.title}
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                            {editingCamp.logo?.badgeLabel || "VICEDU"}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                        Nhãn Danh Hiệu Logo
-                      </label>
-                      <input
-                        type="text"
-                        value={editingCamp.logo?.badgeLabel || ""}
-                        onChange={(e) => setEditingCamp({
-                          ...editingCamp,
-                          logo: { ...editingCamp.logo, badgeLabel: e.target.value }
-                        })}
-                        placeholder="RUNNER NHÍ · RUNNER 19 hoặc CAMBRIDGE IELTS"
-                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
-                      />
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                      <div>
+                        <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                          1. Tải File Ảnh Logo Từ Máy Tính (PNG, JPG, SVG, WebP)
+                        </label>
+                        <label style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "8px",
+                          padding: "0.75rem 1rem",
+                          borderRadius: "8px",
+                          border: "1.5px dashed #4f46e5",
+                          background: "rgba(79, 70, 229, 0.05)",
+                          color: "#4f46e5",
+                          fontWeight: 700,
+                          fontSize: "0.82rem",
+                          cursor: "pointer",
+                        }}>
+                          <span>📁 Bấm Vào Đây Chọn Ảnh Logo Từ Máy Tính...</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: "none" }}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (!file) return
+                              const reader = new FileReader()
+                              reader.onload = (re) => {
+                                const img = new Image()
+                                img.onload = () => {
+                                  const canvas = document.createElement("canvas")
+                                  const MAX_SIZE = 500
+                                  let w = img.width
+                                  let h = img.height
+                                  if (w > h && w > MAX_SIZE) {
+                                    h = (h * MAX_SIZE) / w
+                                    w = MAX_SIZE
+                                  } else if (h > MAX_SIZE) {
+                                    w = (w * MAX_SIZE) / h
+                                    h = MAX_SIZE
+                                  }
+                                  canvas.width = w
+                                  canvas.height = h
+                                  const ctx = canvas.getContext("2d")
+                                  ctx?.drawImage(img, 0, 0, w, h)
+                                  const b64 = canvas.toDataURL("image/png")
+                                  setEditingCamp({
+                                    ...editingCamp,
+                                    logo: { ...(editingCamp.logo || {}), imageUrl: b64 }
+                                  })
+                                }
+                                img.src = re.target?.result as string
+                              }
+                              reader.readAsDataURL(file)
+                            }}
+                          />
+                        </label>
+                        {editingCamp.logo?.imageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingCamp({
+                              ...editingCamp,
+                              logo: { ...(editingCamp.logo || {}), imageUrl: "" }
+                            })}
+                            style={{ marginTop: "6px", background: "transparent", border: "none", color: "#ef4444", fontSize: "0.75rem", cursor: "pointer", fontWeight: 600 }}
+                          >
+                            ✕ Xóa ảnh logo (chuyển về dùng emoji)
+                          </button>
+                        )}
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                          Hoặc Dán Đường Link URL Ảnh Logo Online
+                        </label>
+                        <input
+                          type="text"
+                          value={editingCamp.logo?.imageUrl || ""}
+                          onChange={(e) => setEditingCamp({
+                            ...editingCamp,
+                            logo: { ...(editingCamp.logo || {}), imageUrl: e.target.value }
+                          })}
+                          placeholder="https://... hoặc /logo.png"
+                          style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: "0.85rem" }}>
+                      <div>
+                        <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                          Emoji Biểu Tượng Dự Phòng
+                        </label>
+                        <input
+                          type="text"
+                          value={editingCamp.logo?.icon || "🏃‍♂️🔥"}
+                          onChange={(e) => setEditingCamp({
+                            ...editingCamp,
+                            logo: { ...(editingCamp.logo || {}), icon: e.target.value }
+                          })}
+                          placeholder="🏃‍♂️🔥 hoặc 🎯📚"
+                          style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                          Tên Thương Hiệu Cạnh Logo
+                        </label>
+                        <input
+                          type="text"
+                          value={editingCamp.logo?.text || ""}
+                          onChange={(e) => setEditingCamp({
+                            ...editingCamp,
+                            logo: { ...(editingCamp.logo || {}), text: e.target.value }
+                          })}
+                          placeholder="VD: RUBISEA 19 hoặc VICEDU"
+                          style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                          Nhãn Phụ Dưới Logo (Badge)
+                        </label>
+                        <input
+                          type="text"
+                          value={editingCamp.logo?.badgeLabel || ""}
+                          onChange={(e) => setEditingCamp({
+                            ...editingCamp,
+                            logo: { ...(editingCamp.logo || {}), badgeLabel: e.target.value }
+                          })}
+                          placeholder="VD: RUNNER NHÍ · RUNNER 19 hoặc CAMBRIDGE"
+                          style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -3625,6 +3802,54 @@ export default function JourneyAdminPage() {
                 💾 Lưu Thay Đổi Ban Quản Trị
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* LIGHTBOX PHÓNG TO ẢNH MINH CHỨNG */}
+      {previewProofImage && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.85)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+            cursor: "zoom-out",
+          }}
+          onClick={() => setPreviewProofImage(null)}
+        >
+          <div style={{ position: "relative", maxWidth: "90vw", maxHeight: "90vh" }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setPreviewProofImage(null)}
+              style={{
+                position: "absolute",
+                top: "-40px",
+                right: "0",
+                background: "white",
+                color: "black",
+                border: "none",
+                borderRadius: "50%",
+                width: "32px",
+                height: "32px",
+                fontWeight: 900,
+                fontSize: "1rem",
+                cursor: "pointer",
+              }}
+            >
+              ✕
+            </button>
+            <img
+              src={previewProofImage}
+              alt="Ảnh minh chứng phóng to"
+              style={{ maxWidth: "90vw", maxHeight: "85vh", borderRadius: "12px", boxShadow: "0 20px 40px rgba(0,0,0,0.5)", objectFit: "contain" }}
+            />
           </div>
         </div>
       )}
