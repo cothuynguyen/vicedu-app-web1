@@ -247,6 +247,7 @@ export default function JourneyAdminPage() {
         tasks: defaultTasks,
         scoring_rules: defaultScoringRules,
         has_divisions: camp.has_divisions ?? true,
+        scope: camp.scope || (camp.theme as any)?.scope || (camp.mode === 'clb_quanh_nam' ? 'club' : 'branch'),
         require_pin: camp.require_pin ?? true,
         theme: {
           primary: camp.theme?.primary || (camp.mode === 'clb_quanh_nam' ? '#e11d48' : '#4f46e5'),
