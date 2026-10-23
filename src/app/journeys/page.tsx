@@ -77,7 +77,25 @@ export default function JourneyAdminPage() {
   const [genTotalCount, setGenTotalCount] = useState(24)
 
   // Session editor modal state
-  const [editingSessionIdx, setEditingSessionIdx] = useState<number | null>(null)
+  const [editingSessionItem, setEditingSessionItem] = useState<any | null>(null)
+
+  const handleSaveSessionItem = (updated: any) => {
+    if (!editingCamp) return
+    const currentSessions = editingCamp.sessions || []
+    const idx = currentSessions.findIndex((s: any) => s.id === updated.id)
+    let newSessions: any[]
+    if (idx >= 0) {
+      newSessions = [...currentSessions]
+      newSessions[idx] = updated
+    } else {
+      newSessions = [...currentSessions, updated]
+    }
+    setEditingCamp({
+      ...editingCamp,
+      sessions: newSessions,
+    })
+    setEditingSessionItem(null)
+  }
 
   // State cho sự kiện đặc biệt mới
   const [newEvent, setNewEvent] = useState({
@@ -2191,39 +2209,89 @@ export default function JourneyAdminPage() {
                             <th style={{ padding: "0.6rem 0.75rem" }}>Mã Buổi</th>
                             <th style={{ padding: "0.6rem 0.75rem" }}>Ngày & Giờ</th>
                             <th style={{ padding: "0.6rem 0.75rem" }}>Tên Buổi Học / Chạy</th>
-                            <th style={{ padding: "0.6rem 0.75rem" }}>Địa Điểm</th>
+                            <th style={{ padding: "0.6rem 0.75rem" }}>Học Liệu & Tiện Ích</th>
                             <th style={{ padding: "0.6rem 0.75rem", textAlign: "right" }}>Thao Tác</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {(editingCamp.sessions || []).map((s: any, idx: number) => (
-                            <tr key={s.id || idx} style={{ borderBottom: "1px solid var(--border)" }}>
-                              <td style={{ padding: "0.6rem 0.75rem", fontWeight: 700, color: "#4f46e5" }}>
-                                {s.sessionCode}
-                              </td>
-                              <td style={{ padding: "0.6rem 0.75rem" }}>
-                                <div>📅 {s.dateStr}</div>
-                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>⏰ {s.timeStr}</div>
-                              </td>
-                              <td style={{ padding: "0.6rem 0.75rem", fontWeight: 600 }}>
-                                {s.title}
-                                {s.isSpecialEvent && <span style={{ marginLeft: "6px", background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: "4px", fontSize: "0.7rem" }}>{s.specialBadge || "SỰ KIỆN"}</span>}
-                              </td>
-                              <td style={{ padding: "0.6rem 0.75rem", color: "var(--text-muted)" }}>
-                                {s.location}
-                              </td>
-                              <td style={{ padding: "0.6rem 0.75rem", textAlign: "right" }}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteSession(s.id)}
-                                  style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px" }}
-                                  title="Xóa buổi này"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {(editingCamp.sessions || []).map((s: any, idx: number) => {
+                            const hasVideo = !!s.videoUrl
+                            const hasDownload = !!s.videoDownloadUrl
+                            const hasCanva = !!s.canvaUrl
+                            const hasSummary = !!s.summaryText
+                            const hasHw = !!(s.homework?.title || s.homework?.instructions)
+                            return (
+                              <tr key={s.id || idx} style={{ borderBottom: "1px solid var(--border)" }}>
+                                <td style={{ padding: "0.6rem 0.75rem", fontWeight: 700, color: "#4f46e5" }}>
+                                  {s.sessionCode}
+                                </td>
+                                <td style={{ padding: "0.6rem 0.75rem" }}>
+                                  <div>📅 {s.dateStr}</div>
+                                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>⏰ {s.timeStr}</div>
+                                </td>
+                                <td style={{ padding: "0.6rem 0.75rem", fontWeight: 600 }}>
+                                  <div>{s.title}</div>
+                                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 400 }}>📍 {s.location}</div>
+                                  {s.isSpecialEvent && <span style={{ background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>{s.specialBadge || "SỰ KIỆN"}</span>}
+                                </td>
+                                <td style={{ padding: "0.6rem 0.75rem" }}>
+                                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                                    {hasVideo ? (
+                                      <span style={{ background: "#dbeafe", color: "#1e40af", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>🎥 Video</span>
+                                    ) : null}
+                                    {hasDownload ? (
+                                      <span style={{ background: "#e0e7ff", color: "#3730a3", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>📥 Tải</span>
+                                    ) : null}
+                                    {hasCanva ? (
+                                      <span style={{ background: "#f3e8ff", color: "#6b21a8", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>🎨 Canva</span>
+                                    ) : null}
+                                    {hasSummary ? (
+                                      <span style={{ background: "#f1f5f9", color: "#334155", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>📝 Tóm tắt</span>
+                                    ) : null}
+                                    {hasHw ? (
+                                      <span style={{ background: "#fce7f3", color: "#9d174d", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>🎯 BTVN</span>
+                                    ) : null}
+                                    {!hasVideo && !hasCanva && !hasSummary && !hasHw && (
+                                      <span style={{ color: "var(--text-muted)", fontSize: "0.75rem", fontStyle: "italic" }}>Chưa có học liệu</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td style={{ padding: "0.6rem 0.75rem", textAlign: "right" }}>
+                                  <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingSessionItem(JSON.parse(JSON.stringify(s)))}
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                        background: "#eef2ff",
+                                        color: "#4f46e5",
+                                        border: "1px solid #c7d2fe",
+                                        padding: "4px 8px",
+                                        borderRadius: "6px",
+                                        fontSize: "0.75rem",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                      }}
+                                      title="Soạn học liệu, Video & BTVN"
+                                    >
+                                      <Video size={13} />
+                                      <span>Học Liệu & Video</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSession(s.id)}
+                                      style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px" }}
+                                      title="Xóa buổi này"
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
                           {(editingCamp.sessions || []).length === 0 && (
                             <tr>
                               <td colSpan={5} style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
@@ -2666,6 +2734,375 @@ export default function JourneyAdminPage() {
                   💾 Lưu Cấu Hình Toàn Diện
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SOẠN HỌC LIỆU, VIDEO BÀI GIẢNG & BTVN CHO TỪNG BUỔI */}
+      {editingSessionItem && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0, 0, 0, 0.65)",
+          backdropFilter: "blur(6px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 150,
+          padding: "1rem",
+        }}>
+          <div style={{
+            background: "var(--surface)",
+            borderRadius: "16px",
+            maxWidth: "760px",
+            width: "100%",
+            maxHeight: "90vh",
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
+            border: "1px solid var(--border)",
+            overflow: "hidden",
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: "1.25rem 1.5rem",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%)",
+            }}>
+              <div>
+                <span style={{ fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase", color: "#4f46e5", letterSpacing: "0.05em" }}>
+                  🎬 Cấu Hình Học Liệu & Bản Ghi Hình
+                </span>
+                <h3 style={{ margin: "0.2rem 0 0", fontSize: "1.15rem", fontWeight: 700 }}>
+                  {editingSessionItem.sessionCode} · {editingSessionItem.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingSessionItem(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  color: "var(--text-muted)",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div style={{ padding: "1.5rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+              
+              {/* 1. Thông tin cơ bản buổi */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "0.75rem" }}>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.3rem" }}>Mã Buổi</label>
+                  <input
+                    type="text"
+                    value={editingSessionItem.sessionCode || ""}
+                    onChange={(e) => setEditingSessionItem({ ...editingSessionItem, sessionCode: e.target.value })}
+                    placeholder="VD: B1, T3, T6"
+                    style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 700 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.3rem" }}>Tên Buổi Học / Buổi Chạy</label>
+                  <input
+                    type="text"
+                    value={editingSessionItem.title || ""}
+                    onChange={(e) => setEditingSessionItem({ ...editingSessionItem, title: e.target.value })}
+                    placeholder="VD: Khai Giảng · Chiến Lược Reading IELTS"
+                    style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 600 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: "0.75rem" }}>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.3rem" }}>Ngày Diễn Ra</label>
+                  <input
+                    type="date"
+                    value={editingSessionItem.dateStr || ""}
+                    onChange={(e) => setEditingSessionItem({ ...editingSessionItem, dateStr: e.target.value })}
+                    style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.3rem" }}>Giờ Diễn Ra</label>
+                  <input
+                    type="text"
+                    value={editingSessionItem.timeStr || ""}
+                    onChange={(e) => setEditingSessionItem({ ...editingSessionItem, timeStr: e.target.value })}
+                    placeholder="VD: 19:30 hoặc 17:30"
+                    style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.3rem" }}>Địa Điểm</label>
+                  <input
+                    type="text"
+                    value={editingSessionItem.location || ""}
+                    onChange={(e) => setEditingSessionItem({ ...editingSessionItem, location: e.target.value })}
+                    placeholder="VD: Phòng Cambridge 02 / Công viên Văn Lang"
+                    style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                  />
+                </div>
+              </div>
+
+              {/* 2. Video bài giảng & Tiện ích tải video */}
+              <div style={{ background: "rgba(59, 130, 246, 0.05)", border: "1px solid rgba(59, 130, 246, 0.25)", borderRadius: "10px", padding: "1rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "0.5rem" }}>
+                  <Video size={16} style={{ color: "#2563eb" }} />
+                  <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#1d4ed8" }}>
+                    🎥 Video Bài Giảng / Bản Ghi Hình Buổi Học
+                  </span>
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", margin: "0 0 0.75rem" }}>
+                  Hỗ trợ link <b>YouTube (unlisted)</b>, <b>Google Drive</b>, <b>Cloudflare Stream</b> hoặc file <b>.mp4</b>. Học viên sẽ được phát video trực tiếp trong thẻ buổi học kèm nút Tải video về máy.
+                </p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                      Link Video Xem Trực Tuyến (URL Embed / Online Video)
+                    </label>
+                    <input
+                      type="text"
+                      value={editingSessionItem.videoUrl || ""}
+                      onChange={(e) => setEditingSessionItem({ ...editingSessionItem, videoUrl: e.target.value })}
+                      placeholder="VD: https://youtube.com/watch?v=... hoặc https://drive.google.com/file/d/.../view"
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                      Link Tải Video Riêng (Tùy chọn - Direct Download URL)
+                    </label>
+                    <input
+                      type="text"
+                      value={editingSessionItem.videoDownloadUrl || ""}
+                      onChange={(e) => setEditingSessionItem({ ...editingSessionItem, videoDownloadUrl: e.target.value })}
+                      placeholder="Để trống nếu dùng chung link video bên trên"
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Slide Canva tương tác */}
+              <div style={{ background: "rgba(168, 85, 247, 0.05)", border: "1px solid rgba(168, 85, 247, 0.25)", borderRadius: "10px", padding: "1rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "0.35rem" }}>
+                  <span style={{ fontSize: "1rem" }}>🎨</span>
+                  <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#6b21a8" }}>
+                    Slide Bài Giảng Canva Tương Tác
+                  </span>
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", margin: "0 0 0.6rem" }}>
+                  Dán link bài giảng Canva để học viên có thể bấm tương tác toàn màn hình ngay trong buổi học.
+                </p>
+                <input
+                  type="text"
+                  value={editingSessionItem.canvaUrl || ""}
+                  onChange={(e) => setEditingSessionItem({ ...editingSessionItem, canvaUrl: e.target.value })}
+                  placeholder="VD: https://www.canva.com/design/.../view?embed"
+                  style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                />
+              </div>
+
+              {/* 4. Tóm tắt nội dung buổi học & Sơ đồ mindmap */}
+              <div>
+                <label style={{ fontSize: "0.82rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                  📝 Tóm Tắt Trọng Tâm Buổi Học / Nhật Ký Rèn Luyện
+                </label>
+                <textarea
+                  rows={3}
+                  value={editingSessionItem.summaryText || ""}
+                  onChange={(e) => setEditingSessionItem({ ...editingSessionItem, summaryText: e.target.value })}
+                  placeholder="Ghi chú kiến thức trọng tâm, kỹ thuật xử lý bài, bẫy cần tránh hoặc dặn dò của Thầy cô / HLV..."
+                  style={{ width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem", lineHeight: 1.5 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: "0.82rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                  🖼️ Link Ảnh Sơ Đồ & Mindmap Buổi Học (Mỗi link 1 dòng)
+                </label>
+                <textarea
+                  rows={2}
+                  value={(editingSessionItem.summaryImages || []).join("\n")}
+                  onChange={(e) => setEditingSessionItem({
+                    ...editingSessionItem,
+                    summaryImages: e.target.value.split("\n").map(s => s.trim()).filter(Boolean),
+                  })}
+                  placeholder="https://example.com/mindmap-1.jpg&#10;https://example.com/mindmap-2.jpg"
+                  style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.8rem", fontFamily: "monospace" }}
+                />
+              </div>
+
+              {/* 5. Nhiệm vụ rèn luyện / Bài tập về nhà (BTVN) */}
+              <div style={{ background: "rgba(244, 63, 94, 0.05)", border: "1px solid rgba(244, 63, 94, 0.25)", borderRadius: "10px", padding: "1rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "0.5rem" }}>
+                  <span style={{ fontSize: "1rem" }}>🎯</span>
+                  <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#be123c" }}>
+                    Nhiệm Vụ Rèn Luyện & Bài Tập Về Nhà (BTVN)
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "0.6rem", marginBottom: "0.6rem" }}>
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                      Tiêu Đề Bài Tập Về Nhà
+                    </label>
+                    <input
+                      type="text"
+                      value={editingSessionItem.homework?.title || ""}
+                      onChange={(e) => setEditingSessionItem({
+                        ...editingSessionItem,
+                        homework: { ...(editingSessionItem.homework || {}), title: e.target.value },
+                      })}
+                      placeholder="VD: Luyện Đề Cam 18 Test 1 Reading Passage 1"
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                      Hạn Chót Nộp Bài (Deadline)
+                    </label>
+                    <input
+                      type="text"
+                      value={editingSessionItem.homework?.deadline || ""}
+                      onChange={(e) => setEditingSessionItem({
+                        ...editingSessionItem,
+                        homework: { ...(editingSessionItem.homework || {}), deadline: e.target.value },
+                      })}
+                      placeholder="VD: Trước 23:59 Chủ Nhật (25/10)"
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: "0.6rem" }}>
+                  <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                    Hướng Dẫn Làm Bài Chi Tiết
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editingSessionItem.homework?.instructions || ""}
+                    onChange={(e) => setEditingSessionItem({
+                      ...editingSessionItem,
+                      homework: { ...(editingSessionItem.homework || {}), instructions: e.target.value },
+                    })}
+                    placeholder="1. Đọc bài văn và gạch chân 10 từ vựng mới...&#10;2. Hoàn thành 13 câu hỏi ra vở...&#10;3. Chụp ảnh bài làm gửi lên link Padlet..."
+                    style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem", lineHeight: 1.5 }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "0.6rem", marginBottom: "0.6rem" }}>
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                      Link Nộp Bài / Thư Mục Nộp Bài (Padlet / Google Drive)
+                    </label>
+                    <input
+                      type="text"
+                      value={editingSessionItem.homework?.attachmentUrl || ""}
+                      onChange={(e) => setEditingSessionItem({
+                        ...editingSessionItem,
+                        homework: { ...(editingSessionItem.homework || {}), attachmentUrl: e.target.value },
+                      })}
+                      placeholder="VD: https://padlet.com/vicedu/ielts-b1"
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                      Tên Nút Bấm Link Nộp
+                    </label>
+                    <input
+                      type="text"
+                      value={editingSessionItem.homework?.attachmentLabel || ""}
+                      onChange={(e) => setEditingSessionItem({
+                        ...editingSessionItem,
+                        homework: { ...(editingSessionItem.homework || {}), attachmentLabel: e.target.value },
+                      })}
+                      placeholder="Mặc định: Nộp Bài Lên Bảng Padlet"
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                    Link Ảnh Đề Bài & Tài Liệu Đính Kèm (Mỗi link 1 dòng)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={(editingSessionItem.homework?.images || []).join("\n")}
+                    onChange={(e) => setEditingSessionItem({
+                      ...editingSessionItem,
+                      homework: {
+                        ...(editingSessionItem.homework || {}),
+                        images: e.target.value.split("\n").map(s => s.trim()).filter(Boolean),
+                      },
+                    })}
+                    placeholder="https://example.com/de-cam18-page1.jpg&#10;https://example.com/de-cam18-page2.jpg"
+                    style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.8rem", fontFamily: "monospace" }}
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer Buttons */}
+            <div style={{
+              padding: "1rem 1.5rem",
+              borderTop: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "0.75rem",
+              background: "var(--background)",
+            }}>
+              <button
+                type="button"
+                onClick={() => setEditingSessionItem(null)}
+                style={{
+                  padding: "0.6rem 1.25rem",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-main)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                }}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveSessionItem(editingSessionItem)}
+                style={{
+                  padding: "0.6rem 1.5rem",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#4f46e5",
+                  color: "white",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
+                }}
+              >
+                💾 Cập Nhật Học Liệu Buổi Này
+              </button>
             </div>
           </div>
         </div>

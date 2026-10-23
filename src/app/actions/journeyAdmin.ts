@@ -151,6 +151,8 @@ export async function saveCamp(camp: CampData) {
       slogan: camp.slogan || 'KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ',
       mode: camp.mode || 'clb_quanh_nam',
       status: camp.status || 'active',
+      has_divisions: !!camp.has_divisions,
+      require_pin: camp.require_pin ?? true,
       logo: camp.logo || { icon: '🏃‍♂️🔥', text: camp.title.slice(0, 15), badgeLabel: 'VICEDU' },
       theme: camp.theme || { primary: '#4f46e5', accent: '#4338ca', light: '#eef2ff' },
       tasks: camp.tasks || [],
