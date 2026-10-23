@@ -84,6 +84,10 @@ const systemMenu = [
   { name: "Nhân sự", path: "/employees", icon: UserCircle },
 ];
 
+const journeyMenu = [
+  { name: "Hành Trình & Chấm Công", path: "/journeys", icon: Award },
+];
+
 export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
@@ -129,6 +133,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
   const canSeeAdmission = !isPartner && ["Super Admin", "Admin", "Sale", "Kế toán HO", "Kế toán Chi nhánh", "Giáo viên"].includes(activeRole) && !isForeignTeacher;
   const canSeeFinance = !isPartner && ["Super Admin", "Kế toán HO", "Admin", "Kế toán Chi nhánh"].includes(activeRole);
   const canSeeSystem = !isPartner && ["Super Admin", "Admin", "Kế toán HO", "Kế toán Chi nhánh"].includes(activeRole);
+  const canSeeJourneyEngine = activeRole === "Super Admin";
 
   let currentTrainingMenu = trainingMenu;
   if (activeRole === "Sale") {
@@ -260,6 +265,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose
             {canSeeFinance && renderMenu(currentFinanceMenu, "TÀI CHÍNH - VẬT TƯ")}
             {!isForeignTeacher && renderMenu(internalMenu, "NỘI BỘ")}
             {canSeeSystem && renderMenu(currentSystemMenu, "HỆ THỐNG")}
+            {canSeeJourneyEngine && renderMenu(journeyMenu, "ĐẶC QUYỀN BAN ĐIỀU HÀNH")}
           </>
         )}
       </nav>
