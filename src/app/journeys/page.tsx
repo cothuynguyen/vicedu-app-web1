@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/context/AuthContext"
 import {
+  Crown,
   Award,
   MapPin,
   Clock,
@@ -33,6 +34,15 @@ import {
   FileText,
   MessageSquare,
   Bookmark,
+  Building2,
+  GraduationCap,
+  Search,
+  Check,
+  CheckSquare,
+  Square,
+  Copy,
+  Smartphone,
+  Settings,
 } from "lucide-react"
 import * as XLSX from "xlsx"
 import {
@@ -42,11 +52,16 @@ import {
   getCampMembers,
   saveMember,
   deleteMember,
+  toggleMemberStatus,
   getCampReports,
   updateReportApproval,
   getCampExportData,
   getVicEduStaff,
   saveCampAdmins,
+  getBranchEmployees,
+  getClassesList,
+  getClassStudentsForJourney,
+  bulkSaveMembers,
   CampData,
   MemberData,
 } from "@/app/actions/journeyAdmin"
@@ -61,9 +76,26 @@ const DAYS_OF_WEEK = [
   { dayOfWeek: 0, label: "Chủ Nhật", short: "CN" },
 ]
 
+const DEFAULT_CLUB_MONTHS = [
+  { id: '2026-01', label: 'Tháng 01/2026', themeTitle: 'KHAI XUÂN 2026', themeSlogan: 'Khởi động thói quen chạy bộ đầu năm', status: 'completed' },
+  { id: '2026-02', label: 'Tháng 02/2026', themeTitle: 'MÙA XUÂN KỶ LUẬT', themeSlogan: 'Duy trì bước chạy sau Tết', status: 'completed' },
+  { id: '2026-03', label: 'Tháng 03/2026', themeTitle: 'BƯỚC CHẠY YÊU THƯƠNG', themeSlogan: 'Chạy cùng bố mẹ quanh công viên', status: 'completed' },
+  { id: '2026-04', label: 'Tháng 04/2026', themeTitle: 'CHINH PHỤC CỰ LY', themeSlogan: 'Nâng dần cự ly 3km - 5km', status: 'completed' },
+  { id: '2026-05', label: 'Tháng 05/2026', themeTitle: 'CHÀO HÈ BỨT PHÁ', themeSlogan: 'Đón bình minh sớm 05h30', status: 'completed' },
+  { id: '2026-06', label: 'Tháng 06/2026', themeTitle: 'HÈ RỰC LỬA', themeSlogan: 'Tránh xa màn hình · Rèn luyện thể lực', status: 'completed' },
+  { id: '2026-07', label: 'Tháng 07/2026', themeTitle: 'TRẠI HÈ RUNNER 19', themeSlogan: 'Chạy dã ngoại và gắn kết gia đình', status: 'completed' },
+  { id: '2026-08', label: 'Tháng 08/2026', themeTitle: 'BƯỚC CHẠY TỰU TRƯỜNG', themeSlogan: 'Chuẩn bị thể lực tốt cho năm học mới', status: 'completed' },
+  { id: '2026-09', label: 'Tháng 09/2026', themeTitle: 'CHIẾN DỊCH THÁNG 9 · XỎ GIÀY XUỐNG ĐƯỜNG', themeSlogan: 'Khởi động thói quen · 2 buổi mỗi tuần không bỏ cuộc', status: 'completed' },
+  { id: '2026-10', label: 'Tháng 10/2026', themeTitle: 'CHIẾN DỊCH THÁNG 10 · BÀN TAY GẮN KẾT & KỶ LUẬT THÉP', themeSlogan: 'Đập tay 5 người ngược chiều · Hoàn thành cự ly · Giữ chuỗi tuần rực lửa', status: 'active', isCurrent: true },
+  { id: '2026-11', label: 'Tháng 11/2026', themeTitle: 'CHIẾN DỊCH THÁNG 11 · BỨT PHÁ TỐC ĐỘ (PACER LEAD)', themeSlogan: 'Rèn nhịp thở đều · Nâng dần cự ly · Đón gió đầu đông', status: 'upcoming' },
+  { id: '2026-12', label: 'Tháng 12/2026', themeTitle: 'CHIẾN DỊCH THÁNG 12 · CHIẾN BINH MÙA ĐÔNG · VỀ ĐÍCH 2026', themeSlogan: 'Băng qua gió rét · Giữ ấm ngọn lửa kỷ luật · Khép lại năm 2026 kiêu hãnh', status: 'upcoming' },
+  { id: '2027-01', label: 'Tháng 01/2027', themeTitle: 'CHIẾN DỊCH THÁNG 01/2027 · KHỞI ĐẦU NĂM MỚI · BỨT PHÁ GIỚI HẠN', themeSlogan: 'Năm mới kỷ luật mới · Chinh phục các cột mốc Km lịch sử mới', status: 'upcoming' },
+];
+
 export default function JourneyAdminPage() {
   const { user, loading: authLoading } = useAuth()
   const [activeTab, setActiveTab] = useState<"camps" | "attendance" | "approvals" | "members">("camps")
+  const [isAttendanceSettingsModalOpen, setIsAttendanceSettingsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
   // Camps state
@@ -71,15 +103,33 @@ export default function JourneyAdminPage() {
   const [selectedCampId, setSelectedCampId] = useState<string>("")
   const [editingCamp, setEditingCamp] = useState<CampData | null>(null)
   const [showCampModal, setShowCampModal] = useState(false)
-  const [modalSubTab, setModalSubTab] = useState<"general" | "tasks" | "weekly_schedule" | "special_events" | "scoring" | "branding">("general")
+  const [modalSubTab, setModalSubTab] = useState<"general" | "tasks" | "weekly_schedule" | "special_events" | "scoring" | "branding" | "hall_of_fame">("general")
 
   // Generator form state (cho Tab Weekly Schedule)
   const [genMonth, setGenMonth] = useState("2026-10")
+  const [selectedClubMonthId, setSelectedClubMonthId] = useState("2026-11")
   const [genStartDate, setGenStartDate] = useState("2026-11-02")
   const [genTotalCount, setGenTotalCount] = useState(24)
 
   // Bộ lọc Phân quyền / Scope & Tìm kiếm cho Tab Khóa Học & CLB
-  const [scopeFilter, setScopeFilter] = useState<"all" | "admin_only" | "branch" | "partner" | "club">("all")
+  const [scopeFilter, setScopeFilter] = useState<"all" | "admin_only" | "branch" | "partner" | "cham_cong" | "thoi_quen">("all");
+  const [campViewMode, setCampViewMode] = useState<"grid" | "list">("grid");
+
+  // Helper chuẩn hóa Phân Loại Quyền Sử Dụng & Đối Tượng Vận Hành
+  const getCampScope = (c: any): "admin_only" | "branch" | "partner" | "cham_cong" | "thoi_quen" => {
+    if (c.mode === "thoi_quen_ca_nhan") {
+      return "thoi_quen";
+    }
+    if (c.mode === "cham_cong" || c.slug?.includes("cham-cong") || c.scope === "cham_cong" || c.theme?.scope === "cham_cong") {
+      return "cham_cong";
+    }
+    const sc = c.scope || c.theme?.scope;
+    if (sc === "branch") return "branch";
+    if (sc === "partner") return "partner";
+    if (sc === "admin_only") return "admin_only";
+    if (c.slug?.includes("ielts")) return "branch";
+    return "admin_only";
+  };
   const [campSearch, setCampSearch] = useState("")
 
   // Bộ lọc Phân Bảng Runner Nhí vs Runner Lớn cho Tab Thành Viên
@@ -90,10 +140,9 @@ export default function JourneyAdminPage() {
     if (!m) return false;
     const n = (m.name || "").toLowerCase();
     const t = (m.role_tag || "").toLowerCase();
-    if (n.startsWith("bé ") || t.includes("học sinh") || t.includes("nhí") || t.includes("u15") || t.includes("runner nhí")) {
-      return true;
-    }
     if (
+      t.includes("lớn") ||
+      t.includes("runner lớn") ||
       t.includes("phụ huynh") ||
       t.includes("vicgroup") ||
       t.includes("đội trưởng") ||
@@ -101,9 +150,14 @@ export default function JourneyAdminPage() {
       t.includes("huấn luyện viên") ||
       n.startsWith("bố ") ||
       n.startsWith("bác ") ||
-      n.startsWith("anh ")
+      n.startsWith("anh ") ||
+      n.startsWith("mẹ ") ||
+      n.startsWith("chị ")
     ) {
       return false;
+    }
+    if (n.startsWith("bé ") || t.includes("học sinh") || t.includes("nhí") || t.includes("u15") || t.includes("runner nhí")) {
+      return true;
     }
     return true;
   };
@@ -115,6 +169,9 @@ export default function JourneyAdminPage() {
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [adminCamp, setAdminCamp] = useState<any | null>(null)
   const [campAdmins, setCampAdmins] = useState<any[]>([])
+  const [editingAdmin, setEditingAdmin] = useState<any | null>(null)
+  const [mobilePreviewCamp, setMobilePreviewCamp] = useState<any | null>(null)
+  const [previewDevice, setPreviewDevice] = useState<'iphone' | 'android'>('iphone')
   const [previewProofImage, setPreviewProofImage] = useState<string | null>(null)
   const [staffList, setStaffList] = useState<any[]>([])
   const [newAdmin, setNewAdmin] = useState({
@@ -170,32 +227,149 @@ export default function JourneyAdminPage() {
     setCampAdmins(campAdmins.filter(a => a.id !== id))
   }
 
+  const handleStartEditAdmin = (adm: any) => {
+    setEditingAdmin({ ...adm })
+  }
+
+  const handleSaveEditedAdmin = async () => {
+    if (!editingAdmin || !adminCamp) return
+    if (!editingAdmin.name?.trim() || !editingAdmin.pinLast4?.trim()) {
+      alert("Vui lòng nhập đầy đủ Họ tên và Mã PIN 4 số!")
+      return
+    }
+    const updatedAdmins = campAdmins.map(a => a.id === editingAdmin.id ? editingAdmin : a)
+    setCampAdmins(updatedAdmins)
+    
+    // Tự động lưu ngay vào DB
+    const res = await saveCampAdmins(adminCamp.id, updatedAdmins)
+    if (res.success) {
+      setCamps(prev => prev.map(c => c.id === adminCamp.id ? { ...c, theme: { ...(c.theme || {}), admins: updatedAdmins } } : c))
+      alert(`✅ Đã cập nhật thông tin Quản trị viên "${editingAdmin.name}" thành công!`)
+      setEditingAdmin(null)
+    } else {
+      alert("❌ Lỗi khi lưu Quản trị viên: " + res.error)
+    }
+  }
+
+  const handleDeleteCamp = async (camp: any) => {
+    if (!camp) return
+    const confirmMsg = `⚠️ CẢNH BÁO XÓA HÀNH TRÌNH VĨNH VIỄN!\n\nBạn có CHẮC CHẮN muốn xóa vĩnh viễn hành trình:\n"${camp.title}"?\n\nToàn bộ dữ liệu thành viên và báo cáo thuộc hành trình này sẽ bị xóa sạch khỏi Database và KHÔNG THỂ KHÔI PHỤC!`
+    if (!window.confirm(confirmMsg)) return
+
+    const res = await deleteCamp(camp.id)
+    if (res.success) {
+      alert(`✅ Đã xóa hoàn toàn hành trình "${camp.title}" và dọn sạch database!`)
+      setCamps(prev => prev.filter(c => c.id !== camp.id))
+      if (selectedCampId === camp.id) {
+        setSelectedCampId(null)
+      }
+      if (showCampModal) {
+        setShowCampModal(false)
+      }
+    } else {
+      alert("❌ Lỗi khi xóa hành trình: " + res.error)
+    }
+  }
+
   const handleSaveAdmins = async () => {
     if (!adminCamp) return
     const res = await saveCampAdmins(adminCamp.id, campAdmins)
     if (res.success) {
       alert("✅ Đã cập nhật Ban Quản Trị & Giáo viên phụ trách thành công!")
-      setCamps(prev => prev.map(c => c.id === adminCamp.id ? { ...c, theme: { ...(c.theme || {}), admins: campAdmins } } : c))
+      setCamps(prev => prev.map(c => c.id === adminCamp.id ? { ...c, theme: { ...(c.theme || {}), admins: campAdmins } } : c));
+      await loadCamps();
       setShowAdminModal(false)
     } else {
       alert("❌ Lỗi lưu Ban quản trị: " + res.error)
     }
   }
 
+  // Hàm chuẩn hóa Thứ, Ngày & Tự nhận diện các buổi CHẠY SONG SONG
+  const normalizeCampSessions = (rawSessions: any[]) => {
+    if (!Array.isArray(rawSessions)) return [];
+    const dateCounts: Record<string, number> = {};
+    rawSessions.forEach((s: any) => {
+      if (s.dateStr) dateCounts[s.dateStr] = (dateCounts[s.dateStr] || 0) + 1;
+    });
+
+    return rawSessions.map((s: any) => {
+      let sessionCode = s.sessionCode || '';
+      let timeStr = s.timeStr || '';
+      const isParallel = (s.dateStr && (dateCounts[s.dateStr] || 0) > 1) || !!s.isParallel;
+      const scopeTag = s.scopeTag || (s.isSpecialEvent ? '🏆 ĐOÀN THI ĐẤU' : (isParallel ? '🏃 NHÓM TẠI CLB' : undefined));
+
+      // Tự động sửa lỗi sai Thứ và format ngược ngày MM/DD (như T7 · 12/27 -> CN · 27/12)
+      if (s.dateStr && s.dateStr.includes('-')) {
+        const [y, m, d] = s.dateStr.split('-').map(Number);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+          const dateObj = new Date(y, m - 1, d);
+          const dayOfWeek = dateObj.getDay();
+          const dayShort = dayOfWeek === 0 ? 'CN' : `T${dayOfWeek + 1}`;
+          const dayPad = d < 10 ? `0${d}` : `${d}`;
+          const monthPad = m < 10 ? `0${m}` : `${m}`;
+          const correctCode = `${dayShort} · ${dayPad}/${monthPad}`;
+
+          if (sessionCode.includes('·') && (!sessionCode.startsWith(dayShort) || sessionCode.includes(`${monthPad}/${dayPad}`))) {
+            sessionCode = correctCode;
+          }
+
+          if (timeStr && timeStr.match(/^(CN|T[2-7])\s+/)) {
+            const timeOnly = timeStr.replace(/^(CN|T[2-7])\s+/, '');
+            if (!timeStr.startsWith(dayShort)) {
+              timeStr = `${dayShort} ${timeOnly}`;
+            }
+          }
+        }
+      }
+
+      return {
+        ...s,
+        sessionCode,
+        timeStr,
+        isParallel,
+        scopeTag,
+      };
+    });
+  };
+
   const handleSaveSessionItem = (updated: any) => {
     if (!editingCamp) return
+    const cleanDesc = updated.summaryText !== undefined ? updated.summaryText : updated.desc;
+    const normalized = {
+      ...updated,
+      desc: cleanDesc,
+      summaryText: cleanDesc,
+    };
     const currentSessions = editingCamp.sessions || []
     const idx = currentSessions.findIndex((s: any) => s.id === updated.id)
     let newSessions: any[]
     if (idx >= 0) {
       newSessions = [...currentSessions]
-      newSessions[idx] = updated
+      newSessions[idx] = normalized
     } else {
-      newSessions = [...currentSessions, updated]
+      newSessions = [...currentSessions, normalized]
     }
+
+    // Đồng thời cập nhật vào club_months nếu có
+    let updatedClubMonths = editingCamp.club_months
+    if (editingCamp.mode === "clb_quanh_nam" && Array.isArray(updatedClubMonths)) {
+      updatedClubMonths = updatedClubMonths.map((m: any) => {
+        if (Array.isArray(m.sessions)) {
+          const sIdx = m.sessions.findIndex((s: any) => s.id === updated.id)
+          if (sIdx >= 0) {
+            const copyM = [...m.sessions]
+            copyM[sIdx] = { ...copyM[sIdx], ...normalized }
+            return { ...m, sessions: copyM }
+          }
+        }
+        return m
+      })
+    }
+
     setEditingCamp({
       ...editingCamp,
       sessions: newSessions,
+      club_months: updatedClubMonths,
     })
     setEditingSessionItem(null)
   }
@@ -220,11 +394,25 @@ export default function JourneyAdminPage() {
   const [reports, setReports] = useState<any[]>([])
   const [approvalFilter, setApprovalFilter] = useState<string>("all")
 
-  // GPS Geofence & Shifts form state (for Tab 2)
+  // GPS Geofence Đa Chi Nhánh (VicEdu Multi-Branch) & Shifts form state (for Tab 2)
+  const [branchesList, setBranchesList] = useState<Array<{
+    id: string;
+    branch_name: string;
+    address?: string;
+    lat: number;
+    lng: number;
+    radius: number;
+  }>>([
+    { id: "b1", branch_name: "VP VicEdu Việt Trì (Trụ sở chính)", address: "Đại lộ Hùng Vương, TP. Việt Trì", lat: 21.321146, lng: 105.393865, radius: 50 },
+    { id: "b2", branch_name: "VP VicEdu Việt Trì 2 (Nông Trang)", address: "Phường Nông Trang, TP. Việt Trì", lat: 21.315200, lng: 105.405100, radius: 50 },
+    { id: "b3", branch_name: "VP VicEdu Lâm Thao", address: "Khu 5, TT. Lâm Thao, Phú Thọ", lat: 21.352400, lng: 105.281500, radius: 50 },
+    { id: "b4", branch_name: "VP VicEdu Phù Ninh", address: "TT. Phong Châu, Phù Ninh, Phú Thọ", lat: 21.432100, lng: 105.321800, radius: 50 },
+  ])
+  const [selectedBranchIndex, setSelectedBranchIndex] = useState<number>(0)
   const [gpsForm, setGpsForm] = useState({
-    branch_name: "VP VicEdu Việt Trì 1",
-    lat: 21.321852,
-    lng: 105.398214,
+    branch_name: "VP VicEdu Việt Trì",
+    lat: 21.321146,
+    lng: 105.393865,
     radius: 50,
   })
   const [shiftsForm, setShiftsForm] = useState<any[]>([
@@ -234,15 +422,321 @@ export default function JourneyAdminPage() {
     { id: "P4", name: "Ca P4", start: "08:00", end: "18:00" },
     { id: "P5", name: "Ca P5", start: "07:00", end: "17:00" },
   ])
+  const [editingShiftIndex, setEditingShiftIndex] = useState<number | null>(null)
+  const [editingShiftData, setEditingShiftData] = useState<{ id?: string; name: string; start: string; end: string }>({
+    name: "",
+    start: "08:00",
+    end: "17:00",
+  })
   const [detectingGps, setDetectingGps] = useState(false)
   const [gpsMessage, setGpsMessage] = useState<string | null>(null)
 
+  // Smart Member Import State (Chi nhánh VicHRM & Lớp học LMS)
+  const [memberModalTab, setMemberModalTab] = useState<'branch_staff' | 'class_students' | 'manual'>('manual');
+  const [staffBranch, setStaffBranch] = useState<string>("Việt Trì 1");
+  const [branchStaffList, setBranchStaffList] = useState<any[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [staffSearchQuery, setStaffSearchQuery] = useState("");
+
+  const [classBranch, setClassBranch] = useState<string>("Việt Trì 1");
+  const [classesList, setClassesList] = useState<any[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>("");
+  const [classStudentsList, setClassStudentsList] = useState<any[]>([]);
+  const [loadingClassStudents, setLoadingClassStudents] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [studentSearchQuery, setStudentSearchQuery] = useState("");
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+
+  const loadBranchStaff = async (branch: string) => {
+    setLoadingStaff(true);
+    try {
+      const data = await getBranchEmployees(branch);
+      setBranchStaffList(data || []);
+      // Mặc định chọn những nhân viên chưa có trong camp
+      const existingPhones = new Set(members.map((m: any) => m.phone).filter(Boolean));
+      const existingNames = new Set(members.map((m: any) => (m.name || '').toLowerCase().trim()));
+      const unadded = (data || []).filter((e: any) => !existingPhones.has(e.phone) && !existingNames.has((e.full_name || '').toLowerCase().trim()));
+      setSelectedStaffIds(unadded.map((e: any) => e.id));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingStaff(false);
+    }
+  };
+
+  const loadBranchClasses = async (branch: string) => {
+    try {
+      const data = await getClassesList(branch);
+      setClassesList(data || []);
+      if (data && data.length > 0) {
+        setSelectedClassId(data[0].id);
+        loadClassStudents(data[0].id);
+      } else {
+        setSelectedClassId("");
+        setClassStudentsList([]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadClassStudents = async (classId: string) => {
+    if (!classId) return;
+    setLoadingClassStudents(true);
+    try {
+      const data = await getClassStudentsForJourney(classId);
+      setClassStudentsList(data || []);
+      // Mặc định chọn những học sinh chưa có trong camp
+      const existingIds = new Set(members.map((m: any) => m.student_id).filter(Boolean));
+      const existingNames = new Set(members.map((m: any) => (m.name || '').toLowerCase().trim()));
+      const unadded = (data || []).filter((s: any) => !existingIds.has(s.id) && !existingNames.has((s.full_name || '').toLowerCase().trim()));
+      setSelectedStudentIds(unadded.map((s: any) => s.id));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingClassStudents(false);
+    }
+  };
+
+  const handleOpenAddMemberModal = (initialTab?: 'branch_staff' | 'class_students' | 'manual') => {
+    let defaultTab: 'branch_staff' | 'class_students' | 'manual' = initialTab || 'manual';
+    if (!initialTab) {
+      if (selectedCamp?.mode === 'cham_cong') {
+        defaultTab = 'branch_staff';
+      } else if (selectedCamp?.mode === 'lop_hoc_buoi') {
+        defaultTab = 'class_students';
+      } else {
+        defaultTab = 'manual';
+      }
+    }
+    setMemberModalTab(defaultTab);
+
+    // Tự động phát hiện chi nhánh theo camp
+    let detectedBranch = "Việt Trì 1";
+    const cSlug = (selectedCamp?.slug || '').toLowerCase();
+    const cTitle = (selectedCamp?.title || '').toLowerCase();
+    if (cSlug.includes('vt') || cTitle.includes('việt trì') || cTitle.includes('viet tri')) detectedBranch = "Việt Trì 1";
+    else if (cSlug.includes('dh') || cTitle.includes('dân hòa') || cTitle.includes('dan hoa')) detectedBranch = "Dân Hòa";
+    else if (cSlug.includes('tq') || cTitle.includes('tuyên quang') || cTitle.includes('tuyen quang')) detectedBranch = "Tuyên Quang";
+    else if (cSlug.includes('lt') || cTitle.includes('lâm thao') || cTitle.includes('lam thao')) detectedBranch = "Lâm Thao";
+
+    setStaffBranch(detectedBranch);
+    setClassBranch(detectedBranch);
+
+    if (defaultTab === 'branch_staff') {
+      loadBranchStaff(detectedBranch);
+    } else if (defaultTab === 'class_students') {
+      loadBranchClasses(detectedBranch);
+    }
+
+    setEditingMember({
+      camp_id: selectedCampId,
+      name: "",
+      phone: "",
+      pin_code: "1234",
+      role_tag: selectedCamp?.mode === 'cham_cong' ? "Nhân sự chi nhánh" : selectedCamp?.mode === 'clb_quanh_nam' ? "Runner Nhí" : "Học sinh",
+      total_km_all_time: 0,
+      total_stars: 0,
+      forgot_pills_quota: 3,
+    });
+    setShowMemberModal(true);
+  };
+
+  const handleBulkAddStaff = async () => {
+    const chosenStaff = branchStaffList.filter(s => selectedStaffIds.includes(s.id));
+    if (chosenStaff.length === 0) {
+      alert("Vui lòng chọn ít nhất 1 nhân sự để nạp vào danh sách chấm công!");
+      return;
+    }
+    setBulkSubmitting(true);
+    try {
+      const list = chosenStaff.map(emp => {
+        const phoneDigits = (emp.phone || '').replace(/\D/g, '');
+        const pLast4 = phoneDigits.length >= 4 ? phoneDigits.slice(-4) : '1234';
+        return {
+          camp_id: selectedCampId,
+          student_id: null,
+          name: emp.full_name ? `${emp.full_name} (${emp.id})` : emp.id,
+          phone: emp.phone || '',
+          phone_last4: pLast4,
+          pin_code: pLast4,
+          role_tag: emp.position || emp.role || 'Cán bộ nhân viên',
+          avatar_url: emp.avatar_url || '',
+          forgot_pills_quota: 3,
+          total_stars: 0,
+          status: 'active',
+        };
+      });
+      const res = await bulkSaveMembers(selectedCampId, list);
+      if (res.success) {
+        alert(`✅ Nạp thành công ${res.count} nhân sự vào hệ thống chấm công!`);
+        setShowMemberModal(false);
+        loadMembers(selectedCampId);
+        loadCamps();
+      } else {
+        alert("❌ Lỗi khi nạp nhân sự: " + res.error);
+      }
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
+  const handleBulkAddStudents = async () => {
+    const chosenStudents = classStudentsList.filter(s => selectedStudentIds.includes(s.id));
+    if (chosenStudents.length === 0) {
+      alert("Vui lòng chọn ít nhất 1 học sinh để nạp vào lớp học!");
+      return;
+    }
+    setBulkSubmitting(true);
+    try {
+      const list = chosenStudents.map(stu => {
+        const phone = stu.parent_phone || stu.phone || '';
+        const phoneDigits = phone.replace(/\D/g, '');
+        const pLast4 = phoneDigits.length >= 4 ? phoneDigits.slice(-4) : '1234';
+        const nick = stu.nickname ? ` (${stu.nickname})` : '';
+        return {
+          camp_id: selectedCampId,
+          student_id: null,
+          name: stu.full_name + nick,
+          phone: phone,
+          phone_last4: pLast4,
+          pin_code: pLast4,
+          role_tag: stu.nickname ? `${stu.nickname} · Học viên` : 'Học viên',
+          avatar_url: stu.avatar_url || '',
+          total_stars: 0,
+          status: 'active',
+        };
+      });
+      const res = await bulkSaveMembers(selectedCampId, list);
+      if (res.success) {
+        alert(`✅ Nạp thành công ${res.count} học sinh của cả lớp vào hành trình học tập!`);
+        setShowMemberModal(false);
+        loadMembers(selectedCampId);
+        loadCamps();
+      } else {
+        alert("❌ Lỗi khi nạp học sinh: " + res.error);
+      }
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   // Mở modal cấu hình Camp chi tiết
+    // 1-Click Nhân bản Camp
+  const handleCloneCamp = (camp: any) => {
+    const cloned = JSON.parse(JSON.stringify(camp));
+    delete cloned.id;
+    cloned.title = `${camp.title} (Bản sao)`;
+    const randSuffix = Math.floor(1000 + Math.random() * 9000);
+    cloned.slug = `${camp.slug}-copy-${randSuffix}`;
+    openCampModal(cloned);
+  };
+
+  
+  // HÀM TIỆN ÍCH: TẠO KHUÔN MẪU CHUẨN SẠCH CHO TỪNG MÔ THỨC VẬN HÀNH
+  const getCleanPreset = (mode: string, baseCamp?: any) => {
+    const isLopHoc = mode === 'lop_hoc_buoi';
+    const isThoiQuen = mode === 'thoi_quen_ca_nhan';
+    const isChamCong = mode === 'cham_cong';
+    const isClbSport = mode === 'clb_quanh_nam';
+
+    let tasks: any[] = [];
+    if (isLopHoc) {
+      tasks = [
+        { id: 'dung_gio', name: 'Đi học đúng giờ', type: 'boolean', color: '#10b981', description: 'Có mặt trước giờ học 5 phút và chuẩn bị sách vở' },
+        { id: 'dong_phuc', name: 'Mặc đồng phục VicEdu', type: 'boolean', color: '#3b82f6', description: 'Mặc áo đồng phục chỉnh tề tác phong học sinh' },
+        { id: 'btvn', name: 'Hoàn thành 100% BTVN', type: 'boolean', color: '#4f46e5', description: 'Hoàn thành đầy đủ bài tập về nhà được giao' },
+        { id: 'phat_bieu', name: 'Hăng hái phát biểu & tương tác', type: 'boolean', color: '#f59e0b', description: 'Tích cực xây dựng bài giảng và tương tác sôi nổi' },
+        { id: 'razkids', name: 'Tự học & Đọc Razkids ở nhà', type: 'number', unit: 'phút', target: 20, color: '#8b5cf6', description: 'Luyện đọc tiếng Anh trên ứng dụng Razkids tối thiểu 20 phút mỗi ngày' }
+      ];
+    } else if (isThoiQuen) {
+      tasks = [
+        { id: 'biet_on', name: 'Viết 3 điều biết ơn mỗi ngày', type: 'text', color: '#ec4899', description: 'Ghi lại ít nhất 3 điều khiến bạn cảm thấy biết ơn và hạnh phúc trong ngày' },
+        { id: 'doc_sach', name: 'Đọc sách phát triển bản thân', type: 'number', unit: 'phút', target: 20, color: '#8b5cf6', description: 'Dành tối thiểu 20 phút đọc sách tĩnh tâm' },
+        { id: 'the_duc', name: 'Vận động thể chất / Thể dục', type: 'number', unit: 'phút', target: 15, color: '#10b981', description: 'Tập thể dục, giãn cơ hoặc đi bộ nhẹ nhàng 15 phút' }
+      ];
+    } else if (isChamCong) {
+      tasks = [
+        { id: 'check_in_gps', name: 'Check-in đúng ca làm (GPS)', type: 'boolean', color: '#10b981', description: 'Có mặt tại chi nhánh và check-in đúng giờ vào ca' },
+        { id: 'dung_gio', name: 'Đi làm sớm 5 phút', type: 'boolean', color: '#f59e0b', description: 'Đến trước 5 phút chuẩn bị không gian làm việc' },
+        { id: 'biet_on_work', name: 'Viết 1 điều tích cực trong ca làm', type: 'text', color: '#ec4899', description: 'Ghi nhận 1 đồng nghiệp hoặc 1 khoảnh khắc biết ơn trong công việc' },
+        { id: 'bao_cao_kpi', name: 'Báo cáo KPI & Tiến độ ca', type: 'boolean', color: '#6366f1', description: 'Hoàn thành các đầu việc được giao và gửi nhật ký ca làm' },
+        { id: 'check_out_gps', name: 'Check-out hoàn tất ca (GPS)', type: 'boolean', color: '#3b82f6', description: 'Bàn giao và check-out đúng giờ trước khi về' }
+      ];
+    } else {
+      tasks = [
+        { id: 'chay_km', name: 'Chạy bộ tích lũy', type: 'number', unit: 'km', target: 3, color: '#e11d48', description: 'Chạy tối thiểu 3km mỗi buổi' },
+        { id: 'dap_tay', name: 'Đập tay giao lưu', type: 'boolean', color: '#f59e0b', description: 'Đập tay chào người chạy ngược chiều' },
+        { id: 'dung_gio', name: 'Có mặt đúng giờ', type: 'boolean', color: '#10b981', description: 'T6 17h30 / CN 05h30 có mặt đúng giờ' },
+        { id: 'giup_ban', name: 'Hỗ trợ đồng đội', type: 'boolean', color: '#3b82f6', description: 'Chạy kèm bạn yếu hơn hoặc nhặt rác đường chạy' }
+      ];
+    }
+
+    const cleanTheme: any = {
+      ...(baseCamp?.theme || {}),
+      admins: baseCamp?.theme?.admins || [],
+      owner_name: baseCamp?.theme?.owner_name || (isLopHoc ? 'Thầy Cô VicEdu' : 'Sếp Hoàng'),
+      owner_avatar: baseCamp?.theme?.owner_avatar || (isLopHoc ? '👨‍🏫' : isThoiQuen ? '🌱' : '🦁'),
+      owner_phone: baseCamp?.theme?.owner_phone || '0912345678',
+      start_date: baseCamp?.theme?.start_date || new Date().toISOString().split('T')[0],
+      primary: isThoiQuen ? '#ec4899' : isLopHoc ? '#4f46e5' : isChamCong ? '#10b981' : '#e11d48',
+      accent: isThoiQuen ? '#db2777' : isLopHoc ? '#4338ca' : isChamCong ? '#059669' : '#be123c',
+      light: isThoiQuen ? '#fdf2f8' : isLopHoc ? '#eef2ff' : isChamCong ? '#ecfdf5' : '#ffe4e6',
+      target_days: isThoiQuen ? (baseCamp?.theme?.target_days || 30) : 30,
+      canvaUrl: isLopHoc ? (baseCamp?.theme?.canvaUrl || '') : '',
+      locationText: isLopHoc ? (baseCamp?.theme?.locationText || 'Phòng học VicEdu Chi Nhánh 1') : isChamCong ? (baseCamp?.theme?.locationText || 'VP VicEdu Chi Nhánh') : isClbSport ? (baseCamp?.theme?.locationText || 'Công viên Văn Lang') : 'Tại nhà / Cá nhân',
+      scheduleText: isLopHoc ? (baseCamp?.theme?.scheduleText || 'Tuần 2 buổi · T3 & T6 (19h30 - 21h30)') : isChamCong ? 'Ca sáng P1 (07h30) · Ca tối P3 (13h45)' : isClbSport ? 'Tuần 2 buổi · T6 17h30 & CN 05h30' : 'Hàng ngày liên tục',
+      careSuccessTpl: isLopHoc
+        ? 'Chào {Ten}! {Sender} chúc mừng em đã hoàn thành xuất sắc nhiệm vụ buổi học hôm nay! Tinh thần tự giác rất tuyệt vời, tiếp tục phát huy nhé!'
+        : isThoiQuen
+        ? 'Tuyệt vời {Ten}! Bạn đã giữ vững ngọn lửa kỷ luật hôm nay với chuỗi {Streak} ngày liên tiếp rực rỡ! 🔥'
+        : 'Chúc mừng {Ten} đã hoàn thành trọn vẹn mục tiêu hôm nay! KỶ LUẬT LÀ SỨC MẠNH!',
+      careReminderTpl: isLopHoc
+        ? 'Chào phụ huynh & em {Ten}! {Sender} nhắc em hôm nay còn thiếu phần: {MissingTasks}. Em nhớ hoàn thành sớm nhé!'
+        : 'Chào {Ten} ơi! Hôm nay mình còn chút nhiệm vụ: {MissingTasks}. Dành ít phút hoàn thành để giữ chuỗi ngày liên tục nhé! 🔥',
+    };
+
+    // Chỉ CLB thể thao quanh năm mới có hall_of_fame
+    if (isClbSport && baseCamp?.theme?.hall_of_fame) {
+      cleanTheme.hall_of_fame = baseCamp.theme.hall_of_fame;
+    } else {
+      delete cleanTheme.hall_of_fame;
+    }
+
+    return {
+      slug: baseCamp?.slug || '',
+      title: baseCamp?.title || (isLopHoc ? 'LỚP HỌC CHIẾN BINH EAGLE' : isThoiQuen ? 'HÀNH TRÌNH BIẾT ƠN & TỰ RÈN' : isChamCong ? 'CHẤM CÔNG CHI NHÁNH' : 'CLB RUNNER NHÍ'),
+      subtitle: isLopHoc ? 'Lộ trình 24 buổi học tập & tự rèn luyện Razkids tại VicEdu' : isThoiQuen ? 'Hành trình 30 ngày chuyển hóa bản thân và xây dựng thói quen tích cực' : isChamCong ? 'Quản lý ca làm việc và tiêu chuẩn văn hóa nội bộ' : 'Tích lũy bước chạy quanh năm cùng gia đình và đồng đội',
+      slogan: isLopHoc ? 'KỶ LUẬT TẠO NÊN KỲ TÍCH · KHÔNG BỎ CUỘC DÙ CHỈ MỘT BÀI TẬP' : isThoiQuen ? 'KỶ LUẬT BẮT ĐẦU TỪ TÂM THỨC · MỖI NGÀY LÀ MỘT PHÉP MÀU' : isChamCong ? 'ĐÚNG GIỜ · TẬN TÂM · KỶ LUẬT KIẾN TẠO GIÁ TRỊ' : 'KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ',
+      mode,
+      status: baseCamp?.status || 'active',
+      has_divisions: isClbSport,
+      require_pin: true,
+      scope: baseCamp?.scope || (isChamCong ? 'branch' : isLopHoc ? 'branch' : 'admin_only'),
+      tasks,
+      theme: cleanTheme,
+      logo: {
+        icon: isLopHoc ? '🎯📚' : isThoiQuen ? '💖🌱' : isChamCong ? '📍🏢' : '🏃‍♂️🔥',
+        text: baseCamp?.logo?.text || (isLopHoc ? 'VICEDU EAGLE' : isThoiQuen ? 'BIẾT ƠN' : 'VICEDU'),
+        badgeLabel: isLopHoc ? 'Học viên xuất sắc' : isThoiQuen ? 'Chiến binh chuyển hóa' : isChamCong ? 'Nhân sự gương mẫu' : 'Runner 19',
+        imageUrl: baseCamp?.logo?.imageUrl || '',
+      },
+      sessions: isLopHoc ? (baseCamp?.sessions || []) : (isClbSport ? (baseCamp?.sessions || []) : []),
+      club_months: isClbSport ? (baseCamp?.club_months || []) : [],
+    };
+  };
+
   const openCampModal = (camp?: any) => {
     if (camp) {
       const defaultTasks = (camp.tasks && Array.isArray(camp.tasks) && camp.tasks.length > 0)
         ? camp.tasks
-        : (camp.mode === 'clb_quanh_nam' ? [
+        : (camp.mode === 'cham_cong' ? [
+            { id: 'check_in_gps', name: 'Check-in đúng ca (GPS)', type: 'boolean', color: '#10b981', description: 'Có mặt tại chi nhánh trong bán kính GPS và check-in đúng ca làm' },
+            { id: 'dung_gio', name: 'Đúng giờ (Không đi muộn)', type: 'boolean', color: '#f59e0b', description: 'Check-in trước hoặc đúng giờ bắt đầu ca làm việc quy định' },
+            { id: 'check_out_gps', name: 'Check-out hoàn tất ca (GPS)', type: 'boolean', color: '#6366f1', description: 'Check-out khi kết thúc ca làm việc trước khi rời văn phòng' },
+            { id: 'bao_cao_ngay', name: 'Báo cáo công việc ca làm', type: 'boolean', color: '#8b5cf6', description: 'Hoàn thành nhiệm vụ được giao và gửi nhật ký ca làm việc' }
+          ] : camp.mode === 'clb_quanh_nam' ? [
             { id: 'chay_km', name: 'Chạy bộ', type: 'number', unit: 'km', target: 3, color: '#e11d48', description: 'Chạy tối thiểu 3km mỗi buổi' },
             { id: 'dap_tay', name: 'Đập tay giao lưu', type: 'boolean', color: '#f59e0b', description: 'Đập tay chào người chạy ngược chiều' },
             { id: 'dung_gio', name: 'Có mặt đúng giờ', type: 'boolean', color: '#10b981', description: 'T6 17h30 / CN 05h30 có mặt đúng giờ' },
@@ -254,7 +748,14 @@ export default function JourneyAdminPage() {
             { id: 'tu_hoc', name: 'Tự học thêm', type: 'number', unit: 'phút', target: 30, color: '#8b5cf6', description: 'Luyện nghe podcast hoặc đọc báo tiếng Anh 30 phút' }
           ])
 
-      const defaultWeeklySchedule = camp.theme?.weeklySchedule || (camp.mode === 'clb_quanh_nam' ? [
+      const defaultWeeklySchedule = camp.theme?.weeklySchedule || (camp.mode === 'cham_cong' ? [
+        { dayOfWeek: 1, dayLabel: "Thứ 2", timeStr: "07:30", location: "VP VicEdu Chi Nhánh", sessionTitle: "Ca làm việc T2" },
+        { dayOfWeek: 2, dayLabel: "Thứ 3", timeStr: "07:30", location: "VP VicEdu Chi Nhánh", sessionTitle: "Ca làm việc T3" },
+        { dayOfWeek: 3, dayLabel: "Thứ 4", timeStr: "07:30", location: "VP VicEdu Chi Nhánh", sessionTitle: "Ca làm việc T4" },
+        { dayOfWeek: 4, dayLabel: "Thứ 5", timeStr: "07:30", location: "VP VicEdu Chi Nhánh", sessionTitle: "Ca làm việc T5" },
+        { dayOfWeek: 5, dayLabel: "Thứ 6", timeStr: "07:30", location: "VP VicEdu Chi Nhánh", sessionTitle: "Ca làm việc T6" },
+        { dayOfWeek: 6, dayLabel: "Thứ 7", timeStr: "07:30", location: "VP VicEdu Chi Nhánh", sessionTitle: "Ca làm việc T7" },
+      ] : camp.mode === 'clb_quanh_nam' ? [
         { dayOfWeek: 5, dayLabel: "Thứ 6", timeStr: "17:30", location: "Công viên Văn Lang", sessionTitle: "Chạy tiếp sức chiều T6" },
         { dayOfWeek: 0, dayLabel: "Chủ Nhật", timeStr: "05:30", location: "Công viên Văn Lang", sessionTitle: "Long Run sáng Chủ Nhật" },
       ] : [
@@ -262,9 +763,57 @@ export default function JourneyAdminPage() {
         { dayOfWeek: 6, dayLabel: "Thứ 7", timeStr: "08:30", location: "Phòng Lab VicEdu", sessionTitle: "Luyện Kỹ năng Speaking & Listening" },
       ])
 
+                  const DEFAULT_CLUB_MONTHS = [
+        { id: '2026-01', label: 'Tháng 01/2026', themeTitle: 'KHAI XUÂN 2026', themeSlogan: 'Khởi động thói quen chạy bộ đầu năm', status: 'completed' },
+        { id: '2026-02', label: 'Tháng 02/2026', themeTitle: 'MÙA XUÂN KỶ LUẬT', themeSlogan: 'Duy trì bước chạy sau Tết', status: 'completed' },
+        { id: '2026-03', label: 'Tháng 03/2026', themeTitle: 'BƯỚC CHẠY YÊU THƯƠNG', themeSlogan: 'Chạy cùng bố mẹ quanh công viên', status: 'completed' },
+        { id: '2026-04', label: 'Tháng 04/2026', themeTitle: 'CHINH PHỤC CỰ LY', themeSlogan: 'Nâng dần cự ly 3km - 5km', status: 'completed' },
+        { id: '2026-05', label: 'Tháng 05/2026', themeTitle: 'CHÀO HÈ BỨT PHÁ', themeSlogan: 'Đón bình minh sớm 05h30', status: 'completed' },
+        { id: '2026-06', label: 'Tháng 06/2026', themeTitle: 'HÈ RỰC LỬA', themeSlogan: 'Tránh xa màn hình · Rèn luyện thể lực', status: 'completed' },
+        { id: '2026-07', label: 'Tháng 07/2026', themeTitle: 'TRẠI HÈ RUNNER 19', themeSlogan: 'Chạy dã ngoại và gắn kết gia đình', status: 'completed' },
+        { id: '2026-08', label: 'Tháng 08/2026', themeTitle: 'BƯỚC CHẠY TỰU TRƯỜNG', themeSlogan: 'Chuẩn bị thể lực tốt cho năm học mới', status: 'completed' },
+        { id: '2026-09', label: 'Tháng 09/2026', themeTitle: 'CHIẾN DỊCH THÁNG 9 · XỎ GIÀY XUỐNG ĐƯỜNG', themeSlogan: 'Khởi động thói quen · 2 buổi mỗi tuần không bỏ cuộc', status: 'completed' },
+        { id: '2026-10', label: 'Tháng 10/2026', themeTitle: 'CHIẾN DỊCH THÁNG 10 · BÀN TAY GẮN KẾT & KỶ LUẬT THÉP', themeSlogan: 'Đập tay 5 người ngược chiều · Hoàn thành cự ly · Giữ chuỗi tuần rực lửa', status: 'active', isCurrent: true },
+        { id: '2026-11', label: 'Tháng 11/2026', themeTitle: 'CHIẾN DỊCH THÁNG 11 · BỨT PHÁ TỐC ĐỘ (PACER LEAD)', themeSlogan: 'Rèn nhịp thở đều · Nâng dần cự ly · Đón gió đầu đông', status: 'upcoming' },
+        { id: '2026-12', label: 'Tháng 12/2026', themeTitle: 'CHIẾN DỊCH THÁNG 12 · CHIẾN BINH MÙA ĐÔNG · VỀ ĐÍCH 2026', themeSlogan: 'Băng qua gió rét · Giữ ấm ngọn lửa kỷ luật · Khép lại năm 2026 kiêu hãnh', status: 'upcoming' },
+        { id: '2027-01', label: 'Tháng 01/2027', themeTitle: 'CHIẾN DỊCH THÁNG 01/2027 · KHỞI ĐẦU NĂM MỚI · BỨT PHÁ GIỚI HẠN', themeSlogan: 'Năm mới kỷ luật mới · Chinh phục các cột mốc Km lịch sử mới', status: 'upcoming' },
+      ];
+
+      const defaultHallOfFame = camp.theme?.hall_of_fame || {
+        title_kids: '👑 BẢNG PHONG THẦN RUNNER NHÍ · ALL-TIME 2026',
+        subtitle_kids: 'Tôn vinh những đôi chân nhí kiên cường nhất của Rubisea 19 từ đầu năm đến nay',
+        flame_hint_kids: '🔥 Tính theo Tuần Kỷ Luật U15 (đủ cả 2 buổi T6 & CN)',
+        clubs_kids: [
+          { min_km: 100, name: 'Club 100km · Kiện Tướng Nhí', badge: '👑', border_color: '#f59e0b', name_color: '#b45309' },
+          { min_km: 75, name: 'Club 75km · Bàn Chân Thép U15', badge: '🥈', border_color: '#3b82f6', name_color: '#1d4ed8' },
+          { min_km: 50, name: 'Club 50km · Bứt Phá Cự Ly', badge: '🥉', border_color: '#10b981', name_color: '#047857' },
+          { min_km: 25, name: 'Club 25km · Tân Binh Kỷ Luật', badge: '⚡', border_color: '#8b5cf6', name_color: '#6d28d9' },
+        ],
+        title_adults: '👑 BẢNG PHONG THẦN PACER & PHỤ HUYNH · ALL-TIME 2026',
+        subtitle_adults: 'Tôn vinh những đôi chân kỳ cựu gương mẫu, dẫn dắt và tiếp sức cho các con',
+        flame_hint_adults: '🔥 Tính theo Tuần Kỷ Luật (đủ 2 buổi T6 & CN)',
+        clubs_adults: [
+          { min_km: 300, name: 'Club 300km · Huyền Thoại Pacer', badge: '👑', border_color: '#f59e0b', name_color: '#b45309' },
+          { min_km: 200, name: 'Club 200km · Chiến Binh Tiên Phong', badge: '🥈', border_color: '#3b82f6', name_color: '#1d4ed8' },
+          { min_km: 100, name: 'Club 100km · Bàn Chân Thép', badge: '🥉', border_color: '#10b981', name_color: '#047857' },
+          { min_km: 50, name: 'Club 50km · Phụ Huynh Gương Mẫu', badge: '⚡', border_color: '#8b5cf6', name_color: '#6d28d9' },
+        ],
+        starter_enabled: true,
+        starter_title_kids: '🌱 VƯỜN ƯƠM RUNNER NHÍ (< 25KM) · ĐANG TÍCH LŨY BƯỚC CHẠY',
+        starter_subtitle_kids: 'Chặng đường vạn dặm bắt đầu từ bước chân đầu tiên. Tích lũy đủ 25km để chính thức thăng hạng lên Club 25km!',
+        starter_title_adults: '🌱 TÂN BINH PACER & PHỤ HUYNH (< 50KM) · ĐANG TÍCH LŨY',
+        starter_subtitle_adults: 'Đồng hành cùng các con trên từng dặm đường. Tích lũy đủ 50km để thăng hạng lên Club 50km!',
+      }
+
       const defaultScoringRules = (camp.scoring_rules && Array.isArray(camp.scoring_rules) && camp.scoring_rules.length > 0)
         ? camp.scoring_rules
-        : (camp.mode === 'clb_quanh_nam' ? [
+        : (camp.mode === 'cham_cong' ? [
+            { label: 'Check-in GPS đúng ca', points: '+1' },
+            { label: 'Đúng giờ không đi muộn / về sớm', points: '+1' },
+            { label: 'Check-out GPS đầy đủ', points: '+1' },
+            { label: 'Tuần chuyên cần 100% (đủ ca làm)', points: '+5' },
+            { label: 'Tháng chuyên cần xuất sắc', points: '+10' },
+          ] : camp.mode === 'clb_quanh_nam' ? [
             { label: 'Mỗi nhiệm vụ đạt', points: '+1' },
             { label: 'Buổi làm đủ nhiệm vụ', points: '+1' },
             { label: 'Có mặt offline đúng giờ', points: '+2' },
@@ -282,29 +831,39 @@ export default function JourneyAdminPage() {
         ...camp,
         tasks: defaultTasks,
         scoring_rules: defaultScoringRules,
-        has_divisions: camp.has_divisions ?? true,
-        scope: camp.scope || (camp.theme as any)?.scope || (camp.mode === 'clb_quanh_nam' ? 'club' : 'branch'),
+        has_divisions: camp.has_divisions ?? (camp.mode === 'cham_cong' ? false : true),
+        scope: camp.scope || (camp.theme as any)?.scope || (camp.mode === 'cham_cong' ? 'branch' : camp.mode === 'clb_quanh_nam' ? 'club' : 'branch'),
         require_pin: camp.require_pin ?? true,
         theme: {
-          primary: camp.theme?.primary || (camp.mode === 'clb_quanh_nam' ? '#e11d48' : '#4f46e5'),
-          accent: camp.theme?.accent || (camp.mode === 'clb_quanh_nam' ? '#be123c' : '#4338ca'),
-          light: camp.theme?.light || (camp.mode === 'clb_quanh_nam' ? '#ffe4e6' : '#eef2ff'),
-          campaignTitle: camp.theme?.campaignTitle || (camp.club_months?.[0]?.themeTitle || 'CHIẾN DỊCH THÁNG 10 · BÀN TAY GẮN KẾT & KỶ LUẬT THÉP'),
-          campaignSlogan: camp.theme?.campaignSlogan || (camp.club_months?.[0]?.themeSlogan || 'Đập tay 5 người ngược chiều · Hoàn thành cự ly · Giữ chuỗi tuần rực lửa'),
-          locationText: camp.theme?.locationText || 'Công viên Văn Lang',
-          scheduleText: camp.theme?.scheduleText || 'Tuần 2 buổi · T6 17h30 & CN 05h30',
+          ...(camp.theme || {}),
+          admins: camp.theme?.admins || [],
+          target_days: camp.theme?.target_days || (camp.mode === 'thoi_quen_ca_nhan' ? 60 : 30),
+          start_date: camp.theme?.start_date || new Date().toISOString().split('T')[0],
+          owner_name: camp.theme?.owner_name || 'Sếp Hoàng',
+          owner_avatar: camp.theme?.owner_avatar || '🦁',
+          owner_phone: camp.theme?.owner_phone || '0912345678',
+          primary: camp.theme?.primary || (camp.mode === 'cham_cong' ? '#10b981' : camp.mode === 'clb_quanh_nam' ? '#e11d48' : '#4f46e5'),
+          accent: camp.theme?.accent || (camp.mode === 'cham_cong' ? '#059669' : camp.mode === 'clb_quanh_nam' ? '#be123c' : '#4338ca'),
+          light: camp.theme?.light || (camp.mode === 'cham_cong' ? '#ecfdf5' : camp.mode === 'clb_quanh_nam' ? '#ffe4e6' : '#eef2ff'),
+          campaignTitle: camp.theme?.campaignTitle || (camp.mode === 'cham_cong' ? 'ĐIỂM DANH & CHẤM CÔNG CHI NHÁNH · KỶ LUẬT LAO ĐỘNG' : camp.club_months?.[0]?.themeTitle || 'CHIẾN DỊCH THÁNG 10 · BÀN TAY GẮN KẾT & KỶ LUẬT THÉP'),
+          campaignSlogan: camp.theme?.campaignSlogan || (camp.mode === 'cham_cong' ? 'ĐÚNG GIỜ · TẬN TÂM · KỶ LUẬT KIẾN TẠO GIÁ TRỊ' : camp.club_months?.[0]?.themeSlogan || 'Đập tay 5 người ngược chiều · Hoàn thành cự ly · Giữ chuỗi tuần rực lửa'),
+          locationText: camp.theme?.locationText || (camp.mode === 'cham_cong' ? 'VP VicEdu Chi Nhánh' : camp.mode === 'clb_quanh_nam' ? 'Công viên Văn Lang' : 'Phòng học Cambridge VicEdu'),
+          scheduleText: camp.theme?.scheduleText || (camp.mode === 'cham_cong' ? 'Ca sáng P1 (07h30 - 17h30) · Ca tối P3 (13h45 - 21h45)' : camp.mode === 'clb_quanh_nam' ? 'Tuần 2 buổi · T6 17h30 & CN 05h30' : 'Tuần 2 buổi · T2 19h00 & T7 08h30'),
           canvaUrl: camp.theme?.canvaUrl || '',
           videoUrl: camp.theme?.videoUrl || '',
-          careSuccessTpl: camp.theme?.careSuccessTpl || 'Chúc mừng {name} đã xuất sắc hoàn thành trọn vẹn nhiệm vụ ngày hôm nay! Hãy tiếp tục giữ vững ngọn lửa kỷ luật nhé!',
-          careReminderTpl: camp.theme?.careReminderTpl || 'Nhắc nhở: Sắp đến giờ sinh hoạt / hạn nộp bài hôm nay. Bạn {name} hãy chuẩn bị sẵn sàng và nộp báo cáo đúng giờ nhé!',
+          careSuccessTpl: camp.theme?.careSuccessTpl || (camp.mode === 'cham_cong' ? 'Chúc mừng bạn {name} đã hoàn thành xuất sắc ngày công hôm nay!' : 'Chúc mừng {name} đã xuất sắc hoàn thành trọn vẹn nhiệm vụ ngày hôm nay! Hãy tiếp tục giữ vững ngọn lửa kỷ luật nhé!'),
+          careReminderTpl: camp.theme?.careReminderTpl || (camp.mode === 'cham_cong' ? 'Nhắc nhở: Sắp tới giờ vào ca làm việc. Bạn {name} nhớ check-in đúng giờ nhé!' : 'Nhắc nhở: Sắp đến giờ sinh hoạt / hạn nộp bài hôm nay. Bạn {name} hãy chuẩn bị sẵn sàng và nộp báo cáo đúng giờ nhé!'),
           weeklySchedule: defaultWeeklySchedule,
+          hall_of_fame: defaultHallOfFame,
         },
         logo: {
-          icon: camp.logo?.icon || (camp.mode === 'clb_quanh_nam' ? '🏃‍♂️🔥' : '🎯📚'),
-          text: camp.logo?.text || camp.title || 'RUBISEA 19',
-          badgeLabel: camp.logo?.badgeLabel || (camp.mode === 'clb_quanh_nam' ? 'RUNNER NHÍ · RUNNER 19' : 'CAMBRIDGE IELTS'),
+          icon: camp.logo?.icon || (camp.mode === 'cham_cong' ? '📍🏢' : camp.mode === 'clb_quanh_nam' ? '🏃‍♂️🔥' : '🎯📚'),
+          text: camp.logo?.text || camp.title || 'VICEDU',
+          badgeLabel: camp.logo?.badgeLabel || (camp.mode === 'cham_cong' ? 'CHẤM CÔNG CHI NHÁNH · VICHRM' : camp.mode === 'clb_quanh_nam' ? 'RUNNER NHÍ · RUNNER 19' : 'CAMBRIDGE IELTS'),
+          imageUrl: camp.logo?.imageUrl || (camp.slug === 'rubisea-19' ? '/images/rubisea-logo.png' : ''),
         },
-        sessions: camp.sessions || [],
+        sessions: normalizeCampSessions(camp.sessions || []),
+        club_months: camp.mode === 'clb_quanh_nam' ? ((camp.club_months && Array.isArray(camp.club_months) && camp.club_months.length > 0) ? camp.club_months : DEFAULT_CLUB_MONTHS) : [],
       })
     } else {
       setEditingCamp({
@@ -317,6 +876,7 @@ export default function JourneyAdminPage() {
         has_divisions: true,
         require_pin: true,
         scope: "admin_only",
+        club_months: DEFAULT_CLUB_MONTHS,
         tasks: [
           { id: 'chay_km', name: 'Chạy bộ', type: 'number', unit: 'km', target: 3, color: '#e11d48', description: 'Chạy tối thiểu 3km mỗi buổi' },
           { id: 'dap_tay', name: 'Đập tay giao lưu', type: 'boolean', color: '#f59e0b', description: 'Đập tay chào người chạy ngược chiều' },
@@ -351,6 +911,7 @@ export default function JourneyAdminPage() {
           icon: '🏃‍♂️🔥',
           text: 'RUBISEA 19',
           badgeLabel: 'RUNNER NHÍ · RUNNER 19',
+          imageUrl: '/images/rubisea-logo.png',
         },
         sessions: [],
       })
@@ -358,6 +919,29 @@ export default function JourneyAdminPage() {
     setModalSubTab("general")
     setShowCampModal(true)
   }
+
+  const parseBranchesFromCamp = (c: any) => {
+    const bg = c?.branch_gps;
+    if (bg && Array.isArray(bg.branches) && bg.branches.length > 0) {
+      return bg.branches;
+    }
+    if (bg && (bg.lat || bg.branch_name)) {
+      return [{
+        id: "b1",
+        branch_name: bg.branch_name || "VP VicEdu Việt Trì (Trụ sở chính)",
+        address: "Trụ sở chính",
+        lat: bg.lat || 21.321146,
+        lng: bg.lng || 105.393865,
+        radius: bg.radius || 50,
+      }];
+    }
+    return [
+      { id: "b1", branch_name: "VP VicEdu Việt Trì (Trụ sở chính)", address: "Đại lộ Hùng Vương, TP. Việt Trì", lat: 21.321146, lng: 105.393865, radius: 50 },
+      { id: "b2", branch_name: "VP VicEdu Việt Trì 2 (Nông Trang)", address: "Phường Nông Trang, TP. Việt Trì", lat: 21.315200, lng: 105.405100, radius: 50 },
+      { id: "b3", branch_name: "VP VicEdu Lâm Thao", address: "Khu 5, TT. Lâm Thao, Phú Thọ", lat: 21.352400, lng: 105.281500, radius: 50 },
+      { id: "b4", branch_name: "VP VicEdu Phù Ninh", address: "TT. Phong Châu, Phù Ninh, Phú Thọ", lat: 21.432100, lng: 105.321800, radius: 50 },
+    ];
+  };
 
   // Load initial camps
   const loadCamps = async () => {
@@ -367,14 +951,9 @@ export default function JourneyAdminPage() {
       setCamps(res.camps)
       if (res.camps.length > 0 && !selectedCampId) {
         setSelectedCampId(res.camps[0].id)
-        if (res.camps[0].branch_gps) {
-          setGpsForm({
-            branch_name: res.camps[0].branch_gps.branch_name || "VP VicEdu Việt Trì 1",
-            lat: res.camps[0].branch_gps.lat || 21.321852,
-            lng: res.camps[0].branch_gps.lng || 105.398214,
-            radius: res.camps[0].branch_gps.radius || 50,
-          })
-        }
+        const bList = parseBranchesFromCamp(res.camps[0])
+        setBranchesList(bList)
+        setSelectedBranchIndex(0)
         if (res.camps[0].shifts_config && res.camps[0].shifts_config.length > 0) {
           setShiftsForm(res.camps[0].shifts_config)
         }
@@ -384,6 +963,17 @@ export default function JourneyAdminPage() {
   }
 
   // Load members when selected camp changes
+  const handleToggleMemberStatus = async (m: any) => {
+    const newStatus = m.status === 'inactive' ? 'active' : 'inactive'
+    // Optimistic local update
+    setMembers(prev => prev.map(item => item.id === m.id ? { ...item, status: newStatus } : item))
+    const res = await toggleMemberStatus(m.id, newStatus)
+    if (!res.success) {
+      alert("Lỗi cập nhật trạng thái: " + res.error)
+      if (selectedCampId) loadMembers(selectedCampId)
+    }
+  }
+
   const loadMembers = async (campId: string) => {
     if (!campId) return
     const res = await getCampMembers(campId)
@@ -411,14 +1001,9 @@ export default function JourneyAdminPage() {
     if (selectedCampId) {
       const camp = camps.find((c) => c.id === selectedCampId)
       if (camp) {
-        if (camp.branch_gps) {
-          setGpsForm({
-            branch_name: camp.branch_gps.branch_name || "VP VicEdu Việt Trì 1",
-            lat: camp.branch_gps.lat || 21.321852,
-            lng: camp.branch_gps.lng || 105.398214,
-            radius: camp.branch_gps.radius || 50,
-          })
-        }
+        const bList = parseBranchesFromCamp(camp)
+        setBranchesList(bList)
+        setSelectedBranchIndex(0)
         if (camp.shifts_config && camp.shifts_config.length > 0) {
           setShiftsForm(camp.shifts_config)
         }
@@ -428,7 +1013,7 @@ export default function JourneyAdminPage() {
     }
   }, [selectedCampId, approvalFilter])
 
-  // Lấy tọa độ GPS thiết bị hiện tại của Bố Hoàng
+  // Lấy tọa độ GPS thiết bị hiện tại của Bố Hoàng cho chi nhánh đang chọn
   const handleDetectCurrentGPS = () => {
     if (!navigator.geolocation) {
       setGpsMessage("❌ Trình duyệt không hỗ trợ Geolocation.")
@@ -440,13 +1025,10 @@ export default function JourneyAdminPage() {
       (pos) => {
         const lat = Number(pos.coords.latitude.toFixed(6))
         const lng = Number(pos.coords.longitude.toFixed(6))
-        setGpsForm((prev) => ({
-          ...prev,
-          lat,
-          lng,
-        }))
+        setBranchesList(prev => prev.map((b, idx) => idx === selectedBranchIndex ? { ...b, lat, lng } : b))
         setDetectingGps(false)
-        setGpsMessage(`✅ Đã bắt tọa độ thành công: ${lat}, ${lng} (Độ chính xác: ±${Math.round(pos.coords.accuracy)}m)`)
+        const curName = branchesList[selectedBranchIndex]?.branch_name || `Chi nhánh ${selectedBranchIndex + 1}`
+        setGpsMessage(`✅ Đã bắt tọa độ thành công cho [${curName}]: ${lat}, ${lng} (Độ chính xác: ±${Math.round(pos.coords.accuracy)}m)`)
       },
       (err) => {
         setDetectingGps(false)
@@ -456,21 +1038,25 @@ export default function JourneyAdminPage() {
     )
   }
 
-  // Lưu cấu hình GPS & Ca làm việc vào Camp
+  // Lưu cấu hình GPS Đa Chi Nhánh & Ca làm việc vào Camp
   const handleSaveGpsAndShifts = async () => {
     if (!selectedCampId) return
     const camp = camps.find((c) => c.id === selectedCampId)
     if (!camp) return
 
     setLoading(true)
+    const primary = branchesList[0] || { lat: 21.321146, lng: 105.393865, radius: 50, branch_name: "VP VicEdu Việt Trì" }
     const updatedCamp: CampData = {
       ...camp,
-      branch_gps: gpsForm,
+      branch_gps: {
+        ...primary,
+        branches: branchesList,
+      },
       shifts_config: shiftsForm,
     }
     const res = await saveCamp(updatedCamp)
     if (res.success) {
-      alert("✅ Đã lưu cấu hình Tọa độ GPS & Ca làm việc thành công!")
+      alert(`✅ Đã lưu cấu hình ${branchesList.length} Chi Nhánh GPS & Ca làm việc thành công!`)
       await loadCamps()
     } else {
       alert("❌ Lỗi: " + res.error)
@@ -657,6 +1243,37 @@ export default function JourneyAdminPage() {
           })
         }
       }
+    } else if (editingCamp.mode === "cham_cong") {
+      // Sinh lịch Ca làm việc theo Tháng cho Chấm Công Chi Nhánh
+      const [yStr, mStr] = genMonth.split("-")
+      const year = parseInt(yStr, 10)
+      const month = parseInt(mStr, 10)
+      const lastDay = new Date(year, month, 0).getDate()
+      const activeDays = weeklySchedule.map((s: any) => s.dayOfWeek)
+
+      for (let day = 1; day <= lastDay; day++) {
+        const d = new Date(year, month - 1, day)
+        const dayOfWeek = d.getDay()
+        if (activeDays.includes(dayOfWeek)) {
+          const rule = weeklySchedule.find((s: any) => s.dayOfWeek === dayOfWeek)
+          const dayPad = day < 10 ? `0${day}` : `${day}`
+          const mPad = month < 10 ? `0${month}` : `${month}`
+          const dateStr = `${year}-${mPad}-${dayPad}`
+          const shortDay = dayOfWeek === 0 ? "CN" : `T${dayOfWeek + 1}`
+
+          generated.push({
+            id: `s_${mPad}_${shortDay.toLowerCase()}_${day}`,
+            sessionCode: `${shortDay} · ${dayPad}/${mPad}`,
+            title: rule?.sessionTitle ? `${rule.sessionTitle}` : `Ca làm việc ${rule?.dayLabel || shortDay}`,
+            dateStr,
+            timeStr: `${shortDay} ${rule?.timeStr || "07:30"}`,
+            location: rule?.location || editingCamp.theme?.locationText || "VP VicEdu Chi Nhánh",
+            desc: `Ca làm việc định kỳ ${rule?.dayLabel || shortDay} lúc ${rule?.timeStr || "07:30"} tại ${rule?.location || "VP Chi Nhánh"}. Chấm công GPS đúng giờ.`,
+            isPast: dateStr < todayStr,
+            isToday: dateStr === todayStr,
+          })
+        }
+      }
     } else {
       // Sinh 24 hoặc 32 Buổi Học theo lộ trình cho Lớp Học
       const activeDays = weeklySchedule.map((s: any) => s.dayOfWeek)
@@ -700,15 +1317,52 @@ export default function JourneyAdminPage() {
       }
     }
 
-    // Giữ lại các Special Events đã thêm trước đó
-    const specialEvents = (editingCamp.sessions || []).filter((s: any) => s.isSpecialEvent)
-    const combinedSessions = [...generated, ...specialEvents].sort((a, b) => a.dateStr.localeCompare(b.dateStr))
+    let combinedSessions: any[] = [];
+    let updatedClubMonths = editingCamp.club_months || [];
+
+    if (editingCamp.mode === "clb_quanh_nam" || editingCamp.mode === "cham_cong") {
+      // 1. Đối với CLB Quanh Năm & Chấm Công Chi Nhánh: Sinh lịch THEO THÁNG (genMonth)
+      // GIỮ NGUYÊN tất cả các buổi của các tháng khác (ví dụ: đang sinh tháng 11 thì giữ nguyên tháng 10, tháng 12, etc.)
+      const otherMonthSessions = (editingCamp.sessions || []).filter(
+        (s: any) => !s.dateStr || !s.dateStr.startsWith(genMonth)
+      );
+
+      // Giữ lại các Special Events của tháng này (nếu có)
+      const specialEventsInGenMonth = (editingCamp.sessions || []).filter(
+        (s: any) => s.isSpecialEvent && s.dateStr && s.dateStr.startsWith(genMonth)
+      );
+
+      // Gộp: các tháng khác + các buổi mới sinh của tháng này + sự kiện đặc biệt (loại trừ trùng ID)
+      const thisMonthAll = [...generated, ...specialEventsInGenMonth];
+      const sessionMap = new Map();
+      [...otherMonthSessions, ...thisMonthAll].forEach(s => sessionMap.set(s.id, s));
+      combinedSessions = Array.from(sessionMap.values()).sort((a: any, b: any) =>
+        (a.dateStr || "").localeCompare(b.dateStr || "")
+      );
+
+      // Cập nhật mảng sessions trong club_months nếu là CLB Quanh Năm
+      if (Array.isArray(updatedClubMonths)) {
+        updatedClubMonths = updatedClubMonths.map((m: any) => {
+          if (m.id === genMonth) {
+            return { ...m, sessions: generated };
+          }
+          return m;
+        });
+      }
+    } else {
+      // 2. Đối với Khóa Học Theo Buổi (lop_hoc_buoi / thoi_quen_ca_nhan): Sinh toàn bộ lộ trình khóa học
+      const specialEvents = (editingCamp.sessions || []).filter((s: any) => s.isSpecialEvent);
+      combinedSessions = [...generated, ...specialEvents].sort((a: any, b: any) =>
+        (a.dateStr || "").localeCompare(b.dateStr || "")
+      );
+    }
 
     setEditingCamp({
       ...editingCamp,
       sessions: combinedSessions,
-    })
-    alert(`⚡ Đã tự động sinh thành công ${generated.length} buổi học/buổi chạy vào lịch trình!`)
+      club_months: updatedClubMonths,
+    });
+    alert(`⚡ Đã tự động sinh thành công ${generated.length} buổi vào lịch trình ${genMonth || ''}! (Toàn bộ các tháng khác vẫn được giữ nguyên an toàn)`)
   }
 
   // Thêm sự kiện đặc biệt mới vào editingCamp
@@ -717,28 +1371,60 @@ export default function JourneyAdminPage() {
       alert("Vui lòng nhập tên sự kiện và ngày diễn ra!")
       return
     }
+
+    const [y, m, d] = newEvent.dateStr.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dayOfWeek = dateObj.getDay();
+    const dayShort = dayOfWeek === 0 ? "CN" : `T${dayOfWeek + 1}`;
+    const dayPad = d < 10 ? `0${d}` : `${d}`;
+    const monthPad = m < 10 ? `0${m}` : `${m}`;
+    const dateFormatted = `${dayPad}/${monthPad}`;
+
+    const timeOnly = (newEvent.timeStr || "05:30").replace(/^(CN|T[2-7])\s*/, '');
+    const cleanTimeStr = `${dayShort} ${timeOnly || "05:30"}`;
+
+    const currentSessions = editingCamp?.sessions || [];
+    const hasParallel = currentSessions.some((s: any) => s.dateStr === newEvent.dateStr);
+
     const eventSession = {
       id: `event_${Date.now()}`,
-      sessionCode: `${newEvent.timeStr ? newEvent.timeStr.slice(0, 2) : "SK"} · ${newEvent.dateStr.slice(5).replace("-", "/")}`,
+      sessionCode: `${dayShort} · ${dateFormatted}`,
       title: newEvent.title.trim(),
       dateStr: newEvent.dateStr,
-      timeStr: newEvent.timeStr || "T7 05:30",
+      timeStr: cleanTimeStr,
       location: newEvent.location.trim() || "Địa điểm tổ chức",
       isSpecialEvent: true,
+      isParallel: hasParallel,
+      scopeTag: "🏆 ĐOÀN THI ĐẤU",
       eventType: newEvent.eventType || "race",
       specialBadge: newEvent.specialBadge.trim() || "🏆 GIẢI ĐẤU",
       desc: newEvent.desc.trim() || "",
     }
 
-    const currentSessions = editingCamp?.sessions || []
+    const updatedSessions = normalizeCampSessions([...currentSessions, eventSession]);
+
+    // Đồng bộ vào club_months nếu là CLB quanh năm
+    let updatedClubMonths = editingCamp?.club_months;
+    const genMonth = newEvent.dateStr.slice(0, 7);
+    if (editingCamp?.mode === "clb_quanh_nam" && Array.isArray(updatedClubMonths)) {
+      updatedClubMonths = updatedClubMonths.map((m: any) => {
+        if (m.id === genMonth) {
+          const monthSessions = updatedSessions.filter((s: any) => s.dateStr && s.dateStr.startsWith(m.id));
+          return { ...m, sessions: monthSessions };
+        }
+        return m;
+      });
+    }
+
     setEditingCamp({
       ...editingCamp!,
-      sessions: [...currentSessions, eventSession],
+      sessions: updatedSessions,
+      club_months: updatedClubMonths,
     })
     setNewEvent({
       title: "",
       dateStr: "",
-      timeStr: "T7 05:30",
+      timeStr: `${dayShort} 05:30`,
       location: "",
       specialBadge: "🏆 GIẢI ĐẤU",
       desc: "",
@@ -842,12 +1528,24 @@ export default function JourneyAdminPage() {
                 boxShadow: "0 4px 12px rgba(245, 158, 11, 0.35)",
               }}
             >
-              <Plus size={18} />
-              <span>Tạo Hành Trình Mới</span>
+              <Plus size={16} />
+              <span>Tạo Mới Hành Trình</span>
             </button>
 
             <button
-              onClick={handleExportExcel}
+              onClick={() => {
+                const target = camps.find(c => c.mode === 'cham_cong') || camps.find(c => c.id === selectedCampId) || camps[0];
+                if (target) {
+                  setSelectedCampId(target.id);
+                  const bList = parseBranchesFromCamp(target);
+                  setBranchesList(bList);
+                  setSelectedBranchIndex(0);
+                  if (target.shifts_config && target.shifts_config.length > 0) {
+                    setShiftsForm(target.shifts_config);
+                  }
+                }
+                setIsAttendanceSettingsModalOpen(true);
+              }}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -860,68 +1558,33 @@ export default function JourneyAdminPage() {
                 borderRadius: "10px",
                 border: "1px solid rgba(255, 255, 255, 0.25)",
                 cursor: "pointer",
+                transition: "all 0.2s ease",
               }}
-              title="Xuất dữ liệu cho Kế toán HO (Cô Thảo) nạp bảng tính"
+              title="Cài đặt hàng rào GPS 4 chi nhánh & ca làm việc VicHRM"
             >
-              <FileSpreadsheet size={18} style={{ color: "#34d399" }} />
-              <span>Xuất File Excel Chấm Công</span>
+              <Settings size={16} />
+              <span>Chấm Công & Ca Làm</span>
             </button>
-          </div>
-        </div>
 
-        {/* Camp Switcher Bar */}
-        <div style={{
-          marginTop: "1.25rem",
-          paddingTop: "1.25rem",
-          borderTop: "1px solid rgba(255, 255, 255, 0.15)",
-          display: "flex",
-          alignItems: "center",
-          gap: "1rem",
-          flexWrap: "wrap",
-        }}>
-          <span style={{ fontSize: "0.85rem", fontWeight: 600, opacity: 0.9 }}>Đang quản trị:</span>
-          <select
-            value={selectedCampId}
-            onChange={(e) => setSelectedCampId(e.target.value)}
-            style={{
-              background: "rgba(0, 0, 0, 0.25)",
-              color: "white",
-              border: "1px solid rgba(255, 255, 255, 0.3)",
-              borderRadius: "8px",
-              padding: "0.45rem 1rem",
-              fontSize: "0.88rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              outline: "none",
-            }}
-          >
-            {camps.map((c) => (
-              <option key={c.id} value={c.id} style={{ background: "#1e1b4b", color: "white" }}>
-                {c.title} ({c.mode === "clb_quanh_nam" ? "CLB Quanh Năm" : "Lớp Học"}) - {c.memberCount} TV
-              </option>
-            ))}
-          </select>
-
-          {selectedCamp && (
-            <a
-              href={`http://localhost:3001/hanh-trinh/${selectedCamp.slug}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={loadCamps}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
-                fontSize: "0.82rem",
-                color: "#6ee7b7",
-                textDecoration: "none",
-                fontWeight: 600,
-                marginLeft: "auto",
+                background: "transparent",
+                color: "rgba(255, 255, 255, 0.8)",
+                fontSize: "0.85rem",
+                padding: "0.65rem",
+                borderRadius: "10px",
+                border: "none",
+                cursor: "pointer",
               }}
+              title="Làm mới dữ liệu"
             >
-              <span>Xem trang Báo Cáo Học Viên</span>
-              <ExternalLink size={14} />
-            </a>
-          )}
+              <RefreshCw size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -934,7 +1597,6 @@ export default function JourneyAdminPage() {
       }}>
         {[
           { key: "camps", label: "⛺ Khóa Học & CLB (VicEdu & Rubisea)", icon: Award },
-          { key: "attendance", label: "📍 Chấm Công Chi Nhánh & Ca Làm (VicHRM)", icon: MapPin },
           { key: "approvals", label: "⚖️ Duyệt Giải Trình & Báo Cáo", icon: CheckCircle2, badge: camps.reduce((acc, c) => acc + (c.pendingCount || 0), 0) },
           { key: "members", label: "👥 Quản Lý Thành Viên & Mã PIN", icon: Users },
         ].map((tab) => {
@@ -980,245 +1642,924 @@ export default function JourneyAdminPage() {
       </div>
 
       {/* TAB 1: KHÓA HỌC & CLB */}
-      {activeTab === "camps" && (
-        <div>
-          {/* BỘ LỌC PHÂN LOẠI & TÌM KIẾM HÀNH TRÌNH */}
-          <div style={{
-            background: "var(--surface)",
-            borderRadius: "12px",
-            border: "1px solid var(--border)",
-            padding: "1rem 1.25rem",
-            marginBottom: "1.5rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.85rem",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
-              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
-                {[
-                  { key: "all", label: "🌟 Tất cả", count: camps.length },
-                  { key: "admin_only", label: "👑 Riêng tư / Admin", count: camps.filter(c => (c.scope || (c.theme as any)?.scope) === "admin_only").length },
-                  { key: "branch", label: "🏫 Chi nhánh VicEdu", count: camps.filter(c => (c.scope || (c.theme as any)?.scope || (c.slug.includes('ielts') ? 'branch' : '')) === "branch").length },
-                  { key: "partner", label: "🤝 Thầy cô Đối tác", count: camps.filter(c => (c.scope || (c.theme as any)?.scope) === "partner").length },
-                  { key: "club", label: "🏃 CLB Thể thao", count: camps.filter(c => (c.scope || (c.theme as any)?.scope || (c.mode === 'clb_quanh_nam' ? 'club' : '')) === "club").length },
-                ].map(f => (
-                  <button
-                    key={f.key}
-                    type="button"
-                    onClick={() => setScopeFilter(f.key as any)}
-                    style={{
-                      padding: "0.35rem 0.8rem",
-                      borderRadius: "8px",
-                      fontSize: "0.8rem",
-                      fontWeight: scopeFilter === f.key ? 700 : 500,
-                      background: scopeFilter === f.key ? "#4f46e5" : "var(--background)",
-                      color: scopeFilter === f.key ? "white" : "var(--text-main)",
-                      border: scopeFilter === f.key ? "1px solid #4f46e5" : "1px solid var(--border)",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    {f.label} ({f.count})
-                  </button>
-                ))}
-              </div>
+      {activeTab === "camps" && (() => {
+        const filteredCamps = camps.filter(camp => {
+          if (scopeFilter !== 'all') {
+            if (getCampScope(camp) !== scopeFilter) return false;
+          }
+          if (campSearch.trim()) {
+            const q = campSearch.toLowerCase();
+            return camp.title.toLowerCase().includes(q) || camp.slug.toLowerCase().includes(q);
+          }
+          return true;
+        });
 
-              <div style={{ position: "relative", minWidth: "240px" }}>
-                <input
-                  type="text"
-                  value={campSearch}
-                  onChange={(e) => setCampSearch(e.target.value)}
-                  placeholder="🔍 Tìm theo tên hoặc mã slug..."
-                  style={{
-                    width: "100%",
-                    padding: "0.45rem 0.85rem",
-                    borderRadius: "8px",
-                    border: "1px solid var(--border)",
-                    background: "var(--background)",
-                    color: "var(--text-main)",
-                    fontSize: "0.82rem",
-                  }}
-                />
+        const scopeCounts = {
+          all: camps.length,
+          admin_only: camps.filter(c => getCampScope(c) === 'admin_only').length,
+          branch: camps.filter(c => getCampScope(c) === 'branch').length,
+          partner: camps.filter(c => getCampScope(c) === 'partner').length,
+          cham_cong: camps.filter(c => getCampScope(c) === 'cham_cong').length,
+          thoi_quen: camps.filter(c => getCampScope(c) === 'thoi_quen').length,
+        };
+
+        const renderScopeBadge = (camp: any) => {
+          const sc = getCampScope(camp);
+          if (sc === 'thoi_quen') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>🧘‍♂️ Thói quen</span>;
+          if (sc === 'cham_cong') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0' }}>📍 Chấm công</span>;
+          if (sc === 'branch') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>🏫 Lớp học tại chi nhánh</span>;
+          if (sc === 'partner') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' }}>🤝 Lớp thầy cô đối tác</span>;
+          return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>👑 Chỉ Super Admin</span>;
+        };
+
+        return (
+          <div>
+            {/* BỘ LỌC PHÂN LOẠI & TÌM KIẾM HÀNH TRÌNH CHUẨN HÓA */}
+            <div style={{
+              background: "var(--surface)",
+              borderRadius: "12px",
+              border: "1px solid var(--border)",
+              padding: "1rem 1.25rem",
+              marginBottom: "1rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.85rem",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+                {/* 4 Nhóm Phân Loại Quyền + Tất cả */}
+                <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
+                  {[
+                    { key: "all", label: "🌟 Tất cả", count: scopeCounts.all },
+                    { key: "admin_only", label: "👑 Chỉ Super Admin", count: scopeCounts.admin_only },
+                    { key: "branch", label: "🏫 Lớp học tại chi nhánh", count: scopeCounts.branch },
+                    { key: "partner", label: "🤝 Lớp thầy cô đối tác", count: scopeCounts.partner },
+                    { key: "cham_cong", label: "📍 Chấm công", count: scopeCounts.cham_cong },
+                    { key: "thoi_quen", label: "🧘‍♂️ Thói quen", count: scopeCounts.thoi_quen },
+                  ].map(f => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setScopeFilter(f.key as any)}
+                      style={{
+                        padding: "0.4rem 0.85rem",
+                        borderRadius: "8px",
+                        fontSize: "0.8rem",
+                        fontWeight: scopeFilter === f.key ? 700 : 500,
+                        background: scopeFilter === f.key ? "#4f46e5" : "var(--background)",
+                        color: scopeFilter === f.key ? "white" : "var(--text-main)",
+                        border: scopeFilter === f.key ? "1px solid #4f46e5" : "1px solid var(--border)",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <span>{f.label}</span>
+                      <span style={{
+                        padding: "1px 6px",
+                        borderRadius: "10px",
+                        fontSize: "0.7rem",
+                        background: scopeFilter === f.key ? "rgba(255,255,255,0.25)" : "var(--border)",
+                        color: scopeFilter === f.key ? "white" : "var(--text-muted)",
+                        fontWeight: 700,
+                      }}>
+                        {f.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tìm kiếm & Chuyển đổi hiển thị Lưới / Danh Sách */}
+                <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ position: "relative", minWidth: "240px" }}>
+                    <input
+                      type="text"
+                      value={campSearch}
+                      onChange={(e) => setCampSearch(e.target.value)}
+                      placeholder="🔍 Tìm theo tên hoặc mã slug..."
+                      style={{
+                        width: "100%",
+                        padding: "0.45rem 0.85rem",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--background)",
+                        color: "var(--text-main)",
+                        fontSize: "0.82rem",
+                      }}
+                    />
+                  </div>
+
+                  {/* View Mode Toggle: Lưới vs Danh Sách */}
+                  <div style={{ display: "flex", background: "var(--background)", borderRadius: "8px", padding: "3px", border: "1px solid var(--border)" }}>
+                    <button
+                      type="button"
+                      onClick={() => setCampViewMode("grid")}
+                      style={{
+                        padding: "0.35rem 0.7rem",
+                        borderRadius: "6px",
+                        border: "none",
+                        background: campViewMode === "grid" ? "#4f46e5" : "transparent",
+                        color: campViewMode === "grid" ? "white" : "var(--text-muted)",
+                        cursor: "pointer",
+                        fontSize: "0.78rem",
+                        fontWeight: 600,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                      title="Hiển thị dạng Lưới Thẻ (Cards)"
+                    >
+                      <Layers size={13} />
+                      <span>Lưới</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCampViewMode("list")}
+                      style={{
+                        padding: "0.35rem 0.7rem",
+                        borderRadius: "6px",
+                        border: "none",
+                        background: campViewMode === "list" ? "#4f46e5" : "transparent",
+                        color: campViewMode === "list" ? "white" : "var(--text-muted)",
+                        cursor: "pointer",
+                        fontSize: "0.78rem",
+                        fontWeight: 600,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                      title="Hiển thị dạng Bảng Danh Sách (Table / List)"
+                    >
+                      <FileText size={13} />
+                      <span>Danh sách</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "1.5rem" }}>
-            {camps
-              .filter(camp => {
-                const sc = camp.scope || (camp.theme as any)?.scope || (camp.mode === 'clb_quanh_nam' ? 'club' : (camp.slug.includes('ielts') ? 'branch' : 'admin_only'));
-                if (scopeFilter !== 'all' && sc !== scopeFilter) return false;
-                if (campSearch.trim()) {
-                  const q = campSearch.toLowerCase();
-                  return camp.title.toLowerCase().includes(q) || camp.slug.toLowerCase().includes(q);
-                }
-                return true;
-              })
-              .map((camp) => (
-              <div
-                key={camp.id}
-                style={{
-                  background: "var(--surface)",
-                  borderRadius: "14px",
-                  border: selectedCampId === camp.id ? "2px solid #4f46e5" : "1px solid var(--border)",
-                  padding: "1.5rem",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  position: "relative",
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                      <span style={{
-                        display: "inline-block",
-                        fontSize: "0.72rem",
-                        fontWeight: 700,
-                        padding: "3px 8px",
-                        borderRadius: "6px",
-                        background: camp.mode === "clb_quanh_nam" ? "#ffe4e6" : "#e0e7ff",
-                        color: camp.mode === "clb_quanh_nam" ? "#be123c" : "#4338ca",
-                      }}>
-                        {camp.mode === "clb_quanh_nam" ? "🏃‍♂️ CLB QUANH NĂM" : "📚 LỚP HỌC BUỔI"}
-                      </span>
-                      {(() => {
-                        const sc = camp.scope || (camp.theme as any)?.scope || (camp.mode === 'clb_quanh_nam' ? 'club' : (camp.slug.includes('ielts') ? 'branch' : 'admin_only'));
-                        if (sc === 'admin_only') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#fef3c7', color: '#92400e' }}>👑 Chỉ Admin</span>;
-                        if (sc === 'branch') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#dbeafe', color: '#1e40af' }}>🏫 Chi Nhánh</span>;
-                        if (sc === 'partner') return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#f3e8ff', color: '#6b21a8' }}>🤝 Đối Tác</span>;
-                        return <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#ecfdf5', color: '#065f46' }}>🏃 CLB</span>;
-                      })()}
-                    </div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                      Mã: <code>{camp.slug}</code>
-                    </span>
-                  </div>
-
-                  <h3 style={{ fontSize: "1.15rem", fontWeight: 700, color: "var(--text-main)", marginBottom: "0.4rem" }}>
-                    {camp.title}
-                  </h3>
-                  <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "1rem", lineHeight: 1.4 }}>
-                    {camp.subtitle || "Không có phụ đề"}
-                  </p>
-
-                  {/* Slogan Tùy Biến (Addressing User's Request) */}
-                  <div style={{
-                    padding: "0.75rem",
-                    background: "var(--background)",
-                    borderRadius: "8px",
-                    borderLeft: "3px solid #f59e0b",
-                    fontSize: "0.8rem",
-                    fontStyle: "italic",
-                    marginBottom: "1rem",
-                    color: "var(--text-main)",
-                  }}>
-                    "{camp.slogan || "KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ"}"
-                  </div>
-
-                  {/* Quick Stats */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "1.25rem", textAlign: "center" }}>
-                    <div style={{ padding: "0.5rem", background: "var(--background)", borderRadius: "8px" }}>
-                      <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#4f46e5" }}>{camp.memberCount}</div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>Thành viên</div>
-                    </div>
-                    <div style={{ padding: "0.5rem", background: "var(--background)", borderRadius: "8px" }}>
-                      <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#10b981" }}>{camp.reportCount}</div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>Lượt nộp</div>
-                    </div>
-                    <div style={{ padding: "0.5rem", background: "var(--background)", borderRadius: "8px" }}>
-                      <div style={{ fontSize: "1.15rem", fontWeight: 800, color: camp.pendingCount > 0 ? "#ef4444" : "#6b7280" }}>
-                        {camp.pendingCount}
-                      </div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>Chờ duyệt</div>
-                    </div>
-                  </div>
+            {/* THANH THÔNG BÁO HÀNH TRÌNH ĐANG CHỌN (TIỆN ÍCH TRUY CẬP NHANH) */}
+            {selectedCamp && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0.75rem 1.15rem",
+                background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
+                borderRadius: "10px",
+                border: "1px solid #c7d2fe",
+                marginBottom: "1rem",
+                flexWrap: "wrap",
+                gap: "0.5rem"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#3730a3" }}>
+                    📍 Đang chọn quản trị: <b>{selectedCamp.title}</b>
+                  </span>
+                  <span style={{ fontSize: "0.72rem", background: "#4338ca", color: "white", padding: "2px 8px", borderRadius: "6px", fontWeight: 600 }}>
+                    {selectedCamp.slug}
+                  </span>
+                  {renderScopeBadge(selectedCamp)}
                 </div>
 
-                {/* Actions */}
-                <div style={{ display: "flex", gap: "0.5rem", borderTop: "1px solid var(--border)", paddingTop: "1rem", flexWrap: "wrap" }}>
-                  <button
-                    onClick={() => openAdminModal(camp)}
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <a
+                    href={`http://localhost:3001/hanh-trinh/${selectedCamp.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
-                      padding: "0.55rem 0.95rem",
-                      borderRadius: "8px",
-                      background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+                      gap: "5px",
+                      padding: "0.4rem 0.85rem",
+                      borderRadius: "6px",
+                      background: "#059669",
                       color: "white",
-                      fontSize: "0.82rem",
+                      fontSize: "0.78rem",
                       fontWeight: 700,
-                      border: "none",
-                      cursor: "pointer",
-                      boxShadow: "0 2px 6px rgba(124, 58, 237, 0.25)",
+                      textDecoration: "none",
+                      boxShadow: "0 2px 6px rgba(5, 150, 105, 0.25)"
                     }}
-                    title="Phân quyền Ban Quản Trị & Giáo viên phụ trách"
+                    title="Mở giao diện Học viên / LMS / Chấm công của hành trình này trên Web 2"
                   >
-                    <Shield size={14} />
-                    <span>🛡️ Phân Quyền QTV ({(camp.theme?.admins || []).length || 1})</span>
-                  </button>
+                    <span>🔗 Mở Web Báo Cáo Học Viên</span>
+                    <ExternalLink size={13} />
+                  </a>
 
                   <button
-                    onClick={() => {
-                      setSelectedCampId(camp.id)
-                      openCampModal(camp)
-                    }}
-                    style={{
-                      flex: 1,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
-                      padding: "0.55rem",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      background: "var(--surface)",
-                      color: "var(--text-main)",
-                      fontSize: "0.82rem",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    <Edit size={14} />
-                    <span>⚙️ Cấu Hình Toàn Diện (Lịch tuần, Nhiệm vụ, Sự kiện)</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setSelectedCampId(camp.id)
-                      setActiveTab("members")
-                    }}
+                    type="button"
+                    onClick={() => setActiveTab("members")}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      padding: "0.5rem 0.75rem",
-                      borderRadius: "8px",
+                      gap: "4px",
+                      padding: "0.4rem 0.75rem",
+                      borderRadius: "6px",
                       background: "#4f46e5",
                       color: "white",
-                      fontSize: "0.82rem",
+                      fontSize: "0.78rem",
                       fontWeight: 600,
                       border: "none",
-                      cursor: "pointer",
+                      cursor: "pointer"
                     }}
-                    title="Quản lý thành viên"
                   >
-                    <Users size={14} />
+                    <Users size={13} />
+                    <span>Thành viên ({selectedCamp.memberCount})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => openCampModal(selectedCamp)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "0.4rem 0.75rem",
+                      borderRadius: "6px",
+                      border: "1px solid #c7d2fe",
+                      background: "white",
+                      color: "#3730a3",
+                      fontSize: "0.78rem",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    <Edit size={13} />
+                    <span>Cấu hình</span>
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
 
-      {/* TAB 2: CHẤM CÔNG CHI NHÁNH & CA LÀM VIỆC */}
-      {activeTab === "attendance" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "2rem" }}>
-          {/* Card 1: Cấu hình GPS Geofencing */}
+            {filteredCamps.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "3rem", background: "var(--surface)", borderRadius: "12px", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+                <Compass size={40} style={{ margin: "0 auto 0.75rem", opacity: 0.6 }} />
+                <p style={{ fontWeight: 600 }}>Không tìm thấy hành trình nào phù hợp với bộ lọc!</p>
+              </div>
+            ) : campViewMode === "grid" ? (
+              /* CHẾ ĐỘ 1: DẠNG LƯỚI THẺ (GRID CARDS) - CLICK TRỰC TIẾP VÀO THẺ ĐỂ CHỌN */
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: "1rem" }}>
+                {filteredCamps.map((camp) => {
+                  const isSelected = selectedCampId === camp.id;
+                  return (
+                    <div
+                      key={camp.id}
+                      onClick={() => setSelectedCampId(camp.id)}
+                      style={{
+                        background: "var(--surface)",
+                        borderRadius: "12px",
+                        border: isSelected ? "2px solid #4f46e5" : "1px solid var(--border)",
+                        padding: "1.1rem",
+                        boxShadow: isSelected ? "0 6px 20px rgba(79, 70, 229, 0.2)" : "0 2px 8px rgba(0,0,0,0.03)",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        position: "relative",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                      title="Click để chọn hành trình này để quản trị"
+                    >
+                      <div>
+                        {/* Header của thẻ */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                          <div style={{ display: "flex", gap: "5px", alignItems: "center", flexWrap: "wrap" }}>
+                            {renderScopeBadge(camp)}
+                            {isSelected && (
+                              <span style={{ fontSize: "0.65rem", fontWeight: 800, padding: "2px 6px", borderRadius: "4px", background: "#4f46e5", color: "white" }}>
+                                ✓ ĐANG CHỌN
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                              Mã: <code style={{ fontSize: "0.7rem" }}>{camp.slug}</code>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCamp(camp);
+                              }}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "#9ca3af",
+                                cursor: "pointer",
+                                padding: "2px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                borderRadius: "4px",
+                                transition: "color 0.15s",
+                              }}
+                              title={`Xóa vĩnh viễn hành trình "${camp.title}" và dọn sạch dữ liệu`}
+                              onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                              onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <h3 style={{ fontSize: "1.02rem", fontWeight: 700, color: isSelected ? "#4f46e5" : "var(--text-main)", marginBottom: "0.25rem", lineHeight: 1.3 }}>
+                          {camp.title}
+                        </h3>
+                        <p style={{
+                          fontSize: "0.78rem",
+                          color: "var(--text-muted)",
+                          marginBottom: "0.55rem",
+                          lineHeight: 1.35,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }} title={camp.subtitle || ""}>
+                          {camp.subtitle || "Không có phụ đề"}
+                        </p>
+
+                        {/* Slogan */}
+                        <div style={{
+                          padding: "0.4rem 0.6rem",
+                          background: "var(--background)",
+                          borderRadius: "6px",
+                          borderLeft: "3px solid #f59e0b",
+                          fontSize: "0.74rem",
+                          fontStyle: "italic",
+                          marginBottom: "0.65rem",
+                          color: "var(--text-main)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }} title={camp.slogan || "KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ"}>
+                          "{camp.slogan || "KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ"}"
+                        </div>
+
+                        {/* Quick Stats */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.4rem", marginBottom: "0.75rem", textAlign: "center" }}>
+                          <div style={{ padding: "0.35rem 0.4rem", background: "var(--background)", borderRadius: "6px" }}>
+                            <div style={{ fontSize: "1rem", fontWeight: 800, color: "#4f46e5" }}>{camp.memberCount}</div>
+                            <div style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>Thành viên</div>
+                          </div>
+                          <div style={{ padding: "0.35rem 0.4rem", background: "var(--background)", borderRadius: "6px" }}>
+                            <div style={{ fontSize: "1rem", fontWeight: 800, color: "#10b981" }}>{camp.reportCount}</div>
+                            <div style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>Lượt nộp</div>
+                          </div>
+                          <div style={{ padding: "0.35rem 0.4rem", background: "var(--background)", borderRadius: "6px" }}>
+                            <div style={{ fontSize: "1rem", fontWeight: 800, color: camp.pendingCount > 0 ? "#ef4444" : "#6b7280" }}>
+                              {camp.pendingCount}
+                            </div>
+                            <div style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>Chờ duyệt</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Nút Xem Web Báo Cáo + Actions */}
+                      <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.65rem", display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+                        <a
+                          href={`http://localhost:3001/hanh-trinh/${camp.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "5px",
+                            padding: "0.45rem",
+                            borderRadius: "6px",
+                            background: "#ecfdf5",
+                            color: "#065f46",
+                            border: "1px solid #a7f3d0",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            textDecoration: "none",
+                            transition: "all 0.15s ease",
+                          }}
+                          title="Mở giao diện Web 2 dành cho học viên / nhân sự"
+                        >
+                          <span>🔗 Xem Trang Báo Cáo Học Viên</span>
+                          <ExternalLink size={13} />
+                        </a>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.3rem" }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCloneCamp(camp);
+                            }}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "3px",
+                              padding: "0.42rem 0.2rem",
+                              borderRadius: "6px",
+                              border: "1px solid #bfdbfe",
+                              background: "#eff6ff",
+                              color: "#2563eb",
+                              fontSize: "0.72rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                            }}
+                            title="Nhân bản hành trình này thành một bản sao mới"
+                          >
+                            <Copy size={12} />
+                            <span>Nhân bản</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCampId(camp.id);
+                              openCampModal(camp);
+                            }}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "3px",
+                              padding: "0.42rem 0.2rem",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border)",
+                              background: "var(--background)",
+                              color: "var(--text-main)",
+                              fontSize: "0.72rem",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                            }}
+                            title="Cấu hình: Lịch tuần, Nhiệm vụ, Sự kiện"
+                          >
+                            <Edit size={12} />
+                            <span>Cấu hình</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCampId(camp.id);
+                              setActiveTab("members");
+                            }}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "3px",
+                              padding: "0.42rem 0.2rem",
+                              borderRadius: "6px",
+                              background: "#4f46e5",
+                              color: "white",
+                              fontSize: "0.72rem",
+                              fontWeight: 600,
+                              border: "none",
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                            }}
+                            title="Xem & Quản lý danh sách thành viên"
+                          >
+                            <Users size={12} />
+                            <span>Thành viên</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openAdminModal(camp);
+                            }}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "3px",
+                              padding: "0.42rem 0.2rem",
+                              borderRadius: "6px",
+                              background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+                              color: "white",
+                              fontSize: "0.72rem",
+                              fontWeight: 600,
+                              border: "none",
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                            }}
+                            title={`Phân quyền Ban Quản Trị & Giáo viên phụ trách (${(camp.theme?.admins || []).length || 1} QTV)`}
+                          >
+                            <Shield size={12} />
+                            <span>QTV</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* CHẾ ĐỘ 2: DẠNG BẢNG DANH SÁCH (TABLE / LIST VIEW) */
+              <div style={{ background: "var(--surface)", borderRadius: "12px", border: "1px solid var(--border)", overflowX: "auto", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", textAlign: "left" }}>
+                  <thead>
+                    <tr style={{ background: "var(--background)", borderBottom: "2px solid var(--border)" }}>
+                      <th style={{ padding: "0.85rem 1rem" }}>Hành Trình / Khóa Học</th>
+                      <th style={{ padding: "0.85rem 1rem" }}>Phân Loại Quyền</th>
+                      <th style={{ padding: "0.85rem 1rem", textAlign: "center" }}>Thành Viên</th>
+                      <th style={{ padding: "0.85rem 1rem", textAlign: "center" }}>Lượt Nộp</th>
+                      <th style={{ padding: "0.85rem 1rem", textAlign: "center" }}>Chờ Duyệt</th>
+                      <th style={{ padding: "0.85rem 1rem", textAlign: "center" }}>QTV</th>
+                      <th style={{ padding: "0.85rem 1rem", textAlign: "right" }}>Thao Tác Nhanh</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCamps.map((camp) => {
+                      const isSelected = selectedCampId === camp.id;
+                      return (
+                        <tr
+                          key={camp.id}
+                          onClick={() => setSelectedCampId(camp.id)}
+                          style={{
+                            borderBottom: "1px solid var(--border)",
+                            background: isSelected ? "rgba(79, 70, 229, 0.08)" : "transparent",
+                            cursor: "pointer",
+                            transition: "background 0.15s ease",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = "var(--background)";
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          <td style={{ padding: "0.85rem 1rem" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <div>
+                                <div style={{ fontWeight: 700, color: isSelected ? "#4f46e5" : "var(--text-main)", fontSize: "0.9rem" }}>
+                                  {camp.title}
+                                </div>
+                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                  <code>{camp.slug}</code> · {camp.subtitle || "Không có phụ đề"}
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <span style={{ fontSize: "0.62rem", fontWeight: 800, padding: "2px 5px", borderRadius: "4px", background: "#4f46e5", color: "white" }}>
+                                  ✓ CHỌN
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem" }}>
+                            {renderScopeBadge(camp)}
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "center", fontWeight: 700, color: "#4f46e5" }}>
+                            {camp.memberCount}
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "center", fontWeight: 700, color: "#10b981" }}>
+                            {camp.reportCount}
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "center", fontWeight: 700, color: camp.pendingCount > 0 ? "#ef4444" : "#6b7280" }}>
+                            {camp.pendingCount}
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "center", fontWeight: 600 }}>
+                            <span style={{ padding: "2px 6px", borderRadius: "6px", background: "#f3e8ff", color: "#7c3aed", fontSize: "0.75rem" }}>
+                              🛡️ {(camp.theme?.admins || []).length || 1}
+                            </span>
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "right" }}>
+                            <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
+                              <a
+                                href={`http://localhost:3001/hanh-trinh/${camp.slug}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  padding: "0.35rem 0.65rem",
+                                  borderRadius: "6px",
+                                  background: "#ecfdf5",
+                                  color: "#065f46",
+                                  border: "1px solid #a7f3d0",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 700,
+                                  textDecoration: "none",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                }}
+                                title="Xem trang Báo Cáo Học Viên trên Web 2"
+                              >
+                                <span>Xem Web</span>
+                                <ExternalLink size={12} />
+                              </a>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMobilePreviewCamp(camp);
+                                }}
+                                style={{
+                                  padding: "0.35rem 0.6rem",
+                                  borderRadius: "6px",
+                                  background: "#ecfdf5",
+                                  color: "#059669",
+                                  border: "1px solid #a7f3d0",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                }}
+                                title="Mô phỏng giao diện người dùng trên điện thoại iPhone"
+                              >
+                                <Smartphone size={12} />
+                                <span>📱 Mobile</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCloneCamp(camp);
+                                }}
+                                style={{
+                                  padding: "0.35rem 0.6rem",
+                                  borderRadius: "6px",
+                                  border: "1px solid #bfdbfe",
+                                  background: "#eff6ff",
+                                  color: "#2563eb",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                                title="Nhân bản hành trình"
+                              >
+                                Nhân bản
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCampId(camp.id);
+                                  openCampModal(camp);
+                                }}
+                                style={{
+                                  padding: "0.35rem 0.6rem",
+                                  borderRadius: "6px",
+                                  border: "1px solid var(--border)",
+                                  background: "var(--background)",
+                                  color: "var(--text-main)",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Cấu hình
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openAdminModal(camp);
+                                }}
+                                style={{
+                                  padding: "0.35rem 0.6rem",
+                                  borderRadius: "6px",
+                                  border: "none",
+                                  background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+                                  color: "white",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                QTV
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCampId(camp.id);
+                                  setActiveTab("members");
+                                }}
+                                style={{
+                                  padding: "0.35rem 0.65rem",
+                                  borderRadius: "6px",
+                                  border: "none",
+                                  background: "#4f46e5",
+                                  color: "white",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Thành viên
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteCamp(camp);
+                                }}
+                                style={{
+                                  padding: "0.35rem 0.6rem",
+                                  borderRadius: "6px",
+                                  border: "1px solid #fecaca",
+                                  background: "#fef2f2",
+                                  color: "#ef4444",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                }}
+                                title={`Xóa vĩnh viễn hành trình "${camp.title}"`}
+                              >
+                                <Trash2 size={12} />
+                                <span>Xóa</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* MODAL CÀI ĐẶT HỆ THỐNG: CHẤM CÔNG CHI NHÁNH & CA LÀM (VICHRM) */}
+      {isAttendanceSettingsModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(6px)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+          onClick={() => setIsAttendanceSettingsModalOpen(false)}
+        >
+          <div
+            style={{
+              background: "var(--surface)",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "1200px",
+              maxHeight: "92vh",
+              overflowY: "auto",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              border: "1px solid var(--border)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: "1.25rem 1.75rem",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "#ffffff",
+              position: "sticky",
+              top: 0,
+              zIndex: 30,
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.05)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{
+                  width: "42px",
+                  height: "42px",
+                  borderRadius: "10px",
+                  background: "#ecfdf5",
+                  color: "#10b981",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "1.25rem",
+                }}>
+                  ⚙️
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: "var(--text-main)" }}>
+                    Cấu Hình Chấm Công Chi Nhánh & Ca Làm (VicHRM)
+                  </h3>
+                  <p style={{ margin: "2px 0 0", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                    Cài đặt 1 lần dùng mãi mãi: Hàng rào định vị GPS 4 chi nhánh & khung giờ ca trực P1..P5
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                {/* BỘ CHỌN HÀNH TRÌNH ĐỂ CẤU HÌNH */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                    🏢 Áp dụng cho:
+                  </label>
+                  <select
+                    value={selectedCampId}
+                    onChange={(e) => {
+                      const newId = e.target.value;
+                      setSelectedCampId(newId);
+                      const target = camps.find(c => c.id === newId);
+                      if (target) {
+                        const bList = parseBranchesFromCamp(target);
+                        setBranchesList(bList);
+                        setSelectedBranchIndex(0);
+                        if (target.shifts_config && target.shifts_config.length > 0) {
+                          setShiftsForm(target.shifts_config);
+                        }
+                      }
+                    }}
+                    style={{
+                      padding: "0.45rem 0.85rem",
+                      borderRadius: "8px",
+                      border: "1.5px solid #10b981",
+                      background: "#f0fdf4",
+                      color: "#166534",
+                      fontWeight: 800,
+                      fontSize: "0.82rem",
+                      cursor: "pointer",
+                      maxWidth: "280px",
+                    }}
+                  >
+                    {camps.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.mode === 'cham_cong' ? '⭐ [Chấm Công] ' : ''}{c.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* NÚT XUẤT EXCEL BÁO CÁO LỒNG VÀO TRONG THEO Ý BỐ HOÀNG */}
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "#0284c7",
+                    color: "white",
+                    fontWeight: 700,
+                    fontSize: "0.82rem",
+                    padding: "0.55rem 1rem",
+                    borderRadius: "8px",
+                    border: "none",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 6px rgba(2, 132, 199, 0.25)",
+                    transition: "all 0.2s ease",
+                  }}
+                  title="Xuất bảng nhật ký điểm danh ra file Excel"
+                >
+                  <Download size={15} />
+                  <span>Xuất Excel Báo Cáo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAttendanceSettingsModalOpen(false)}
+                  style={{
+                    width: "34px",
+                    height: "34px",
+                    borderRadius: "50%",
+                    background: "var(--background)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-muted)",
+                    fontSize: "1.1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                  title="Đóng cửa sổ"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: Grid 2 Cột */}
+            <div style={{ padding: "1.75rem", display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "1.75rem" }}>
+          {/* Card 1: Cấu hình GPS Geofencing Đa Chi Nhánh (VicEdu Multi-Branch) */}
           <div style={{
             background: "var(--surface)",
             padding: "1.75rem",
@@ -1226,114 +2567,295 @@ export default function JourneyAdminPage() {
             border: "1px solid var(--border)",
             boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "1rem" }}>
-              <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <MapPin size={20} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <MapPin size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>
+                    Hàng Rào Địa Lý GPS ({branchesList.length} Chi Nhánh VicEdu)
+                  </h3>
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>
+                    Nhân viên có mặt tại bất kỳ chi nhánh nào trong bán kính đều được chấm công
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>Hàng Rào Địa Lý GPS (Geofencing)</h3>
-                <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>Chỉ điện thoại thông minh trong bán kính mới được ghi nhận đủ công</p>
+              <button
+                type="button"
+                onClick={() => {
+                  const newB = {
+                    id: `b_${Date.now()}`,
+                    branch_name: `VP VicEdu Chi Nhánh ${branchesList.length + 1}`,
+                    address: "Phú Thọ",
+                    lat: 21.321852,
+                    lng: 105.398214,
+                    radius: 50,
+                  };
+                  setBranchesList([...branchesList, newB]);
+                  setSelectedBranchIndex(branchesList.length);
+                  setGpsMessage(null);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "#f0fdf4",
+                  border: "1px solid #86efac",
+                  color: "#15803d",
+                  padding: "0.45rem 0.85rem",
+                  borderRadius: "8px",
+                  fontSize: "0.8rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                <span>➕</span> Thêm Chi Nhánh
+              </button>
+            </div>
+
+            {/* THANH TAB CHỌN NHANH CÁC CHI NHÁNH */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(auto-fit, minmax(130px, 1fr))`,
+              gap: "8px",
+              marginBottom: "1.25rem",
+              background: "var(--background)",
+              padding: "6px",
+              borderRadius: "10px",
+              border: "1px solid var(--border)",
+            }}>
+              {branchesList.map((b, idx) => {
+                const isSel = idx === selectedBranchIndex;
+                return (
+                  <button
+                    key={b.id || idx}
+                    type="button"
+                    onClick={() => {
+                      setSelectedBranchIndex(idx);
+                      setGpsMessage(null);
+                    }}
+                    style={{
+                      padding: "0.6rem 0.75rem",
+                      borderRadius: "8px",
+                      border: isSel ? "1.5px solid #10b981" : "1px solid transparent",
+                      background: isSel ? "#ffffff" : "transparent",
+                      color: isSel ? "#065f46" : "var(--text-muted)",
+                      fontWeight: isSel ? 800 : 600,
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      boxShadow: isSel ? "0 2px 6px rgba(16, 185, 129, 0.15)" : "none",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "2px",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        📍 CN {idx + 1}
+                      </span>
+                      {isSel && (
+                        <span style={{ fontSize: "0.65rem", background: "#dcfce7", color: "#166534", padding: "1px 5px", borderRadius: "4px" }}>
+                          Đang sửa
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: "0.74rem", fontWeight: 700, color: isSel ? "#0f172a" : "var(--text-main)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {b.branch_name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* FORM CHỈNH SỬA CHI NHÁNH ĐANG CHỌN */}
+            {(() => {
+              const curB = branchesList[selectedBranchIndex] || branchesList[0];
+              if (!curB) return null;
+
+              const updateCurB = (fields: Partial<typeof curB>) => {
+                setBranchesList(prev => prev.map((item, i) => i === selectedBranchIndex ? { ...item, ...fields } : item));
+              };
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "1rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Tên Chi Nhánh ({selectedBranchIndex + 1}/{branchesList.length})
+                      </label>
+                      <input
+                        type="text"
+                        value={curB.branch_name}
+                        onChange={(e) => updateCurB({ branch_name: e.target.value })}
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontWeight: 700 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Địa Chỉ / Khu Vực
+                      </label>
+                      <input
+                        type="text"
+                        value={curB.address || ""}
+                        placeholder="VD: Đại lộ Hùng Vương..."
+                        onChange={(e) => updateCurB({ address: e.target.value })}
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Vĩ độ (Latitude)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={curB.lat}
+                        onChange={(e) => updateCurB({ lat: parseFloat(e.target.value) || 0 })}
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontWeight: 600 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        Kinh độ (Longitude)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={curB.lng}
+                        onChange={(e) => updateCurB({ lng: parseFloat(e.target.value) || 0 })}
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontWeight: 600 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                      Bán kính cho phép check-in: <strong>{curB.radius || 50} mét</strong>
+                    </label>
+                    <input
+                      type="range"
+                      min="20"
+                      max="200"
+                      step="5"
+                      value={curB.radius || 50}
+                      onChange={(e) => updateCurB({ radius: parseInt(e.target.value) })}
+                      style={{ width: "100%", accentColor: "#10b981" }}
+                    />
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                      <span>20m (Hẹp)</span>
+                      <span>50m (Khuyên dùng)</span>
+                      <span>100m</span>
+                      <span>200m (Rộng)</span>
+                    </div>
+                  </div>
+
+                  {/* Nút Lấy Tọa Độ & Xóa Chi Nhánh */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", paddingTop: "0.5rem" }}>
+                    <button
+                      type="button"
+                      onClick={handleDetectCurrentGPS}
+                      disabled={detectingGps}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                        color: "white",
+                        fontWeight: 600,
+                        fontSize: "0.85rem",
+                        padding: "0.65rem 1.25rem",
+                        borderRadius: "8px",
+                        border: "none",
+                        cursor: detectingGps ? "not-allowed" : "pointer",
+                        boxShadow: "0 2px 8px rgba(16, 185, 129, 0.25)",
+                      }}
+                    >
+                      <Navigation size={16} />
+                      <span>{detectingGps ? "Đang định vị vệ tinh..." : `📍 Lấy Tọa Độ Cho [${curB.branch_name}]`}</span>
+                    </button>
+
+                    {branchesList.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Bố Hoàng có chắc muốn xóa [${curB.branch_name}] khỏi danh sách chấm công?`)) {
+                            const filtered = branchesList.filter((_, i) => i !== selectedBranchIndex);
+                            setBranchesList(filtered);
+                            setSelectedBranchIndex(Math.max(0, selectedBranchIndex - 1));
+                          }
+                        }}
+                        style={{
+                          background: "#fff1f2",
+                          border: "1px solid #fecaca",
+                          color: "#e11d48",
+                          padding: "0.55rem 0.9rem",
+                          borderRadius: "8px",
+                          fontSize: "0.8rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        🗑️ Xóa Chi Nhánh Này
+                      </button>
+                    )}
+                  </div>
+
+                  {gpsMessage && (
+                    <p style={{ marginTop: "0.25rem", fontSize: "0.82rem", color: gpsMessage.startsWith("✅") ? "#10b981" : "#ef4444" }}>
+                      {gpsMessage}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* DANH SÁCH TỔNG QUAN CÁC CHI NHÁNH */}
+            <div style={{ marginTop: "1.25rem", borderTop: "1px dashed var(--border)", paddingTop: "1rem" }}>
+              <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
+                📋 Danh Sách {branchesList.length} Chi Nhánh Đã Thiết Lập:
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                {branchesList.map((b, i) => (
+                  <div
+                    key={b.id || i}
+                    onClick={() => setSelectedBranchIndex(i)}
+                    style={{
+                      padding: "0.55rem 0.75rem",
+                      borderRadius: "8px",
+                      background: i === selectedBranchIndex ? "#f0fdf4" : "var(--background)",
+                      border: i === selectedBranchIndex ? "1.5px solid #86efac" : "1px solid var(--border)",
+                      cursor: "pointer",
+                      fontSize: "0.75rem",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: i === selectedBranchIndex ? "#166534" : "var(--text-main)" }}>
+                      🏢 {b.branch_name}
+                    </div>
+                    <div style={{ color: "var(--text-muted)", fontSize: "0.7rem", marginTop: "2px" }}>
+                      {b.lat}, {b.lng} · <b>R={b.radius || 50}m</b>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1.25rem" }}>
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Tên Chi Nhánh / Văn Phòng</label>
-                <input
-                  type="text"
-                  value={gpsForm.branch_name}
-                  onChange={(e) => setGpsForm({ ...gpsForm, branch_name: e.target.value })}
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Vĩ độ (Latitude)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={gpsForm.lat}
-                    onChange={(e) => setGpsForm({ ...gpsForm, lat: parseFloat(e.target.value) || 0 })}
-                    style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Kinh độ (Longitude)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={gpsForm.lng}
-                    onChange={(e) => setGpsForm({ ...gpsForm, lng: parseFloat(e.target.value) || 0 })}
-                    style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                  Bán kính cho phép check-in: <strong>{gpsForm.radius} mét</strong>
-                </label>
-                <input
-                  type="range"
-                  min="20"
-                  max="200"
-                  step="5"
-                  value={gpsForm.radius}
-                  onChange={(e) => setGpsForm({ ...gpsForm, radius: parseInt(e.target.value) })}
-                  style={{ width: "100%", accentColor: "#4f46e5" }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                  <span>20m (Rất hẹp)</span>
-                  <span>50m (Khuyên dùng)</span>
-                  <span>100m</span>
-                  <span>200m (Rộng)</span>
-                </div>
-              </div>
-
-              {/* Nút Lấy Tọa Độ Tự Động */}
-              <div style={{ paddingTop: "0.5rem" }}>
-                <button
-                  type="button"
-                  onClick={handleDetectCurrentGPS}
-                  disabled={detectingGps}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                    color: "white",
-                    fontWeight: 600,
-                    fontSize: "0.85rem",
-                    padding: "0.65rem 1.25rem",
-                    borderRadius: "8px",
-                    border: "none",
-                    cursor: detectingGps ? "not-allowed" : "pointer",
-                    boxShadow: "0 2px 8px rgba(16, 185, 129, 0.25)",
-                  }}
-                >
-                  <Navigation size={16} />
-                  <span>{detectingGps ? "Đang định vị vệ tinh..." : "📍 Lấy Tọa Độ Vị Trí Hiện Tại Của Bố Hoàng"}</span>
-                </button>
-
-                {gpsMessage && (
-                  <p style={{ marginTop: "0.65rem", fontSize: "0.82rem", color: gpsMessage.startsWith("✅") ? "#10b981" : "#ef4444" }}>
-                    {gpsMessage}
-                  </p>
-                )}
-              </div>
-
-              <div style={{
-                background: "rgba(79, 70, 229, 0.05)",
-                border: "1px dashed #818cf8",
-                borderRadius: "8px",
-                padding: "0.85rem",
-                fontSize: "0.8rem",
-                color: "var(--text-main)",
-                marginTop: "0.5rem",
-              }}>
-                💡 <strong>Cách lấy tọa độ từ Google Maps:</strong> Mở Google Maps trên máy tính/điện thoại, click chuột phải vào đúng điểm chi nhánh trung tâm, dòng đầu tiên chính là dãy số tọa độ (Ví dụ: <code>21.321852, 105.398214</code>). Bấm vào đó là đã copy!
-              </div>
+            <div style={{
+              background: "rgba(79, 70, 229, 0.05)",
+              border: "1px dashed #818cf8",
+              borderRadius: "8px",
+              padding: "0.85rem",
+              fontSize: "0.8rem",
+              color: "var(--text-main)",
+              marginTop: "1rem",
+            }}>
+              💡 <strong>Cách lấy tọa độ từ Google Maps:</strong> Mở Google Maps trên máy tính/điện thoại, click chuột phải vào đúng điểm chi nhánh trung tâm, dòng đầu tiên chính là dãy số tọa độ (Ví dụ: <code>21.321852, 105.398214</code>). Bấm vào đó là đã copy!
             </div>
           </div>
 
@@ -1349,44 +2871,272 @@ export default function JourneyAdminPage() {
             justifyContent: "space-between",
           }}>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "1rem" }}>
-                <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#eef2ff", color: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Clock size={20} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", marginBottom: "1rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#eef2ff", color: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Clock size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>Cấu Hình Ca Làm Việc (Shifts)</h3>
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>Tự động đối soát giờ Check-in / Check-out tính đi muộn, về sớm</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>Cấu Hình Ca Làm Việc (Shifts)</h3>
-                  <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>Tự động đối soát giờ Check-in / Check-out tính đi muộn, về sớm</p>
-                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newIdx = shiftsForm.length + 1;
+                    const newShift = {
+                      id: `P${newIdx}`,
+                      name: `Ca P${newIdx}`,
+                      start: "08:00",
+                      end: "17:00",
+                    };
+                    const next = [...shiftsForm, newShift];
+                    setShiftsForm(next);
+                    setEditingShiftIndex(next.length - 1);
+                    setEditingShiftData(newShift);
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    background: "#4f46e5",
+                    color: "white",
+                    border: "none",
+                    padding: "0.45rem 0.85rem",
+                    borderRadius: "8px",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    boxShadow: "0 2px 6px rgba(79, 70, 229, 0.2)",
+                  }}
+                  title="Thêm ca làm việc mới"
+                >
+                  <Plus size={14} />
+                  <span>+ Thêm Ca</span>
+                </button>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem" }}>
                 {shiftsForm.map((shift, idx) => (
-                  <div
-                    key={shift.id || idx}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr auto",
-                      gap: "0.5rem",
-                      alignItems: "center",
-                      padding: "0.6rem 0.85rem",
-                      background: "var(--background)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "#4f46e5" }}>{shift.name}</span>
-                    <div style={{ fontSize: "0.8rem" }}>
-                      <span style={{ color: "var(--text-muted)" }}>Vào: </span>
-                      <strong>{shift.start}</strong>
+                  editingShiftIndex === idx ? (
+                    <div
+                      key={shift.id || idx}
+                      style={{
+                        background: "#f5f3ff",
+                        border: "1.5px solid #818cf8",
+                        borderRadius: "10px",
+                        padding: "0.85rem",
+                        boxShadow: "0 2px 8px rgba(79, 70, 229, 0.08)",
+                      }}
+                    >
+                      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: "0.6rem", marginBottom: "0.6rem" }}>
+                        <div>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#4338ca", display: "block", marginBottom: "3px" }}>
+                            Tên Ca Làm:
+                          </label>
+                          <input
+                            type="text"
+                            value={editingShiftData.name}
+                            onChange={(e) => setEditingShiftData({ ...editingShiftData, name: e.target.value })}
+                            placeholder="VD: Ca P1, Ca Sáng..."
+                            style={{
+                              width: "100%",
+                              padding: "0.45rem 0.65rem",
+                              borderRadius: "6px",
+                              border: "1px solid #c7d2fe",
+                              background: "#fff",
+                              color: "#0f172a",
+                              fontSize: "0.82rem",
+                              fontWeight: 700,
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#4338ca", display: "block", marginBottom: "3px" }}>
+                            Giờ Vào:
+                          </label>
+                          <input
+                            type="time"
+                            value={editingShiftData.start}
+                            onChange={(e) => setEditingShiftData({ ...editingShiftData, start: e.target.value })}
+                            style={{
+                              width: "100%",
+                              padding: "0.45rem 0.65rem",
+                              borderRadius: "6px",
+                              border: "1px solid #c7d2fe",
+                              background: "#fff",
+                              color: "#0f172a",
+                              fontSize: "0.82rem",
+                              fontWeight: 700,
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#4338ca", display: "block", marginBottom: "3px" }}>
+                            Giờ Ra:
+                          </label>
+                          <input
+                            type="time"
+                            value={editingShiftData.end}
+                            onChange={(e) => setEditingShiftData({ ...editingShiftData, end: e.target.value })}
+                            style={{
+                              width: "100%",
+                              padding: "0.45rem 0.65rem",
+                              borderRadius: "6px",
+                              border: "1px solid #c7d2fe",
+                              background: "#fff",
+                              color: "#0f172a",
+                              fontSize: "0.82rem",
+                              fontWeight: 700,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "6px" }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingShiftIndex(null)}
+                          style={{
+                            padding: "0.35rem 0.75rem",
+                            borderRadius: "6px",
+                            border: "1px solid var(--border)",
+                            background: "#fff",
+                            color: "var(--text-main)",
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!editingShiftData.name.trim()) {
+                              alert("Vui lòng nhập tên ca làm việc!");
+                              return;
+                            }
+                            const next = [...shiftsForm];
+                            next[idx] = {
+                              ...next[idx],
+                              name: editingShiftData.name.trim(),
+                              start: editingShiftData.start || "08:00",
+                              end: editingShiftData.end || "17:00",
+                            };
+                            setShiftsForm(next);
+                            setEditingShiftIndex(null);
+                          }}
+                          style={{
+                            padding: "0.35rem 0.85rem",
+                            borderRadius: "6px",
+                            border: "none",
+                            background: "#4f46e5",
+                            color: "#fff",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          ✓ Xong
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ fontSize: "0.8rem" }}>
-                      <span style={{ color: "var(--text-muted)" }}>Ra: </span>
-                      <strong>{shift.end}</strong>
+                  ) : (
+                    <div
+                      key={shift.id || idx}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "0.6rem 0.85rem",
+                        background: "var(--background)",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        gap: "0.5rem",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 700, fontSize: "0.88rem", color: "#4f46e5", minWidth: "55px" }}>
+                          {shift.name}
+                        </span>
+                        <div style={{ fontSize: "0.82rem" }}>
+                          <span style={{ color: "var(--text-muted)" }}>Vào: </span>
+                          <strong>{shift.start}</strong>
+                        </div>
+                        <div style={{ fontSize: "0.82rem" }}>
+                          <span style={{ color: "var(--text-muted)" }}>Ra: </span>
+                          <strong>{shift.end}</strong>
+                        </div>
+                        <span style={{ fontSize: "0.72rem", background: "#d1fae5", color: "#065f46", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                          Hoạt động
+                        </span>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingShiftIndex(idx);
+                            setEditingShiftData({
+                              id: shift.id,
+                              name: shift.name,
+                              start: shift.start || "08:00",
+                              end: shift.end || "17:00",
+                            });
+                          }}
+                          style={{
+                            background: "#eef2ff",
+                            border: "1px solid #c7d2fe",
+                            color: "#4f46e5",
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                          title="Sửa ca làm này"
+                        >
+                          <Edit size={13} />
+                          <span>Sửa</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Bạn có chắc muốn xóa [${shift.name}] không?`)) {
+                              const next = shiftsForm.filter((_, i) => i !== idx);
+                              setShiftsForm(next);
+                              if (editingShiftIndex === idx) setEditingShiftIndex(null);
+                            }
+                          }}
+                          style={{
+                            background: "#fff1f2",
+                            border: "1px solid #fecaca",
+                            color: "#ef4444",
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                          title="Xóa ca làm này"
+                        >
+                          <Trash2 size={13} />
+                          <span>Xóa</span>
+                        </button>
+                      </div>
                     </div>
-                    <span style={{ fontSize: "0.75rem", background: "#d1fae5", color: "#065f46", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                      Hoạt động
-                    </span>
-                  </div>
+                  )
                 ))}
               </div>
             </div>
@@ -1394,7 +3144,10 @@ export default function JourneyAdminPage() {
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1.25rem", marginTop: "1.5rem" }}>
               <button
                 type="button"
-                onClick={handleSaveGpsAndShifts}
+                onClick={async () => {
+                  await handleSaveGpsAndShifts();
+                  setIsAttendanceSettingsModalOpen(false);
+                }}
                 disabled={loading}
                 style={{
                   width: "100%",
@@ -1409,14 +3162,72 @@ export default function JourneyAdminPage() {
                   boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
                 }}
               >
-                💾 Lưu Cấu Hình Tọa Độ GPS & Ca Làm Việc Vào Camp Này
+                💾 Lưu Cấu Hình Tọa Độ GPS & Ca Làm Việc
               </button>
             </div>
           </div>
         </div>
-      )}
 
-      {/* TAB 3: DUYỆT GIẢI TRÌNH & BÁO CÁO */}
+        {/* Modal Footer */}
+        <div style={{
+          padding: "1rem 1.75rem",
+          borderTop: "1px solid var(--border)",
+          background: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: "10px",
+          position: "sticky",
+          bottom: 0,
+          zIndex: 30,
+          boxShadow: "0 -2px 8px rgba(0, 0, 0, 0.05)",
+        }}>
+          <button
+            type="button"
+            onClick={() => setIsAttendanceSettingsModalOpen(false)}
+            style={{
+              padding: "0.6rem 1.25rem",
+              borderRadius: "8px",
+              border: "1px solid var(--border)",
+              background: "transparent",
+              color: "var(--text-main)",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Đóng
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              await handleSaveGpsAndShifts();
+              setIsAttendanceSettingsModalOpen(false);
+            }}
+            disabled={loading}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "0.6rem 1.5rem",
+              borderRadius: "8px",
+              border: "none",
+              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+              color: "white",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+            }}
+          >
+            <span>💾 Lưu Cấu Hình & Hoàn Tất</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
+      {/* TAB: DUYỆT GIẢI TRÌNH & BÁO CÁO */}
       {activeTab === "approvals" && (
         <div style={{ background: "var(--surface)", borderRadius: "14px", border: "1px solid var(--border)", padding: "1.5rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
@@ -1427,7 +3238,7 @@ export default function JourneyAdminPage() {
               </p>
             </div>
 
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
               {[
                 { key: "all", label: "Tất cả" },
                 { key: "pending_approval", label: "⏳ Chờ duyệt" },
@@ -1451,6 +3262,28 @@ export default function JourneyAdminPage() {
                   {f.label}
                 </button>
               ))}
+
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "0.45rem 0.85rem",
+                  borderRadius: "8px",
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  background: "var(--background)",
+                  color: "#0284c7",
+                  border: "1px solid #bae6fd",
+                  cursor: "pointer",
+                }}
+                title="Xuất bảng nhật ký điểm danh ra Excel"
+              >
+                <Download size={14} />
+                <span>Xuất Excel</span>
+              </button>
             </div>
           </div>
 
@@ -1623,7 +3456,7 @@ export default function JourneyAdminPage() {
               >
                 {camps.map((c) => (
                   <option key={c.id || c.slug} value={c.id}>
-                    {c.title} ({c.mode === 'clb_quanh_nam' ? '🏃 CLB Chạy' : '📚 Lớp Học'})
+                    {c.title} ({c.mode === 'cham_cong' ? '📍 Chấm Công' : c.mode === 'clb_quanh_nam' ? '🏃 CLB Chạy' : '📚 Lớp Học'})
                   </option>
                 ))}
               </select>
@@ -1632,10 +3465,11 @@ export default function JourneyAdminPage() {
                 fontWeight: 700,
                 padding: "3px 8px",
                 borderRadius: "6px",
-                background: selectedCamp?.mode === 'clb_quanh_nam' ? '#ffe4e6' : '#e0e7ff',
-                color: selectedCamp?.mode === 'clb_quanh_nam' ? '#be123c' : '#4338ca',
+                background: selectedCamp?.mode === 'cham_cong' ? '#ecfdf5' : selectedCamp?.mode === 'clb_quanh_nam' ? '#ffe4e6' : '#e0e7ff',
+                color: selectedCamp?.mode === 'cham_cong' ? '#065f46' : selectedCamp?.mode === 'clb_quanh_nam' ? '#be123c' : '#4338ca',
+                border: selectedCamp?.mode === 'cham_cong' ? '1px solid #a7f3d0' : selectedCamp?.mode === 'clb_quanh_nam' ? '1px solid #fecdd3' : '1px solid #c7d2fe',
               }}>
-                {selectedCamp?.mode === 'clb_quanh_nam' ? '🏃 CLB QUANH NĂM' : '📚 LỚP HỌC BUỔI'}
+                {selectedCamp?.mode === 'cham_cong' ? '📍 CHẤM CÔNG CHI NHÁNH' : selectedCamp?.mode === 'clb_quanh_nam' ? '🏃 CLB QUANH NĂM' : '📚 LỚP HỌC BUỔI'}
               </span>
             </div>
             <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
@@ -1679,7 +3513,7 @@ export default function JourneyAdminPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
             <div>
               <h3 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0 }}>
-                {selectedCamp?.mode === 'clb_quanh_nam' ? 'Danh Sách Runner Rubisea' : 'Danh Sách Học Viên Lớp Học'} (
+                {selectedCamp?.mode === 'cham_cong' ? 'Danh Sách Cán Bộ & Nhân Sự Chấm Công' : selectedCamp?.mode === 'clb_quanh_nam' ? 'Danh Sách Runner Rubisea' : 'Danh Sách Học Viên Lớp Học'} (
                 {members.filter(m => {
                   if (selectedCamp?.mode === 'clb_quanh_nam') {
                     if (memberDivisionFilter === 'kids') return isKid(m);
@@ -1687,45 +3521,96 @@ export default function JourneyAdminPage() {
                   }
                   return true;
                 }).length} người)
+                <span style={{ fontSize: "0.78rem", fontWeight: 700, marginLeft: "10px", verticalAlign: "middle" }}>
+                  <span style={{ color: "#16a34a", background: "#f0fdf4", padding: "2px 8px", borderRadius: "12px", border: "1px solid #bbf7d0" }}>
+                    🟢 {members.filter(m => m.status !== 'inactive').length} ON (Đang hoạt động)
+                  </span>
+                  {members.some(m => m.status === 'inactive') && (
+                    <span style={{ color: "#dc2626", background: "#fef2f2", padding: "2px 8px", borderRadius: "12px", border: "1px solid #fecaca", marginLeft: "6px" }}>
+                      🔴 {members.filter(m => m.status === 'inactive').length} OFF (Đã nghỉ)
+                    </span>
+                  )}
+                </span>
               </h3>
               <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: 0 }}>
-                {selectedCamp?.mode === 'clb_quanh_nam'
+                {selectedCamp?.mode === 'cham_cong'
+                  ? 'Quản lý mã PIN 4 số, chức vụ chi nhánh, vé quên công và ngày công'
+                  : selectedCamp?.mode === 'clb_quanh_nam'
                   ? 'Quản lý mã PIN 4 số, phân bảng Runner nhí/lớn, tổng km tích lũy'
                   : 'Quản lý mã PIN 4 số, vai trò học viên và điểm tích lũy học tập'}
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                setEditingMember({
-                  camp_id: selectedCampId,
-                  name: "",
-                  phone: "",
-                  pin_code: "1234",
-                  role_tag: selectedCamp?.mode === 'clb_quanh_nam' ? "Runner Nhí" : "Học sinh",
-                  total_km_all_time: 0,
-                  total_stars: 0,
-                  forgot_pills_quota: 3,
-                })
-                setShowMemberModal(true)
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                background: "#4f46e5",
-                color: "white",
-                padding: "0.55rem 1rem",
-                borderRadius: "8px",
-                fontSize: "0.85rem",
-                fontWeight: 600,
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              <Plus size={16} />
-              <span>Thêm Thành Viên Mới</span>
-            </button>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+              {selectedCamp?.mode === 'cham_cong' && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddMemberModal('branch_staff')}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                    color: "white",
+                    padding: "0.55rem 1.15rem",
+                    borderRadius: "8px",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+                  }}
+                >
+                  <Building2 size={16} />
+                  <span>🏢 Nạp Nhân Sự Chi Nhánh (VicHRM)</span>
+                </button>
+              )}
+
+              {selectedCamp?.mode === 'lop_hoc_buoi' && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddMemberModal('class_students')}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)",
+                    color: "white",
+                    padding: "0.55rem 1.15rem",
+                    borderRadius: "8px",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)",
+                  }}
+                >
+                  <GraduationCap size={16} />
+                  <span>📚 Nạp Cả Lớp Học 1-Chạm (VicEdu LMS)</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleOpenAddMemberModal('manual')}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: selectedCamp?.mode === 'cham_cong' || selectedCamp?.mode === 'lop_hoc_buoi' ? "var(--background)" : "#4f46e5",
+                  color: selectedCamp?.mode === 'cham_cong' || selectedCamp?.mode === 'lop_hoc_buoi' ? "var(--text-main)" : "white",
+                  border: selectedCamp?.mode === 'cham_cong' || selectedCamp?.mode === 'lop_hoc_buoi' ? "1px solid var(--border)" : "none",
+                  padding: "0.55rem 1rem",
+                  borderRadius: "8px",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Plus size={16} />
+                <span>+ Thêm Thủ Công</span>
+              </button>
+            </div>
           </div>
 
           <div style={{ overflowX: "auto" }}>
@@ -1741,11 +3626,12 @@ export default function JourneyAdminPage() {
                   <th style={{ padding: "0.75rem" }}>Mã PIN (4 Số)</th>
                   <th style={{ padding: "0.75rem" }}>Vai Trò</th>
                   <th style={{ padding: "0.75rem" }}>
-                    {selectedCamp?.mode === 'clb_quanh_nam' ? 'Tổng Km Tích Lũy' : 'Điểm / Sao Tích Lũy'}
+                    {selectedCamp?.mode === 'cham_cong' ? 'Số Ngày Công Tích Lũy' : selectedCamp?.mode === 'clb_quanh_nam' ? 'Km Khởi Điểm (Ngoài HT)' : 'Điểm / Sao Tích Lũy'}
                   </th>
                   {selectedCamp?.mode === 'cham_cong' && (
                     <th style={{ padding: "0.75rem" }}>Vé Quên Chấm Công</th>
                   )}
+                  <th style={{ padding: "0.75rem", textAlign: "center" }}>Trạng Thái</th>
                   <th style={{ padding: "0.75rem", textAlign: "right" }}>Thao Tác</th>
                 </tr>
               </thead>
@@ -1759,7 +3645,7 @@ export default function JourneyAdminPage() {
                     return true;
                   })
                   .map((m, idx) => (
-                    <tr key={m.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <tr key={m.id} style={{ borderBottom: "1px solid var(--border)", opacity: m.status === 'inactive' ? 0.62 : 1, background: m.status === 'inactive' ? "rgba(0,0,0,0.02)" : "transparent" }}>
                       <td style={{ padding: "0.75rem", color: "var(--text-muted)" }}>#{m.id}</td>
                       <td style={{ padding: "0.75rem" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -1784,8 +3670,14 @@ export default function JourneyAdminPage() {
                             )}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 600, color: "var(--text-main)" }}>
-                              {m.name} {m.is_elite && <span title="Elite Runner">👑</span>}
+                            <div style={{ fontWeight: 600, color: m.status === 'inactive' ? "var(--text-muted)" : "var(--text-main)", display: "flex", alignItems: "center", gap: "6px" }}>
+                              <span style={{ textDecoration: m.status === 'inactive' ? 'line-through' : 'none' }}>{m.name}</span>
+                              {m.is_elite && <span title="Elite Runner">👑</span>}
+                              {m.status === 'inactive' && (
+                                <span style={{ fontSize: "0.68rem", color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                                  ĐÃ NGHỈ
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1820,8 +3712,10 @@ export default function JourneyAdminPage() {
                         <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{m.role_tag || "Thành viên"}</span>
                       </td>
                       <td style={{ padding: "0.75rem" }}>
-                        {selectedCamp?.mode === 'clb_quanh_nam' ? (
-                          <strong style={{ color: "#f59e0b" }}>{m.total_km_all_time || 0} km</strong>
+                        {selectedCamp?.mode === 'cham_cong' ? (
+                          <strong style={{ color: "#059669" }}>{m.total_stars || 0} ca · {m.weekly_streak || 0} ngày streak</strong>
+                        ) : selectedCamp?.mode === 'clb_quanh_nam' ? (
+                          <><strong style={{ color: "#f59e0b" }}>{m.total_km_all_time || 0} km</strong> <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: "normal" }}>(khởi điểm)</span></>
                         ) : (
                           <strong style={{ color: "#4f46e5" }}>{m.total_stars || 0} ⭐ · {m.weekly_streak || 0} streak</strong>
                         )}
@@ -1833,6 +3727,37 @@ export default function JourneyAdminPage() {
                           </span>
                         </td>
                       )}
+                      <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleMemberStatus(m)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "4px 10px",
+                            borderRadius: "20px",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            border: m.status === 'inactive' ? "1px solid #fecaca" : "1px solid #bbf7d0",
+                            background: m.status === 'inactive' ? "#fef2f2" : "#f0fdf4",
+                            color: m.status === 'inactive' ? "#dc2626" : "#16a34a",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                            transition: "all 0.15s ease",
+                          }}
+                          title={m.status === 'inactive' ? "Đang tắt (OFF). Bấm để chuyển sang ON (Hoạt động)" : "Đang bật (ON). Bấm để chuyển sang OFF (Nghỉ)"}
+                        >
+                          <span style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: "50%",
+                            background: m.status === 'inactive' ? "#dc2626" : "#16a34a",
+                            display: "inline-block",
+                          }} />
+                          {m.status === 'inactive' ? "OFF (Nghỉ)" : "ON (Hoạt động)"}
+                        </button>
+                      </td>
                       <td style={{ padding: "0.75rem", textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: "0.5rem" }}>
                           <button
@@ -1923,28 +3848,59 @@ export default function JourneyAdminPage() {
                   {editingCamp.id ? `⚙️ Cấu Hình Toàn Diện: ${editingCamp.title}` : "✨ Tạo Hành Trình Mới"}
                 </h2>
                 <p style={{ fontSize: "0.8rem", opacity: 0.85, margin: "0.2rem 0 0" }}>
-                  Lịch cố định hàng tuần, Sinh buổi tự động, 4 Thử thách, Điểm thưởng, Sự kiện & Slogan
+                  {editingCamp.mode === 'lop_hoc_buoi'
+                    ? "📚 Lộ trình học theo buổi · Tiêu chuẩn BTVN & Đọc Razkids · Link bài giảng Canva · Zalo Thầy Cô"
+                    : editingCamp.mode === 'thoi_quen_ca_nhan'
+                    ? "🧘 Hành trình rèn luyện cá nhân · Tiêu chuẩn thói quen hàng ngày · Chuỗi ngày Streak lửa"
+                    : editingCamp.mode === 'cham_cong'
+                    ? "📍 Quản lý chấm công chi nhánh · Tọa độ GPS & Ca làm việc · Tiêu chuẩn văn hóa nội bộ"
+                    : "🏃 Lịch cố định hàng tuần · Cự ly km tích lũy · Bảng phong thần & Phân hạng Runner"}
                 </p>
               </div>
-              <button
-                onClick={() => setShowCampModal(false)}
-                style={{
-                  background: "rgba(255, 255, 255, 0.15)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "50%",
-                  width: "32px",
-                  height: "32px",
-                  cursor: "pointer",
-                  fontSize: "1rem",
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                ✕
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => setMobilePreviewCamp(editingCamp)}
+                  style={{
+                    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "0.45rem 0.9rem",
+                    cursor: "pointer",
+                    fontSize: "0.82rem",
+                    fontWeight: 700,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    boxShadow: "0 2px 10px rgba(16, 185, 129, 0.35)",
+                  }}
+                  title="Mô phỏng trực tiếp giao diện hiển thị trên màn hình điện thoại iPhone"
+                >
+                  <Smartphone size={16} />
+                  <span>📱 Xem Trước Trên Điện Thoại</span>
+                </button>
+
+                <button
+                  onClick={() => setShowCampModal(false)}
+                  style={{
+                    background: "rgba(255, 255, 255, 0.15)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: "32px",
+                    height: "32px",
+                    cursor: "pointer",
+                    fontSize: "1rem",
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Modal Sub-Tabs */}
@@ -1961,12 +3917,29 @@ export default function JourneyAdminPage() {
               boxShadow: "0 2px 4px rgba(0, 0, 0, 0.04)",
             }}>
               {[
-                { key: "general", label: "📋 Thông Tin & Slogan", icon: Edit },
-                { key: "tasks", label: "🎯 4 Thử Thách Tháng", icon: Layers, badge: editingCamp.tasks?.length || 4 },
-                { key: "weekly_schedule", label: "🗓️ Lịch Tuần & Sinh Buổi", icon: Zap, badge: editingCamp.sessions?.length || 0 },
-                { key: "special_events", label: "🏆 Sự Kiện Đặc Biệt", icon: Flag, badge: (editingCamp.sessions || []).filter((s: any) => s.isSpecialEvent).length },
-                { key: "scoring", label: "💎 Quy Tắc Tính Điểm", icon: Award },
-                { key: "branding", label: "🎨 Giao Diện & Zalo", icon: Palette },
+                ...(editingCamp.mode === 'thoi_quen_ca_nhan' ? [
+                  { key: "general", label: "⚙️ Thông Tin & Số Ngày", icon: Edit },
+                  { key: "tasks", label: "📋 Thói Quen Hàng Ngày", icon: Layers, badge: editingCamp.tasks?.length || 0 },
+                  { key: "branding", label: "🎨 Giao Diện & Màu Sắc", icon: Palette },
+                ] : editingCamp.mode === 'lop_hoc_buoi' ? [
+                  { key: "general", label: "📋 Thông Tin & Canva", icon: Edit },
+                  { key: "tasks", label: "🎯 Tiêu Chuẩn & Razkids", icon: Layers, badge: editingCamp.tasks?.length || 0 },
+                  { key: "weekly_schedule", label: "📚 Lộ Trình Buổi Học", icon: Zap, badge: editingCamp.sessions?.length || 0 },
+                  { key: "scoring", label: "💎 Quy Tắc Tính Điểm & Thi Đua", icon: Award },
+                  { key: "branding", label: "🎨 Giao Diện & Zalo Thầy Cô", icon: Palette },
+                ] : editingCamp.mode === 'cham_cong' ? [
+                  { key: "general", label: "🏢 Chi Nhánh & GPS", icon: Edit },
+                  { key: "tasks", label: "✨ Tiêu Chuẩn & KPI Ca", icon: Layers, badge: editingCamp.tasks?.length || 0 },
+                  { key: "branding", label: "🎨 Giao Diện & Nhận Diện", icon: Palette },
+                ] : [
+                  { key: "general", label: "📋 Thông Tin & Slogan", icon: Edit },
+                  { key: "tasks", label: "🎯 Thử Thách Tháng", icon: Layers, badge: editingCamp.tasks?.length || 4 },
+                  { key: "weekly_schedule", label: "🗓️ Lịch Tuần & Sinh Buổi", icon: Zap, badge: editingCamp.sessions?.length || 0 },
+                  { key: "special_events", label: "🏆 Sự Kiện Đặc Biệt", icon: Flag, badge: (editingCamp.sessions || []).filter((s: any) => s.isSpecialEvent).length },
+                  { key: "scoring", label: "💎 Quy Tắc Tính Điểm", icon: Award },
+                  { key: "hall_of_fame", label: "👑 Bảng Phong Thần All-Time", icon: Crown },
+                  { key: "branding", label: "🎨 Giao Diện & Zalo Bầu Xô", icon: Palette },
+                ]),
               ].map((subTab) => {
                 const Icon = subTab.icon
                 const isActive = modalSubTab === subTab.key
@@ -2014,6 +3987,237 @@ export default function JourneyAdminPage() {
               {/* PHẦN 1: THÔNG TIN CƠ BẢN & SLOGAN */}
               {modalSubTab === "general" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+                  {editingCamp.mode === 'thoi_quen_ca_nhan' ? (
+                    <>
+                      {/* BẢNG CÀI ĐẶT RIÊNG CHO THÓI QUEN CÁ NHÂN (1 NGƯỜI) */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
+                        <div>
+                          <label style={{ fontSize: "0.85rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", color: "#ea580c" }}>
+                            Mã Slug (Đường dẫn URL)
+                          </label>
+                          <input
+                            type="text"
+                            value={editingCamp.slug}
+                            onChange={(e) => setEditingCamp({ ...editingCamp, slug: e.target.value })}
+                            placeholder="vi-du: 60-ngay-co-bung"
+                            style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid #fed7aa", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 600 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.85rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", color: "#ea580c" }}>
+                            Tên Hành Trình Thói Quen
+                          </label>
+                          <input
+                            type="text"
+                            value={editingCamp.title}
+                            onChange={(e) => {
+                              const title = e.target.value;
+                              const isNew = !editingCamp.id;
+                              const autoSlug = isNew ? title.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : editingCamp.slug;
+                              setEditingCamp({ ...editingCamp, title, slug: autoSlug });
+                            }}
+                            placeholder="Ví dụ: 60 NGÀY RÈN CƠ BỤNG, 30 NGÀY ĐỌC SÁCH..."
+                            style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid #fed7aa", background: "var(--background)", color: "var(--text-main)", fontSize: "0.88rem", fontWeight: 800 }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* SLOGAN KỶ LUẬT */}
+                      <div style={{ background: "#fff7ed", padding: "1rem", borderRadius: "10px", border: "1.5px solid #fed7aa" }}>
+                        <label style={{ fontSize: "0.88rem", fontWeight: 800, color: "#c2410c", display: "flex", alignItems: "center", gap: "6px", marginBottom: "0.35rem" }}>
+                          <Sparkles size={16} />
+                          <span>🌟 Slogan / Khẩu Hiệu Kỷ Luật Bản Thân</span>
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={editingCamp.slogan || ""}
+                          onChange={(e) => setEditingCamp({ ...editingCamp, slogan: e.target.value })}
+                          placeholder="KỶ LUẬT LÀ SỨC MẠNH · 60 NGÀY LIÊN TỤC KHÔNG BỎ CUỘC"
+                          style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid #ea580c", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.88rem", fontWeight: 700 }}
+                        />
+                      </div>
+
+                      {/* THIẾT LẬP LỘ TRÌNH NGÀY (SỐ NGÀY & NGÀY BẮT ĐẦU) */}
+                      <div style={{ background: "rgba(234, 88, 12, 0.05)", border: "1.5px solid #fdba74", borderRadius: "12px", padding: "1.2rem" }}>
+                        <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "#9a3412", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span>🎯</span> Lộ Trình Rèn Luyện & Mục Tiêu Số Ngày
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                          <div>
+                            <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", color: "#9a3412" }}>
+                              Mục Tiêu Số Ngày Rèn Luyện:
+                            </label>
+                            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                              {[21, 30, 60, 100].map(days => (
+                                <button
+                                  key={days}
+                                  type="button"
+                                  onClick={() => setEditingCamp({
+                                    ...editingCamp,
+                                    theme: { ...(editingCamp.theme || {}), target_days: days }
+                                  })}
+                                  style={{
+                                    padding: "0.4rem 0.75rem",
+                                    borderRadius: "8px",
+                                    border: (editingCamp.theme?.target_days === days || (!editingCamp.theme?.target_days && days === 60)) ? "2px solid #ea580c" : "1px solid #fed7aa",
+                                    background: (editingCamp.theme?.target_days === days || (!editingCamp.theme?.target_days && days === 60)) ? "#ea580c" : "#ffffff",
+                                    color: (editingCamp.theme?.target_days === days || (!editingCamp.theme?.target_days && days === 60)) ? "#ffffff" : "#c2410c",
+                                    fontWeight: 800,
+                                    fontSize: "0.82rem",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  {days} Ngày
+                                </button>
+                              ))}
+                              <div style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                                <input
+                                  type="number"
+                                  value={editingCamp.theme?.target_days || 60}
+                                  onChange={(e) => setEditingCamp({
+                                    ...editingCamp,
+                                    theme: { ...(editingCamp.theme || {}), target_days: parseInt(e.target.value) || 60 }
+                                  })}
+                                  style={{ width: "65px", padding: "0.4rem", borderRadius: "8px", border: "1px solid #fed7aa", textAlign: "center", fontWeight: 800, fontSize: "0.85rem" }}
+                                />
+                                <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#9a3412" }}>ngày</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", color: "#9a3412" }}>
+                              Ngày Bắt Đầu:
+                            </label>
+                            <input
+                              type="date"
+                              value={editingCamp.theme?.start_date || new Date().toISOString().split('T')[0]}
+                              onChange={(e) => setEditingCamp({
+                                ...editingCamp,
+                                theme: { ...(editingCamp.theme || {}), start_date: e.target.value }
+                              })}
+                              style={{ width: "100%", padding: "0.45rem 0.75rem", borderRadius: "8px", border: "1px solid #fed7aa", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 700 }}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: "0.75rem", color: "#ea580c", background: "#fff", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px dashed #fdba74" }}>
+                          ⚡ <b>Tự động sinh lịch:</b> Khi bấm <b>Lưu</b>, hệ thống sẽ tự động tạo đủ {editingCamp.theme?.target_days || 60} ngày rèn luyện (N01 → N{editingCamp.theme?.target_days || 60}) bắt đầu từ {editingCamp.theme?.start_date || 'hôm nay'} mà không cần cấu hình thêm bất cứ gì!
+                        </div>
+                      </div>
+
+                      {/* CHỦ NHÂN HÀNH TRÌNH (NGƯỜI THỰC HIỆN) */}
+                      <div style={{ background: "#ffffff", border: "1.5px solid #fed7aa", borderRadius: "12px", padding: "1.2rem", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
+                        <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "#0f172a", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span>🦁</span> Chủ Nhân Hành Trình (Người Thực Hiện)
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 80px 1.2fr", gap: "0.85rem" }}>
+                          <div>
+                            <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
+                              Họ và Tên:
+                            </label>
+                            <input
+                              type="text"
+                              value={editingCamp.theme?.owner_name || "Sếp Hoàng"}
+                              onChange={(e) => setEditingCamp({
+                                ...editingCamp,
+                                theme: { ...(editingCamp.theme || {}), owner_name: e.target.value }
+                              })}
+                              placeholder="Ví dụ: Sếp Hoàng"
+                              style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 700 }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
+                              Avatar:
+                            </label>
+                            <input
+                              type="text"
+                              value={editingCamp.theme?.owner_avatar || "🦁"}
+                              onChange={(e) => setEditingCamp({
+                                ...editingCamp,
+                                theme: { ...(editingCamp.theme || {}), owner_avatar: e.target.value }
+                              })}
+                              style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", textAlign: "center", fontSize: "1rem" }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: "0.78rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
+                              Số Điện Thoại (Tùy chọn):
+                            </label>
+                            <input
+                              type="text"
+                              value={editingCamp.theme?.owner_phone || "0912345678"}
+                              onChange={(e) => setEditingCamp({
+                                ...editingCamp,
+                                theme: { ...(editingCamp.theme || {}), owner_phone: e.target.value }
+                              })}
+                              placeholder="0912345678"
+                              style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* TÙY BIẾN NHIỆM VỤ CÁ NHÂN */}
+                        <div style={{ background: "rgba(16, 185, 129, 0.06)", border: "1.5px solid #86efac", borderRadius: "10px", padding: "0.85rem 1rem", marginTop: "0.85rem" }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem", color: "#166534" }}>
+                            <input
+                              type="checkbox"
+                              checked={editingCamp.theme?.allow_personal_custom_tasks ?? true}
+                              onChange={(e) => setEditingCamp({
+                                ...editingCamp,
+                                theme: { ...(editingCamp.theme || {}), allow_personal_custom_tasks: e.target.checked }
+                              })}
+                              style={{ width: "17px", height: "17px", accentColor: "#16a34a", cursor: "pointer" }}
+                            />
+                            <span>⚙️ Cho phép chủ nhân tự tùy biến nhiệm vụ trên Web (Khóa bằng PIN 4 số SĐT)</span>
+                          </label>
+                          <p style={{ margin: "0.3rem 0 0 25px", fontSize: "0.75rem", color: "#15803d", lineHeight: 1.4 }}>
+                            Khi bật, học viên có thể tự đổi tên nhiệm vụ, số lượng mục tiêu (VD: gập bụng 300 cái, tập 15 phút...) trực tiếp ngay trên trang web hành trình cá nhân của mình sau khi nhập đúng 4 số cuối SĐT.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* CHẾ ĐỘ & TRẠNG THÁI */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "1rem" }}>
+                        <div>
+                          <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
+                            Chế Độ Vận Hành
+                          </label>
+                          <select
+                            value={editingCamp.mode}
+                            onChange={(e) => setEditingCamp({ ...editingCamp, mode: e.target.value as any })}
+                            style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 700 }}
+                          >
+                            <option value="thoi_quen_ca_nhan">🧘‍♂️ Thói Quen Cá Nhân (1 Người · 21/30/60/100 Ngày)</option>
+                            <option value="clb_quanh_nam">🏃‍♂️ CLB Quanh Năm (Tích lũy km, 12 tháng)</option>
+                            <option value="cham_cong">📍 Chấm Công Chi Nhánh (GPS, P1-P5)</option>
+                            <option value="lop_hoc_buoi">📚 Lớp Học Theo Buổi (Cambridge)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
+                            Trạng Thái
+                          </label>
+                          <select
+                            value={editingCamp.status || "active"}
+                            onChange={(e) => setEditingCamp({ ...editingCamp, status: e.target.value })}
+                            style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
+                          >
+                            <option value="active">🟢 Đang hoạt động (Active)</option>
+                            <option value="archived">⚪ Tạm dừng (Archived)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* BẢNG CÀI ĐẶT MẶC ĐỊNH CHO CLB / LỚP HỌC */}
+
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
                     <div>
                       <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
@@ -2078,21 +4282,23 @@ export default function JourneyAdminPage() {
                       <span>🎯 Phân Loại Quyền Sử Dụng & Đối Tượng Vận Hành</span>
                     </label>
                     <select
-                      value={editingCamp.scope || (editingCamp.theme as any)?.scope || (editingCamp.mode === "clb_quanh_nam" ? "club" : "branch")}
+                      value={editingCamp.scope || (editingCamp.theme as any)?.scope || (editingCamp.mode === "cham_cong" ? "cham_cong" : "branch")}
                       onChange={(e) => {
                         const val = e.target.value as any;
+                        const newMode = val === "cham_cong" ? "cham_cong" : (editingCamp.mode === "cham_cong" ? "lop_hoc_buoi" : editingCamp.mode);
                         setEditingCamp({
                           ...editingCamp,
+                          mode: newMode,
                           scope: val,
                           theme: { ...(editingCamp.theme || {}), scope: val }
                         });
                       }}
                       style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid #c7d2fe", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 700 }}
                     >
-                      <option value="admin_only">👑 Chỉ Super Admin (Bố Hoàng / Riêng tư thử nghiệm)</option>
-                      <option value="branch">🏫 Chi Nhánh Áp Dụng (Giáo viên đào tạo VicEdu các cơ sở)</option>
-                      <option value="partner">🤝 Lớp Thầy Cô Đối Tác (Liên kết đào tạo & Khóa học đối tác)</option>
-                      <option value="club">🏃 CLB Rèn Luyện & Thể Thao (Cộng đồng phụ huynh & runner nhí)</option>
+                      <option value="admin_only">👑 Chỉ Super Admin</option>
+                      <option value="branch">🏫 Lớp học tại chi nhánh</option>
+                      <option value="partner">🤝 Lớp thầy cô đối tác</option>
+                      <option value="cham_cong">📍 Chấm công</option>
                     </select>
                     <span style={{ fontSize: "0.75rem", color: "#6366f1", display: "block", marginTop: "0.35rem" }}>
                       💡 Tiêu chí giúp lọc nhanh tại Trung Tâm Điều Hành và phân quyền truy cập quản trị sau này.
@@ -2109,9 +4315,39 @@ export default function JourneyAdminPage() {
                         onChange={(e) => setEditingCamp({ ...editingCamp, mode: e.target.value as any })}
                         style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
                       >
+                        <option value="cham_cong">📍 Chấm Công Chi Nhánh & Ca Làm (Điểm danh GPS, đối soát ca P1-P5, nhân sự VicHRM)</option>
                         <option value="clb_quanh_nam">🏃‍♂️ CLB Quanh Năm (Tích lũy km, mùa giải 12 tháng, phân hạng Tân binh / 300km)</option>
                         <option value="lop_hoc_buoi">📚 Lớp Học Theo Buổi (Lộ trình 24/32 buổi Cambridge, BTVN & Điểm danh)</option>
+                        <option value="thoi_quen_ca_nhan">🧘‍♂️ Thói Quen Cá Nhân (1 Người · 21/30/60/100 Ngày Tự Rèn Luyện, Streak Lửa, Không Thi Đua)</option>
                       </select>
+                      <div style={{ marginTop: "0.45rem" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Bạn có chắc chắn muốn nạp KHUÔN MẪU CHUẨN SẠCH cho chế độ "${editingCamp.mode}" không?\n\nThao tác này sẽ dọn sạch mọi rác cấu hình không liên quan và nạp đúng bộ tiêu chuẩn mẫu tối ưu nhất!`)) {
+                              const clean = getCleanPreset(editingCamp.mode, editingCamp);
+                              setEditingCamp(clean);
+                              alert(`✅ Đã nạp Khuôn Mẫu Chuẩn Sạch cho chế độ "${editingCamp.mode}" thành công!`);
+                            }
+                          }}
+                          style={{
+                            padding: "0.35rem 0.75rem",
+                            borderRadius: "6px",
+                            border: "1px dashed #6366f1",
+                            background: "#eef2ff",
+                            color: "#4f46e5",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                          title="Làm sạch rác dữ liệu của các hành trình khác và đặt lại mẫu chuẩn"
+                        >
+                          <span>⚡ Nạp Khuôn Chuẩn Sạch (Xóa rác chéo)</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div>
@@ -2151,6 +4387,8 @@ export default function JourneyAdminPage() {
                       <span>Bắt buộc mã PIN 4 số khi nộp bài</span>
                     </label>
                   </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -2160,7 +4398,13 @@ export default function JourneyAdminPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                     <div>
                       <h4 style={{ fontSize: "0.95rem", fontWeight: 700, margin: 0 }}>
-                        🎯 Danh Sách Thử Thách & Nhiệm Vụ Học Viên ({editingCamp.tasks?.length || 0} nhiệm vụ)
+                        {editingCamp.mode === 'lop_hoc_buoi'
+                          ? `🎯 Tiêu Chuẩn Học Tập & Tự Học (${editingCamp.tasks?.length || 0} tiêu chí)`
+                          : editingCamp.mode === 'thoi_quen_ca_nhan'
+                          ? `📋 Thói Quen Rèn Luyện Hàng Ngày (${editingCamp.tasks?.length || 0} thói quen)`
+                          : editingCamp.mode === 'cham_cong'
+                          ? `✨ Tiêu Chuẩn Văn Hóa & Báo Cáo KPI (${editingCamp.tasks?.length || 0} chỉ số)`
+                          : `🔥 Danh Sách Thử Thách & Mục Tiêu Thể Lực (${editingCamp.tasks?.length || 0} mục tiêu)`}
                       </h4>
                       <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.15rem 0 0" }}>
                         Cấu hình kiểu thử thách 1, 2, 3, 4 (Nhập số km / từ vựng hoặc tích chọn hoàn thành)
@@ -2237,34 +4481,51 @@ export default function JourneyAdminPage() {
                           )}
                         </div>
 
-                        <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr", gap: "0.85rem", marginBottom: "0.75rem" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: editingCamp.mode === 'lop_hoc_buoi' ? "1.8fr 1.2fr 1.4fr" : "2fr 1.5fr", gap: "0.85rem", marginBottom: "0.75rem" }}>
                           <div>
                             <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
-                              Tên Thử Thách
+                              Tên Tiêu Chuẩn / Nhiệm Vụ
                             </label>
                             <input
                               type="text"
                               value={task.name}
                               onChange={(e) => handleTaskChange(idx, "name", e.target.value)}
-                              placeholder="Ví dụ: Chạy bộ, Đập tay giao lưu, Làm BTVN..."
+                              placeholder="Ví dụ: Đi học đúng giờ, Đọc Razkids..."
                               style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
                             />
                           </div>
 
                           <div>
                             <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
-                              Kiểu Dữ Liệu
+                              Kiểu Báo Cáo
                             </label>
                             <select
                               value={task.type}
                               onChange={(e) => handleTaskChange(idx, "type", e.target.value)}
                               style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
                             >
-                              <option value="number">🔢 Nhập Số (Số km, từ vựng, phút...)</option>
-                              <option value="boolean">☑️ Tích Chọn (Hoàn thành / Chưa hoàn thành)</option>
-                              <option value="link">🔗 Nộp Link (Drive, Padlet...)</option>
+                              <option value="boolean">☑️ Tích Chọn (Đạt / Chưa đạt)</option>
+                              <option value="number">🔢 Nhập Số (Số phút, từ vựng...)</option>
+                              <option value="text">📝 Ghi Văn Bản (Ghi chú, nhật ký)</option>
+                              <option value="link">🔗 Nộp Link (Bài tập, video)</option>
                             </select>
                           </div>
+
+                          {editingCamp.mode === 'lop_hoc_buoi' && (
+                            <div>
+                              <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", color: "#6366f1" }}>
+                                Nơi Rèn Luyện (Tần Suất)
+                              </label>
+                              <select
+                                value={task.frequency || (task.id === 'razkids' ? 'daily' : 'per_session')}
+                                onChange={(e) => handleTaskChange(idx, "frequency", e.target.value)}
+                                style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid #c7d2fe", background: "#f5f3ff", color: "#4f46e5", fontSize: "0.82rem", fontWeight: 700 }}
+                              >
+                                <option value="per_session">🏫 Trên Lớp (Theo Buổi)</option>
+                                <option value="daily">🏠 Ở Nhà (Hàng Ngày - Razkids)</option>
+                              </select>
+                            </div>
+                          )}
                         </div>
 
                         {task.type === "number" && (
@@ -2304,7 +4565,7 @@ export default function JourneyAdminPage() {
                             type="text"
                             value={task.description}
                             onChange={(e) => handleTaskChange(idx, "description", e.target.value)}
-                            placeholder="Ví dụ: Chạy tối thiểu 3km mỗi buổi, Đập tay chào người chạy ngược chiều..."
+                            placeholder="Ví dụ: Chạy tối thiểu 3km mỗi buổi, Ghi 3 điều biết ơn trong ngày..."
                             style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
                           />
                         </div>
@@ -2338,6 +4599,335 @@ export default function JourneyAdminPage() {
                       </div>
                     ))}
                   </div>
+
+                  {/* PHẦN 2.B: CẤU HÌNH BÁO CÁO TỰ RÈN HÀNG NGÀY (CHO LỚP HỌC BUỔI) */}
+                  {editingCamp.mode === 'lop_hoc_buoi' && (() => {
+                    const dp = (editingCamp.theme as any)?.daily_practice || {
+                      title: 'BÁO CÁO TỰ RÈN RAZKIDS & PODCAST',
+                      notice: 'VicEdu khuyến khích bạn rèn luyện đều đặn 1 - 2 lần mỗi ngày (Đọc sách Razkids & Nghe Podcast) để kích hoạt phản xạ ngôn ngữ tự nhiên.',
+                      cu1_enabled: true,
+                      cu1_name: 'Cữ 1: Luyện Đọc Sách Razkids',
+                      cu1_desc: 'Đọc to thành tiếng, ghi nhớ từ vựng (Khuyên dùng: 15-20 phút)',
+                      cu1_btn_text: 'ĐÃ ĐỌC',
+                      cu1_placeholder: 'Tên cuốn sách hoặc Level Razkids đã đọc (Ví dụ: Level D - Animals In Winter)...',
+                      cu2_enabled: true,
+                      cu2_name: 'Cữ 2: Luyện Nghe Podcast / Shadowing (Tùy chọn)',
+                      cu2_desc: 'Tắm ngôn ngữ thụ động hoặc Shadowing nhại giọng (10-15 phút)',
+                      cu2_btn_text: 'ĐÃ NGHE',
+                      cu2_placeholder: 'Tên bài Podcast hoặc kênh đã nghe (Ví dụ: BBC 6 Minute English / TED-Ed)...',
+                      link_enabled: true,
+                      link_label: '🎙️ Link file ghi âm đọc bài / Video nhại giọng (Nếu có):',
+                      link_placeholder: 'Dán link Google Drive, Zalo, YouTube hoặc Padlet...',
+                      vocab_enabled: true,
+                      vocab_label: '💡 1-2 Từ mới hoặc câu văn tâm đắc nhất hôm nay:',
+                      vocab_placeholder: 'Ví dụ: adventurous (thích phiêu lưu), solar system (hệ mặt trời)...',
+                    };
+
+                    const updateDp = (patch: any) => {
+                      setEditingCamp({
+                        ...editingCamp,
+                        theme: {
+                          ...(editingCamp.theme || {}),
+                          daily_practice: { ...dp, ...patch }
+                        }
+                      });
+                    };
+
+                    return (
+                      <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '2px dashed var(--border)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '8px' }}>
+                          <div>
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#047857', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>📖🎧</span> Cấu Hình Báo Cáo Tự Rèn Hàng Ngày (Razkids / Podcast / Cữ 1 & 2)
+                            </h4>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
+                              Tùy biến nội dung cữ rèn luyện, bật/tắt Cữ 2 và các ô thông tin để phù hợp với từng giai đoạn học
+                            </p>
+                          </div>
+
+                          {/* Nút nạp mẫu 1-chạm */}
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => updateDp({
+                                title: 'BÁO CÁO TỰ RÈN RAZKIDS & PODCAST',
+                                notice: 'VicEdu khuyến khích bạn rèn luyện đều đặn 1 - 2 lần mỗi ngày (Đọc sách Razkids & Nghe Podcast) để kích hoạt phản xạ ngôn ngữ tự nhiên.',
+                                cu1_enabled: true,
+                                cu1_name: 'Cữ 1: Luyện Đọc Sách Razkids',
+                                cu1_desc: 'Đọc to thành tiếng, ghi nhớ từ vựng (Khuyên dùng: 15-20 phút)',
+                                cu1_btn_text: 'ĐÃ ĐỌC',
+                                cu1_placeholder: 'Tên cuốn sách hoặc Level Razkids đã đọc (Ví dụ: Level D - Animals In Winter)...',
+                                cu2_enabled: true,
+                                cu2_name: 'Cữ 2: Luyện Nghe Podcast / Shadowing (Tùy chọn)',
+                                cu2_desc: 'Tắm ngôn ngữ thụ động hoặc Shadowing nhại giọng (10-15 phút)',
+                                cu2_btn_text: 'ĐÃ NGHE',
+                                cu2_placeholder: 'Tên bài Podcast hoặc kênh đã nghe (Ví dụ: BBC 6 Minute English / TED-Ed)...',
+                                link_enabled: true,
+                                vocab_enabled: true,
+                              })}
+                              style={{ padding: '4px 10px', borderRadius: '6px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              ⚡ Mẫu Chuẩn 2 Cữ (Razkids + Podcast)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateDp({
+                                title: 'BÁO CÁO TỰ RÈN RAZKIDS HÀNG NGÀY',
+                                notice: 'Duy trì thói quen đọc sách Razkids tối thiểu 15 phút mỗi ngày để phát triển vốn từ và phản xạ tự nhiên.',
+                                cu1_enabled: true,
+                                cu1_name: 'Luyện Đọc Sách Razkids (15-20 phút)',
+                                cu1_desc: 'Đọc to thành tiếng, ghi nhớ từ vựng mới',
+                                cu1_btn_text: 'ĐÃ ĐỌC',
+                                cu1_placeholder: 'Tên cuốn sách hoặc Level Razkids đã đọc...',
+                                cu2_enabled: false,
+                                link_enabled: true,
+                                vocab_enabled: true,
+                              })}
+                              style={{ padding: '4px 10px', borderRadius: '6px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              ⚡ Mẫu 1 Cữ Đơn Giản (Chỉ Đọc Razkids)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateDp({
+                                title: 'BÁO CÁO TỰ HỌC & ĐỌC SÁCH HÀNG NGÀY',
+                                notice: 'Rèn luyện thói quen tự giác đọc sách và ghi nhận bài học mỗi ngày.',
+                                cu1_enabled: true,
+                                cu1_name: 'Cữ 1: Đọc Sách & Ghi Nhớ Từ Vựng',
+                                cu1_desc: 'Đọc sách tiếng Anh hoặc tiếng Việt tối thiểu 20 phút',
+                                cu1_btn_text: 'HOÀN THÀNH',
+                                cu1_placeholder: 'Tên sách và số trang đã đọc hôm nay...',
+                                cu2_enabled: true,
+                                cu2_name: 'Cữ 2: Viết Nhật Ký / Bài Thu Hoạch',
+                                cu2_desc: 'Viết 3-5 câu cảm nhận hoặc tóm tắt nội dung',
+                                cu2_btn_text: 'ĐÃ VIẾT',
+                                cu2_placeholder: 'Viết vài câu tóm tắt nội dung đã đọc...',
+                                link_enabled: false,
+                                vocab_enabled: true,
+                              })}
+                              style={{ padding: '4px 10px', borderRadius: '6px', background: '#fdf2f8', color: '#be185d', border: '1px solid #fbcfe8', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              ⚡ Mẫu Đọc Sách & Viết Nhật Ký
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tiêu đề & Lời nhắn Banner */}
+                        <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '1rem' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a', marginBottom: '0.6rem' }}>
+                            📢 Khung Banner Nhắc Nhở & Tiêu Đề Báo Cáo:
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.6rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Tiêu đề Banner:</label>
+                              <input
+                                type="text"
+                                value={dp.title || ''}
+                                onChange={e => updateDp({ title: e.target.value })}
+                                placeholder="VD: BÁO CÁO TỰ RÈN RAZKIDS & PODCAST"
+                                className="form-input"
+                                style={{ width: '100%', fontSize: '0.82rem', padding: '0.4rem 0.6rem', marginTop: '0.2rem' }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Lời nhắn nhủ / Khuyến khích học viên:</label>
+                              <textarea
+                                value={dp.notice || ''}
+                                onChange={e => updateDp({ notice: e.target.value })}
+                                rows={2}
+                                placeholder="VD: VicEdu khuyến khích bạn rèn luyện đều đặn..."
+                                className="form-input"
+                                style={{ width: '100%', fontSize: '0.8rem', padding: '0.4rem 0.6rem', marginTop: '0.2rem' }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CÀI ĐẶT CỮ 1 */}
+                        <div style={{ background: '#ffffff', padding: '1rem', borderRadius: '10px', border: '1.5px solid #86efac', marginBottom: '1rem', boxShadow: '0 2px 6px rgba(16, 185, 129, 0.05)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                            <div style={{ fontWeight: 800, fontSize: '0.85rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>☀️ CÀI ĐẶT CỮ 1 (MẶC ĐỊNH BẮT BUỘC)</span>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Tên Cữ 1:</label>
+                              <input
+                                type="text"
+                                value={dp.cu1_name || ''}
+                                onChange={e => updateDp({ cu1_name: e.target.value })}
+                                placeholder="VD: Cữ 1: Luyện Đọc Sách Razkids"
+                                className="form-input"
+                                style={{ width: '100%', fontSize: '0.82rem', padding: '0.4rem 0.6rem', fontWeight: 700 }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Chữ trên nút hoàn thành:</label>
+                              <input
+                                type="text"
+                                value={dp.cu1_btn_text || 'ĐÃ ĐỌC'}
+                                onChange={e => updateDp({ cu1_btn_text: e.target.value })}
+                                placeholder="VD: ĐÃ ĐỌC, HOÀN THÀNH"
+                                className="form-input"
+                                style={{ width: '100%', fontSize: '0.82rem', padding: '0.4rem 0.6rem', fontWeight: 700, color: '#16a34a' }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ marginBottom: '0.6rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Gợi ý hướng dẫn Cữ 1 (Hiện dưới tên cữ):</label>
+                            <input
+                              type="text"
+                              value={dp.cu1_desc || ''}
+                              onChange={e => updateDp({ cu1_desc: e.target.value })}
+                              placeholder="VD: Đọc to thành tiếng, ghi nhớ từ vựng (Khuyên dùng: 15-20 phút)"
+                              className="form-input"
+                              style={{ width: '100%', fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Gợi ý trong ô nhập chi tiết sách/bài:</label>
+                            <input
+                              type="text"
+                              value={dp.cu1_placeholder || ''}
+                              onChange={e => updateDp({ cu1_placeholder: e.target.value })}
+                              placeholder="VD: Tên cuốn sách hoặc Level Razkids đã đọc..."
+                              className="form-input"
+                              style={{ width: '100%', fontSize: '0.8rem', padding: '0.4rem 0.6rem', color: '#64748b' }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* CÀI ĐẶT CỮ 2 (CÓ CÔNG TẮC BẬT / TẮT) */}
+                        <div style={{ background: '#ffffff', padding: '1rem', borderRadius: '10px', border: dp.cu2_enabled !== false ? '1.5px solid #93c5fd' : '1px dashed #cbd5e1', marginBottom: '1rem', opacity: dp.cu2_enabled !== false ? 1 : 0.75 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                            <div style={{ fontWeight: 800, fontSize: '0.85rem', color: dp.cu2_enabled !== false ? '#1d4ed8' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>🌙 CÀI ĐẶT CỮ 2 (TÙY CHỌN / BẬT TẮT)</span>
+                            </div>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, color: dp.cu2_enabled !== false ? '#1d4ed8' : '#64748b' }}>
+                              <input
+                                type="checkbox"
+                                checked={dp.cu2_enabled !== false}
+                                onChange={e => updateDp({ cu2_enabled: e.target.checked })}
+                              />
+                              <span>{dp.cu2_enabled !== false ? '✓ Đang kích hoạt Cữ 2' : '○ Đang TẮT (Chỉ dùng 1 cữ)'}</span>
+                            </label>
+                          </div>
+
+                          {dp.cu2_enabled !== false ? (
+                            <>
+                              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
+                                <div>
+                                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Tên Cữ 2:</label>
+                                  <input
+                                    type="text"
+                                    value={dp.cu2_name || ''}
+                                    onChange={e => updateDp({ cu2_name: e.target.value })}
+                                    placeholder="VD: Cữ 2: Luyện Nghe Podcast / Shadowing (Tùy chọn)"
+                                    className="form-input"
+                                    style={{ width: '100%', fontSize: '0.82rem', padding: '0.4rem 0.6rem', fontWeight: 700 }}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Chữ trên nút hoàn thành:</label>
+                                  <input
+                                    type="text"
+                                    value={dp.cu2_btn_text || 'ĐÃ NGHE'}
+                                    onChange={e => updateDp({ cu2_btn_text: e.target.value })}
+                                    placeholder="VD: ĐÃ NGHE, HOÀN THÀNH"
+                                    className="form-input"
+                                    style={{ width: '100%', fontSize: '0.82rem', padding: '0.4rem 0.6rem', fontWeight: 700, color: '#2563eb' }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div style={{ marginBottom: '0.6rem' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Gợi ý hướng dẫn Cữ 2:</label>
+                                <input
+                                  type="text"
+                                  value={dp.cu2_desc || ''}
+                                  onChange={e => updateDp({ cu2_desc: e.target.value })}
+                                  placeholder="VD: Tắm ngôn ngữ thụ động hoặc Shadowing nhại giọng (10-15 phút)"
+                                  className="form-input"
+                                  style={{ width: '100%', fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                                />
+                              </div>
+
+                              <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Gợi ý trong ô nhập chi tiết:</label>
+                                <input
+                                  type="text"
+                                  value={dp.cu2_placeholder || ''}
+                                  onChange={e => updateDp({ cu2_placeholder: e.target.value })}
+                                  placeholder="VD: Tên bài Podcast hoặc kênh đã nghe..."
+                                  className="form-input"
+                                  style={{ width: '100%', fontSize: '0.8rem', padding: '0.4rem 0.6rem', color: '#64748b' }}
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ fontSize: '0.78rem', color: '#64748b', fontStyle: 'italic', padding: '0.4rem 0' }}>
+                              💡 Cữ 2 đang được tắt. Học sinh khi nộp báo cáo ngày thường sẽ chỉ thấy duy nhất Cữ 1, giúp thao tác cực nhanh và không bị phân tâm.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* CÁC Ô BỔ TRỢ (LINK & TỪ VỰNG) */}
+                        <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a', marginBottom: '0.6rem' }}>
+                            📎 Các Ô Thu Thập Bổ Trợ (Link Bài & Từ Mới):
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                            {/* Ô Link */}
+                            <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>🎙️ Ô Dán Link Bài / Ghi Âm</span>
+                                <input
+                                  type="checkbox"
+                                  checked={dp.link_enabled !== false}
+                                  onChange={e => updateDp({ link_enabled: e.target.checked })}
+                                />
+                              </div>
+                              <input
+                                type="text"
+                                value={dp.link_label || ''}
+                                onChange={e => updateDp({ link_label: e.target.value })}
+                                disabled={dp.link_enabled === false}
+                                placeholder="Tiêu đề ô link..."
+                                className="form-input"
+                                style={{ width: '100%', fontSize: '0.78rem', padding: '0.35rem 0.5rem', marginBottom: '0.4rem' }}
+                              />
+                            </div>
+
+                            {/* Ô Từ vựng */}
+                            <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>💡 Ô Từ Mới / Thu Hoạch</span>
+                                <input
+                                  type="checkbox"
+                                  checked={dp.vocab_enabled !== false}
+                                  onChange={e => updateDp({ vocab_enabled: e.target.checked })}
+                                />
+                              </div>
+                              <input
+                                type="text"
+                                value={dp.vocab_label || ''}
+                                onChange={e => updateDp({ vocab_label: e.target.value })}
+                                disabled={dp.vocab_enabled === false}
+                                placeholder="Tiêu đề ô từ vựng..."
+                                className="form-input"
+                                style={{ width: '100%', fontSize: '0.78rem', padding: '0.35rem 0.5rem', marginBottom: '0.4rem' }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -2451,6 +5041,302 @@ export default function JourneyAdminPage() {
                     )}
                   </div>
 
+                  {/* MỤC 1.5: CHIẾN DỊCH TỪNG THÁNG TRONG MÙA GIẢI (DÀNH CHO CLB QUANH NĂM) */}
+                  {editingCamp.mode === "clb_quanh_nam" && (() => {
+                    const months = editingCamp.club_months || [];
+                    const activeMonth = months.find((m: any) => m.id === selectedClubMonthId) || months[0] || {
+                      id: '2026-11',
+                      label: 'Tháng 11/2026',
+                      themeTitle: 'CHIẾN DỊCH THÁNG 11 · BỨT PHÁ TỐC ĐỘ (PACER LEAD)',
+                      themeSlogan: 'Rèn nhịp thở đều · Nâng dần cự ly · Đón gió đầu đông',
+                      status: 'upcoming'
+                    };
+
+                    const updateActiveMonth = (patch: any) => {
+                      const updated = months.map((m: any) => {
+                        if (m.id === activeMonth.id) {
+                          return { ...m, ...patch };
+                        }
+                        if (patch.isCurrent === true) {
+                          return { ...m, isCurrent: false };
+                        }
+                        return m;
+                      });
+                      if (!months.some((m: any) => m.id === activeMonth.id)) {
+                        updated.push({ ...activeMonth, ...patch });
+                      }
+                      setEditingCamp({
+                        ...editingCamp,
+                        club_months: updated
+                      });
+                    };
+
+                    return (
+                      <div style={{
+                        background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)",
+                        border: "1px solid #fed7aa",
+                        borderRadius: "14px",
+                        padding: "1.25rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "1rem"
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                          <div>
+                            <h4 style={{ fontSize: "0.95rem", fontWeight: 800, margin: 0, color: "#9a3412", display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span>🏆</span> Cấu Hình Chiến Dịch 12 Tháng Trong Mùa Giải (Tên & Slogan Tháng)
+                            </h4>
+                            <p style={{ fontSize: "0.8rem", color: "#c2410c", margin: "0.2rem 0 0" }}>
+                              Chọn từng tháng trong mùa giải để đổi Tên Chiến Dịch và Khẩu hiệu/Slogan hiển thị ngoài Web
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cur = editingCamp.club_months || [];
+                              const nextNum = cur.length + 1;
+                              const newId = `2027-${String(nextNum).padStart(2, '0')}`;
+                              const newM = {
+                                id: newId,
+                                label: `Tháng ${String(nextNum).padStart(2, '0')}/2027`,
+                                themeTitle: `CHIẾN DỊCH MỚI ${newId}`,
+                                themeSlogan: 'Duy trì bước chạy kỷ luật cùng đại gia đình Rubisea 19',
+                                status: 'upcoming'
+                              };
+                              setEditingCamp({ ...editingCamp, club_months: [...cur, newM] });
+                              setSelectedClubMonthId(newId);
+                              setGenMonth(newId);
+                            }}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              padding: "0.4rem 0.75rem",
+                              borderRadius: "8px",
+                              border: "1px solid #ea580c",
+                              background: "#ffffff",
+                              color: "#ea580c",
+                              fontSize: "0.78rem",
+                              fontWeight: 700,
+                              cursor: "pointer"
+                            }}
+                          >
+                            <Plus size={14} /> Thêm Tháng Mới
+                          </button>
+                        </div>
+
+                        {/* Thanh chọn nhanh tháng (Chip selector) */}
+                        <div style={{
+                          display: "flex",
+                          gap: "0.5rem",
+                          overflowX: "auto",
+                          paddingBottom: "0.4rem",
+                          scrollbarWidth: "thin"
+                        }}>
+                          {months.map((m: any) => {
+                            const isSel = m.id === activeMonth.id;
+                            const isCur = m.isCurrent || m.status === 'active';
+                            return (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedClubMonthId(m.id);
+                                  setGenMonth(m.id);
+                                }}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  padding: "0.45rem 0.85rem",
+                                  borderRadius: "99px",
+                                  border: isSel ? "2px solid #ea580c" : "1px solid #fdba74",
+                                  background: isSel ? "#ea580c" : "#ffffff",
+                                  color: isSel ? "#ffffff" : "#9a3412",
+                                  fontWeight: isSel ? 800 : 600,
+                                  fontSize: "0.8rem",
+                                  cursor: "pointer",
+                                  whiteSpace: "nowrap",
+                                  boxShadow: isSel ? "0 2px 6px rgba(234, 88, 12, 0.25)" : "none",
+                                  transition: "all 0.15s ease"
+                                }}
+                              >
+                                <span>{m.label || m.id}</span>
+                                {isCur && (
+                                  <span style={{
+                                    background: isSel ? "rgba(255,255,255,0.25)" : "#fee2e2",
+                                    color: isSel ? "#ffffff" : "#dc2626",
+                                    fontSize: "0.68rem",
+                                    padding: "1px 6px",
+                                    borderRadius: "99px",
+                                    fontWeight: 700
+                                  }}>
+                                    🔥 Đang chạy
+                                  </span>
+                                )}
+                                {m.status === 'upcoming' && !isCur && (
+                                  <span style={{
+                                    background: isSel ? "rgba(255,255,255,0.25)" : "#fef3c7",
+                                    color: isSel ? "#ffffff" : "#b45309",
+                                    fontSize: "0.68rem",
+                                    padding: "1px 6px",
+                                    borderRadius: "99px"
+                                  }}>
+                                    Sắp tới
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Khung Chỉnh Sửa Chi Tiết Cho Tháng Đang Chọn */}
+                        <div style={{
+                          background: "#ffffff",
+                          border: "1px solid #fed7aa",
+                          borderRadius: "12px",
+                          padding: "1rem 1.25rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.85rem"
+                        }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1.5fr", gap: "0.75rem", alignItems: "center" }}>
+                            <div>
+                              <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#9a3412", display: "block", marginBottom: "0.25rem" }}>
+                                Tên Tháng Hiển Thị
+                              </label>
+                              <input
+                                type="text"
+                                value={activeMonth.label || ""}
+                                onChange={(e) => updateActiveMonth({ label: e.target.value })}
+                                placeholder="Ví dụ: Tháng 11/2026"
+                                style={{ width: "100%", padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.82rem", fontWeight: 600 }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#9a3412", display: "block", marginBottom: "0.25rem" }}>
+                                Trạng Thái Tháng
+                              </label>
+                              <select
+                                value={activeMonth.status || "upcoming"}
+                                onChange={(e) => updateActiveMonth({ status: e.target.value })}
+                                style={{ width: "100%", padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.82rem", fontWeight: 600 }}
+                              >
+                                <option value="active">🔥 Đang diễn ra (active)</option>
+                                <option value="upcoming">⏳ Sắp tới (upcoming)</option>
+                                <option value="completed">✅ Đã kết thúc (completed)</option>
+                              </select>
+                            </div>
+                            <div style={{ paddingTop: "1rem" }}>
+                              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, color: "#ea580c" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={!!activeMonth.isCurrent}
+                                  onChange={(e) => updateActiveMonth({ isCurrent: e.target.checked, status: e.target.checked ? 'active' : activeMonth.status })}
+                                  style={{ width: "16px", height: "16px" }}
+                                />
+                                🌟 Đặt làm Tháng Hiện Tại (Mặc định mở web)
+                              </label>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.8fr", gap: "0.75rem" }}>
+                            <div>
+                              <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#9a3412", display: "block", marginBottom: "0.25rem" }}>
+                                🏷️ Tiêu Đề Chiến Dịch Tháng
+                              </label>
+                              <input
+                                type="text"
+                                value={activeMonth.themeTitle || ""}
+                                onChange={(e) => updateActiveMonth({ themeTitle: e.target.value })}
+                                placeholder="Ví dụ: CHIẾN DỊCH THÁNG 11 · BỨT PHÁ TỐC ĐỘ (PACER LEAD)"
+                                style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1.5px solid #fdba74", fontSize: "0.85rem", fontWeight: 700, color: "#9a3412" }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#9a3412", display: "block", marginBottom: "0.25rem" }}>
+                                💬 Khẩu Hiệu / Slogan Tháng
+                              </label>
+                              <input
+                                type="text"
+                                value={activeMonth.themeSlogan || ""}
+                                onChange={(e) => updateActiveMonth({ themeSlogan: e.target.value })}
+                                placeholder="Ví dụ: Rèn nhịp thở đều · Nâng dần cự ly · Đón gió đầu đông"
+                                style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1.5px solid #fdba74", fontSize: "0.85rem", color: "#c2410c" }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* KHUNG XEM TRƯỚC BANNER THỰC TẾ TRÊN WEB (LIVE PREVIEW) */}
+                          <div style={{ marginTop: "0.4rem" }}>
+                            <div style={{ fontSize: "0.72rem", color: "#9a3412", fontWeight: 700, marginBottom: "0.35rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                              <span>👁️</span> Xem trước hiển thị trên Web khi học viên chọn {activeMonth.label || activeMonth.id}:
+                            </div>
+                            <div style={{
+                              background: "linear-gradient(135deg, #ffe4e6 0%, #fecdd3 100%)",
+                              border: "1px solid #fda4af",
+                              borderRadius: "14px",
+                              padding: "0.85rem 1.25rem",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              flexWrap: "wrap",
+                              gap: "0.75rem",
+                              boxShadow: "0 2px 8px rgba(225, 29, 72, 0.08)"
+                            }}>
+                              <div>
+                                <div style={{ fontSize: "0.95rem", fontWeight: 900, color: "#9f1239", letterSpacing: "0.02em" }}>
+                                  {activeMonth.themeTitle || "CHƯA ĐẶT TIÊU ĐỀ CHIẾN DỊCH"}
+                                </div>
+                                <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#be123c", marginTop: "0.15rem" }}>
+                                  {activeMonth.themeSlogan || "Chưa đặt khẩu hiệu cho tháng này"}
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", gap: "1.2rem", alignItems: "center" }}>
+                                <div style={{ textAlign: "center" }}>
+                                  <div style={{ fontSize: "1.05rem", fontWeight: 900, color: "#9f1239" }}>
+                                    {(editingCamp.sessions || []).filter((s: any) => s.dateStr && s.dateStr.startsWith(activeMonth.id)).length || 8}
+                                  </div>
+                                  <div style={{ fontSize: "0.68rem", fontWeight: 700, color: "#be123c", textTransform: "uppercase" }}>Buổi T6 & CN</div>
+                                </div>
+                                <div style={{ textAlign: "center" }}>
+                                  <div style={{ fontSize: "1.05rem", fontWeight: 900, color: "#9f1239" }}>2</div>
+                                  <div style={{ fontSize: "0.68rem", fontWeight: 700, color: "#be123c", textTransform: "uppercase" }}>Buổi / Tuần</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Hành động nhanh cho tháng này */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.25rem" }}>
+                            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                              💡 Mọi thay đổi sẽ được lưu vào cơ sở dữ liệu khi bạn bấm nút "Lưu Cấu Hình Toàn Diện" phía dưới.
+                            </span>
+                            {months.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Bạn có chắc muốn xóa cấu hình Tháng ${activeMonth.label || activeMonth.id}?`)) {
+                                    const updated = months.filter((m: any) => m.id !== activeMonth.id);
+                                    setEditingCamp({ ...editingCamp, club_months: updated });
+                                    if (updated.length > 0) {
+                                      setSelectedClubMonthId(updated[0].id);
+                                      setGenMonth(updated[0].id);
+                                    }
+                                  }
+                                }}
+                                style={{ background: "none", border: "none", color: "#ef4444", fontSize: "0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                              >
+                                <Trash2 size={13} /> Xóa tháng này khỏi mùa giải
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+
                   {/* Mục 2: Bộ Sinh Lịch Tự Động (1-Click Generator) */}
                   <div style={{
                     background: "linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(245, 158, 11, 0.08) 100%)",
@@ -2468,7 +5354,7 @@ export default function JourneyAdminPage() {
                       </p>
                     </div>
 
-                    {editingCamp.mode === "clb_quanh_nam" ? (
+                    {editingCamp.mode === "clb_quanh_nam" || editingCamp.mode === "cham_cong" ? (
                       <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
                         <div>
                           <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.3rem" }}>
@@ -2500,7 +5386,7 @@ export default function JourneyAdminPage() {
                           }}
                         >
                           <Zap size={16} />
-                          <span>⚡ Sinh Toàn Bộ Lịch Chạy Cả Tháng Này</span>
+                          <span>⚡ {editingCamp.mode === "cham_cong" ? "Sinh Toàn Bộ Lịch Ca Làm Cả Tháng Này" : "Sinh Toàn Bộ Lịch Chạy Cả Tháng Này"}</span>
                         </button>
                       </div>
                     ) : (
@@ -2625,7 +5511,22 @@ export default function JourneyAdminPage() {
                             return (
                               <tr key={s.id || idx} style={{ borderBottom: "1px solid var(--border)" }}>
                                 <td style={{ padding: "0.6rem 0.75rem", fontWeight: 700, color: "#4f46e5" }}>
-                                  {s.sessionCode}
+                                  <div>{s.sessionCode}</div>
+                                  {s.isParallel && (
+                                    <span style={{
+                                      display: "inline-block",
+                                      background: s.isSpecialEvent ? "#fef3c7" : "#ecfdf5",
+                                      color: s.isSpecialEvent ? "#b45309" : "#047857",
+                                      border: s.isSpecialEvent ? "1px solid #fde68a" : "1px solid #a7f3d0",
+                                      fontSize: "0.66rem",
+                                      fontWeight: 700,
+                                      padding: "1px 5px",
+                                      borderRadius: "4px",
+                                      marginTop: "2px",
+                                    }}>
+                                      {s.scopeTag || (s.isSpecialEvent ? "🏆 THI ĐẤU" : "🏃 TẠI CLB")}
+                                    </span>
+                                  )}
                                 </td>
                                 <td style={{ padding: "0.6rem 0.75rem" }}>
                                   <div>📅 {s.dateStr}</div>
@@ -2634,7 +5535,10 @@ export default function JourneyAdminPage() {
                                 <td style={{ padding: "0.6rem 0.75rem", fontWeight: 600 }}>
                                   <div>{s.title}</div>
                                   <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 400 }}>📍 {s.location}</div>
-                                  {s.isSpecialEvent && <span style={{ background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>{s.specialBadge || "SỰ KIỆN"}</span>}
+                                  <div style={{ display: "inline-flex", gap: "4px", marginTop: "2px", flexWrap: "wrap" }}>
+                                    {s.isSpecialEvent && <span style={{ background: "#fef3c7", color: "#b45309", padding: "1px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>{s.specialBadge || "SỰ KIỆN"}</span>}
+                                    {s.isParallel && <span style={{ background: "#ede9fe", color: "#6d28d9", padding: "1px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>⚡ SONG SONG</span>}
+                                  </div>
                                 </td>
                                 <td style={{ padding: "0.6rem 0.75rem" }}>
                                   <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
@@ -2644,7 +5548,7 @@ export default function JourneyAdminPage() {
                                     {hasDownload ? (
                                       <span style={{ background: "#e0e7ff", color: "#3730a3", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>📥 Tải</span>
                                     ) : null}
-                                    {hasCanva ? (
+                                    {(editingCamp?.mode === "lop_hoc_buoi" || editingCamp?.scope === "branch" || editingCamp?.theme?.scope === "branch") && hasCanva ? (
                                       <span style={{ background: "#f3e8ff", color: "#6b21a8", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700 }}>🎨 Canva</span>
                                     ) : null}
                                     {hasSummary ? (
@@ -2707,6 +5611,538 @@ export default function JourneyAdminPage() {
                   </div>
                 </div>
               )}
+
+              {/* PHẦN 7: BẢNG PHONG THẦN ALL-TIME (CHO CLB QUANH NĂM) */}
+              {modalSubTab === "hall_of_fame" && (() => {
+                const hof = editingCamp.theme?.hall_of_fame || {
+                  title_kids: '👑 BẢNG PHONG THẦN RUNNER NHÍ · ALL-TIME 2026',
+                  subtitle_kids: 'Tôn vinh những đôi chân nhí kiên cường nhất của Rubisea 19 từ đầu năm đến nay',
+                  flame_hint_kids: '🔥 Tính theo Tuần Kỷ Luật U15 (đủ cả 2 buổi T6 & CN)',
+                  clubs_kids: [
+                    { min_km: 100, name: 'Club 100km · Kiện Tướng Nhí', badge: '👑', border_color: '#f59e0b', name_color: '#b45309' },
+                    { min_km: 75, name: 'Club 75km · Bàn Chân Thép U15', badge: '🥈', border_color: '#3b82f6', name_color: '#1d4ed8' },
+                    { min_km: 50, name: 'Club 50km · Bứt Phá Cự Ly', badge: '🥉', border_color: '#10b981', name_color: '#047857' },
+                    { min_km: 25, name: 'Club 25km · Tân Binh Kỷ Luật', badge: '⚡', border_color: '#8b5cf6', name_color: '#6d28d9' },
+                  ],
+                  title_adults: '👑 BẢNG PHONG THẦN PACER & PHỤ HUYNH · ALL-TIME 2026',
+                  subtitle_adults: 'Tôn vinh những đôi chân kỳ cựu gương mẫu, dẫn dắt và tiếp sức cho các con',
+                  flame_hint_adults: '🔥 Tính theo Tuần Kỷ Luật (đủ 2 buổi T6 & CN)',
+                  clubs_adults: [
+                    { min_km: 300, name: 'Club 300km · Huyền Thoại Pacer', badge: '👑', border_color: '#f59e0b', name_color: '#b45309' },
+                    { min_km: 200, name: 'Club 200km · Chiến Binh Tiên Phong', badge: '🥈', border_color: '#3b82f6', name_color: '#1d4ed8' },
+                    { min_km: 100, name: 'Club 100km · Bàn Chân Thép', badge: '🥉', border_color: '#10b981', name_color: '#047857' },
+                    { min_km: 50, name: 'Club 50km · Phụ Huynh Gương Mẫu', badge: '⚡', border_color: '#8b5cf6', name_color: '#6d28d9' },
+                  ],
+                  starter_enabled: true,
+                  starter_title_kids: '🌱 VƯỜN ƯƠM RUNNER NHÍ (< 25KM) · ĐANG TÍCH LŨY BƯỚC CHẠY',
+                  starter_subtitle_kids: 'Chặng đường vạn dặm bắt đầu từ bước chân đầu tiên. Tích lũy đủ 25km để chính thức thăng hạng lên Club 25km!',
+                  starter_title_adults: '🌱 TÂN BINH PACER & PHỤ HUYNH (< 50KM) · ĐANG TÍCH LŨY',
+                  starter_subtitle_adults: 'Đồng hành cùng các con trên từng dặm đường. Tích lũy đủ 50km để thăng hạng lên Club 50km!',
+                };
+
+                const updateHof = (patch: any) => {
+                  setEditingCamp({
+                    ...editingCamp,
+                    theme: {
+                      ...(editingCamp.theme || {}),
+                      hall_of_fame: {
+                        ...hof,
+                        ...patch
+                      }
+                    }
+                  });
+                };
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                    {/* Header Card Giới Thiệu */}
+                    <div style={{
+                      background: "linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)",
+                      border: "1px solid #fed7aa",
+                      borderRadius: "14px",
+                      padding: "1.25rem 1.5rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "1rem"
+                    }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "#9a3412", display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span>👑</span> Cấu Hình Bảng Phong Thần All-Time · CLB Quanh Năm
+                        </h4>
+                        <p style={{ margin: "0.3rem 0 0", fontSize: "0.82rem", color: "#c2410c", lineHeight: 1.5 }}>
+                          Tùy biến các nấc mốc Km danh dự, tên CLB, huy hiệu và Vườn Ươm Tân Binh. Web sẽ tự động phân loại Runner vào các CLB dựa trên số km tích lũy thật cả năm!
+                        </p>
+                      </div>
+                      <span style={{
+                        background: "#fff",
+                        padding: "0.35rem 0.85rem",
+                        borderRadius: "99px",
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        color: "#ea580c",
+                        border: "1px solid #fdba74"
+                      }}>
+                        ⚡ Tự động tính 100% từ Km thật
+                      </span>
+                    </div>
+
+                    {/* SECTION 1: BẢNG RUNNER NHÍ (U15) */}
+                    <div style={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: "14px", padding: "1.25rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#e11d48", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span>🌟</span> Bảng Runner Nhí (U15) · Cột Mốc Vinh Danh
+                          </h4>
+                          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>Các nấc Cột mốc dành cho các bạn nhỏ U15</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = hof.clubs_kids || [];
+                            const nextMin = current.length > 0 ? Math.max(0, current[current.length - 1].min_km - 25) : 25;
+                            const newClub = {
+                              min_km: nextMin,
+                              name: `Club ${nextMin}km · Cột Mốc Mới`,
+                              badge: '🎖️',
+                              border_color: '#3b82f6',
+                              name_color: '#1d4ed8'
+                            };
+                            updateHof({ clubs_kids: [...current, newClub] });
+                          }}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "0.45rem 0.85rem",
+                            borderRadius: "8px",
+                            border: "1px solid #e11d48",
+                            background: "#fff1f2",
+                            color: "#e11d48",
+                            fontSize: "0.8rem",
+                            fontWeight: 700,
+                            cursor: "pointer"
+                          }}
+                        >
+                          <Plus size={14} /> Thêm Cột Mốc CLB Nhí
+                        </button>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 2fr 1.5fr", gap: "0.75rem", marginBottom: "1rem" }}>
+                        <div>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Tiêu Đề Bảng Nhí</label>
+                          <input
+                            type="text"
+                            value={hof.title_kids || ""}
+                            onChange={(e) => updateHof({ title_kids: e.target.value })}
+                            style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Phụ Đề Bảng Nhí</label>
+                          <input
+                            type="text"
+                            value={hof.subtitle_kids || ""}
+                            onChange={(e) => updateHof({ subtitle_kids: e.target.value })}
+                            style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Ghi Chú Tuần Kỷ Luật</label>
+                          <input
+                            type="text"
+                            value={hof.flame_hint_kids || ""}
+                            onChange={(e) => updateHof({ flame_hint_kids: e.target.value })}
+                            style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Danh Sách CLB Nhí */}
+                      <div style={{ border: "1px solid var(--border)", borderRadius: "10px", overflow: "hidden" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                          <thead>
+                            <tr style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", textAlign: "left", color: "var(--text-muted)" }}>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "100px" }}>Mốc Km (≥)</th>
+                              <th style={{ padding: "0.6rem 0.75rem" }}>Tên CLB Vinh Danh</th>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "70px", textAlign: "center" }}>Badge</th>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "110px" }}>Màu Viền</th>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "110px" }}>Màu Chữ</th>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "60px", textAlign: "center" }}>Xóa</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(hof.clubs_kids || []).map((club: any, idx: number) => (
+                              <tr key={idx} style={{ borderBottom: "1px solid var(--border)", background: idx % 2 === 0 ? "transparent" : "var(--surface)" }}>
+                                <td style={{ padding: "0.5rem 0.75rem" }}>
+                                  <input
+                                    type="number"
+                                    value={club.min_km}
+                                    onChange={(e) => {
+                                      const updated = [...hof.clubs_kids];
+                                      updated[idx] = { ...updated[idx], min_km: Number(e.target.value) };
+                                      updateHof({ clubs_kids: updated });
+                                    }}
+                                    style={{ width: "75px", padding: "0.35rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border)", fontWeight: 700, fontSize: "0.82rem" }}
+                                  />
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem" }}>
+                                  <input
+                                    type="text"
+                                    value={club.name}
+                                    onChange={(e) => {
+                                      const updated = [...hof.clubs_kids];
+                                      updated[idx] = { ...updated[idx], name: e.target.value };
+                                      updateHof({ clubs_kids: updated });
+                                    }}
+                                    style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border)", fontWeight: 600, fontSize: "0.82rem" }}
+                                  />
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
+                                  <input
+                                    type="text"
+                                    value={club.badge}
+                                    onChange={(e) => {
+                                      const updated = [...hof.clubs_kids];
+                                      updated[idx] = { ...updated[idx], badge: e.target.value };
+                                      updateHof({ clubs_kids: updated });
+                                    }}
+                                    style={{ width: "42px", padding: "0.35rem", textAlign: "center", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.95rem" }}
+                                  />
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                    <input
+                                      type="color"
+                                      value={club.border_color || "#f59e0b"}
+                                      onChange={(e) => {
+                                        const updated = [...hof.clubs_kids];
+                                        updated[idx] = { ...updated[idx], border_color: e.target.value };
+                                        updateHof({ clubs_kids: updated });
+                                      }}
+                                      style={{ width: "28px", height: "28px", border: "none", cursor: "pointer", background: "none" }}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={club.border_color || ""}
+                                      onChange={(e) => {
+                                        const updated = [...hof.clubs_kids];
+                                        updated[idx] = { ...updated[idx], border_color: e.target.value };
+                                        updateHof({ clubs_kids: updated });
+                                      }}
+                                      style={{ width: "65px", padding: "0.25rem 0.4rem", borderRadius: "4px", border: "1px solid var(--border)", fontSize: "0.75rem" }}
+                                    />
+                                  </div>
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                    <input
+                                      type="color"
+                                      value={club.name_color || "#b45309"}
+                                      onChange={(e) => {
+                                        const updated = [...hof.clubs_kids];
+                                        updated[idx] = { ...updated[idx], name_color: e.target.value };
+                                        updateHof({ clubs_kids: updated });
+                                      }}
+                                      style={{ width: "28px", height: "28px", border: "none", cursor: "pointer", background: "none" }}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={club.name_color || ""}
+                                      onChange={(e) => {
+                                        const updated = [...hof.clubs_kids];
+                                        updated[idx] = { ...updated[idx], name_color: e.target.value };
+                                        updateHof({ clubs_kids: updated });
+                                      }}
+                                      style={{ width: "65px", padding: "0.25rem 0.4rem", borderRadius: "4px", border: "1px solid var(--border)", fontSize: "0.75rem" }}
+                                    />
+                                  </div>
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = hof.clubs_kids.filter((_: any, i: number) => i !== idx);
+                                      updateHof({ clubs_kids: updated });
+                                    }}
+                                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px" }}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* SECTION 2: BẢNG PACER & PHỤ HUYNH */}
+                    <div style={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: "14px", padding: "1.25rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#4f46e5", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span>🏃</span> Bảng Pacer & Phụ Huynh · Cột Mốc Vinh Danh
+                          </h4>
+                          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>Các nấc Cột mốc dành cho Pacer và Phụ huynh gương mẫu</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = hof.clubs_adults || [];
+                            const nextMin = current.length > 0 ? Math.max(0, current[current.length - 1].min_km - 50) : 50;
+                            const newClub = {
+                              min_km: nextMin,
+                              name: `Club ${nextMin}km · Cột Mốc Mới`,
+                              badge: '🎖️',
+                              border_color: '#3b82f6',
+                              name_color: '#1d4ed8'
+                            };
+                            updateHof({ clubs_adults: [...current, newClub] });
+                          }}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "0.45rem 0.85rem",
+                            borderRadius: "8px",
+                            border: "1px solid #4f46e5",
+                            background: "#eef2ff",
+                            color: "#4f46e5",
+                            fontSize: "0.8rem",
+                            fontWeight: 700,
+                            cursor: "pointer"
+                          }}
+                        >
+                          <Plus size={14} /> Thêm Cột Mốc CLB Người Lớn
+                        </button>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 2fr 1.5fr", gap: "0.75rem", marginBottom: "1rem" }}>
+                        <div>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Tiêu Đề Bảng Người Lớn</label>
+                          <input
+                            type="text"
+                            value={hof.title_adults || ""}
+                            onChange={(e) => updateHof({ title_adults: e.target.value })}
+                            style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Phụ Đề Bảng Người Lớn</label>
+                          <input
+                            type="text"
+                            value={hof.subtitle_adults || ""}
+                            onChange={(e) => updateHof({ subtitle_adults: e.target.value })}
+                            style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Ghi Chú Tuần Kỷ Luật</label>
+                          <input
+                            type="text"
+                            value={hof.flame_hint_adults || ""}
+                            onChange={(e) => updateHof({ flame_hint_adults: e.target.value })}
+                            style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", fontSize: "0.82rem" }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Danh Sách CLB Người Lớn */}
+                      <div style={{ border: "1px solid var(--border)", borderRadius: "10px", overflow: "hidden" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                          <thead>
+                            <tr style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", textAlign: "left", color: "var(--text-muted)" }}>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "100px" }}>Mốc Km (≥)</th>
+                              <th style={{ padding: "0.6rem 0.75rem" }}>Tên CLB Vinh Danh</th>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "70px", textAlign: "center" }}>Badge</th>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "110px" }}>Màu Viền</th>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "110px" }}>Màu Chữ</th>
+                              <th style={{ padding: "0.6rem 0.75rem", width: "60px", textAlign: "center" }}>Xóa</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(hof.clubs_adults || []).map((club: any, idx: number) => (
+                              <tr key={idx} style={{ borderBottom: "1px solid var(--border)", background: idx % 2 === 0 ? "transparent" : "var(--surface)" }}>
+                                <td style={{ padding: "0.5rem 0.75rem" }}>
+                                  <input
+                                    type="number"
+                                    value={club.min_km}
+                                    onChange={(e) => {
+                                      const updated = [...hof.clubs_adults];
+                                      updated[idx] = { ...updated[idx], min_km: Number(e.target.value) };
+                                      updateHof({ clubs_adults: updated });
+                                    }}
+                                    style={{ width: "75px", padding: "0.35rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border)", fontWeight: 700, fontSize: "0.82rem" }}
+                                  />
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem" }}>
+                                  <input
+                                    type="text"
+                                    value={club.name}
+                                    onChange={(e) => {
+                                      const updated = [...hof.clubs_adults];
+                                      updated[idx] = { ...updated[idx], name: e.target.value };
+                                      updateHof({ clubs_adults: updated });
+                                    }}
+                                    style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border)", fontWeight: 600, fontSize: "0.82rem" }}
+                                  />
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
+                                  <input
+                                    type="text"
+                                    value={club.badge}
+                                    onChange={(e) => {
+                                      const updated = [...hof.clubs_adults];
+                                      updated[idx] = { ...updated[idx], badge: e.target.value };
+                                      updateHof({ clubs_adults: updated });
+                                    }}
+                                    style={{ width: "42px", padding: "0.35rem", textAlign: "center", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.95rem" }}
+                                  />
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                    <input
+                                      type="color"
+                                      value={club.border_color || "#f59e0b"}
+                                      onChange={(e) => {
+                                        const updated = [...hof.clubs_adults];
+                                        updated[idx] = { ...updated[idx], border_color: e.target.value };
+                                        updateHof({ clubs_adults: updated });
+                                      }}
+                                      style={{ width: "28px", height: "28px", border: "none", cursor: "pointer", background: "none" }}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={club.border_color || ""}
+                                      onChange={(e) => {
+                                        const updated = [...hof.clubs_adults];
+                                        updated[idx] = { ...updated[idx], border_color: e.target.value };
+                                        updateHof({ clubs_adults: updated });
+                                      }}
+                                      style={{ width: "65px", padding: "0.25rem 0.4rem", borderRadius: "4px", border: "1px solid var(--border)", fontSize: "0.75rem" }}
+                                    />
+                                  </div>
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                    <input
+                                      type="color"
+                                      value={club.name_color || "#b45309"}
+                                      onChange={(e) => {
+                                        const updated = [...hof.clubs_adults];
+                                        updated[idx] = { ...updated[idx], name_color: e.target.value };
+                                        updateHof({ clubs_adults: updated });
+                                      }}
+                                      style={{ width: "28px", height: "28px", border: "none", cursor: "pointer", background: "none" }}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={club.name_color || ""}
+                                      onChange={(e) => {
+                                        const updated = [...hof.clubs_adults];
+                                        updated[idx] = { ...updated[idx], name_color: e.target.value };
+                                        updateHof({ clubs_adults: updated });
+                                      }}
+                                      style={{ width: "65px", padding: "0.25rem 0.4rem", borderRadius: "4px", border: "1px solid var(--border)", fontSize: "0.75rem" }}
+                                    />
+                                  </div>
+                                </td>
+                                <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = hof.clubs_adults.filter((_: any, i: number) => i !== idx);
+                                      updateHof({ clubs_adults: updated });
+                                    }}
+                                    style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px" }}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* SECTION 3: VƯỜN ƯƠM TÂN BINH (DẢI NGANG BANNER TOÀN MÀN HÌNH - BỐ CỤC CÁCH A) */}
+                    <div style={{ background: "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)", border: "1.5px solid #a7f3d0", borderRadius: "14px", padding: "1.25rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#065f46", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span>🌱</span> Vườn Ươm Tân Binh (Dải Ngang Banner Toàn Màn Hình · Bố Cục Cách A)
+                          </h4>
+                          <span style={{ fontSize: "0.78rem", color: "#047857" }}>
+                            Hiển thị các bạn nhỏ hoặc tân binh có km &lt; mốc thấp nhất đang nỗ lực tích lũy
+                          </span>
+                        </div>
+                        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 700, color: "#065f46" }}>
+                          <input
+                            type="checkbox"
+                            checked={hof.starter_enabled !== false}
+                            onChange={(e) => updateHof({ starter_enabled: e.target.checked })}
+                            style={{ width: "16px", height: "16px" }}
+                          />
+                          Bật Vườn Ươm Tân Binh
+                        </label>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                        <div style={{ background: "#ffffff", padding: "1rem", borderRadius: "10px", border: "1px solid #d1fae5" }}>
+                          <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#065f46", display: "block", marginBottom: "0.5rem" }}>
+                            🌟 Cấu Hình Vườn Ươm Runner Nhí
+                          </span>
+                          <div style={{ marginBottom: "0.5rem" }}>
+                            <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "0.2rem" }}>Tiêu đề Vườn Ươm Nhí</label>
+                            <input
+                              type="text"
+                              value={hof.starter_title_kids || ""}
+                              onChange={(e) => updateHof({ starter_title_kids: e.target.value })}
+                              style={{ width: "100%", padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.8rem" }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "0.2rem" }}>Phụ đề truyền cảm hứng</label>
+                            <textarea
+                              rows={2}
+                              value={hof.starter_subtitle_kids || ""}
+                              onChange={(e) => updateHof({ starter_subtitle_kids: e.target.value })}
+                              style={{ width: "100%", padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.8rem" }}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ background: "#ffffff", padding: "1rem", borderRadius: "10px", border: "1px solid #d1fae5" }}>
+                          <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#065f46", display: "block", marginBottom: "0.5rem" }}>
+                            🏃 Cấu Hình Vườn Ươm Pacer & Phụ Huynh
+                          </span>
+                          <div style={{ marginBottom: "0.5rem" }}>
+                            <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "0.2rem" }}>Tiêu đề Vườn Ươm Người Lớn</label>
+                            <input
+                              type="text"
+                              value={hof.starter_title_adults || ""}
+                              onChange={(e) => updateHof({ starter_title_adults: e.target.value })}
+                              style={{ width: "100%", padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.8rem" }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "0.2rem" }}>Phụ đề truyền cảm hứng</label>
+                            <textarea
+                              rows={2}
+                              value={hof.starter_subtitle_adults || ""}
+                              onChange={(e) => updateHof({ starter_subtitle_adults: e.target.value })}
+                              style={{ width: "100%", padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.8rem" }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* PHẦN 4: THÊM SỰ KIỆN ĐẶC BIỆT (GIẢI CHẠY, THI THỬ...) */}
               {modalSubTab === "special_events" && (
@@ -2812,7 +6248,23 @@ export default function JourneyAdminPage() {
                         <input
                           type="date"
                           value={newEvent.dateStr}
-                          onChange={(e) => setNewEvent({ ...newEvent, dateStr: e.target.value })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val && val.includes("-")) {
+                              const [y, m, d] = val.split("-").map(Number);
+                              const dateObj = new Date(y, m - 1, d);
+                              const dayOfWeek = dateObj.getDay();
+                              const dayShort = dayOfWeek === 0 ? "CN" : `T${dayOfWeek + 1}`;
+                              const timeOnly = (newEvent.timeStr || "05:30").replace(/^(CN|T[2-7])\s*/, "");
+                              setNewEvent({
+                                ...newEvent,
+                                dateStr: val,
+                                timeStr: `${dayShort} ${timeOnly || "05:30"}`,
+                              });
+                            } else {
+                              setNewEvent({ ...newEvent, dateStr: val });
+                            }
+                          }}
                           style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
                         />
                       </div>
@@ -2822,7 +6274,7 @@ export default function JourneyAdminPage() {
                           type="text"
                           value={newEvent.timeStr}
                           onChange={(e) => setNewEvent({ ...newEvent, timeStr: e.target.value })}
-                          placeholder="T7 05:30"
+                          placeholder="CN 05:30"
                           style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem" }}
                         />
                       </div>
@@ -2892,11 +6344,49 @@ export default function JourneyAdminPage() {
                         setEditingCamp({
                           ...editingCamp,
                           scoring_rules: [
-                            { label: 'Mỗi bài tập hoàn thành', points: '+1' },
-                            { label: 'Làm đủ bài tập trong buổi', points: '+1' },
-                            { label: 'Học đúng giờ & tương tác tích cực', points: '+2' },
-                            { label: 'Tuần học chuyên cần (đủ các buổi)', points: '+3' },
-                            { label: 'Hoàn thành chặng học xuất sắc', points: '+10' },
+                            { label: 'Check-in GPS đúng ca', points: '+1' },
+                            { label: 'Đúng giờ không đi muộn / về sớm', points: '+1' },
+                            { label: 'Check-out GPS đầy đủ', points: '+1' },
+                            { label: 'Tuần chuyên cần 100% (đủ ca làm)', points: '+5' },
+                            { label: 'Tháng chuyên cần xuất sắc', points: '+10' },
+                          ]
+                        });
+                      }}
+                      style={{ padding: "4px 10px", borderRadius: "6px", background: "#ecfdf5", color: "#059669", border: "1px solid #a7f3d0", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      📍 Dùng mẫu Chấm Công (VicHRM)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingCamp({
+                          ...editingCamp,
+                          scoring_rules: [
+                            { 
+                              label: 'Mỗi bài tập hoàn thành', 
+                              points: '+1',
+                              description: 'Tích lũy bài tập Padlet & đọc sách Razkids hằng ngày'
+                            },
+                            { 
+                              label: 'Làm đủ bài tập trong buổi', 
+                              points: '+1',
+                              description: 'Hoàn thành trọn vẹn 100% nhiệm vụ bắt buộc trong buổi học'
+                            },
+                            { 
+                              label: 'Học đúng giờ & tương tác tích cực', 
+                              points: '+2',
+                              description: 'Đi học đúng giờ tại chi nhánh, tác phong chuẩn & phát biểu sôi nổi'
+                            },
+                            { 
+                              label: 'Tuần học chuyên cần (đủ các buổi)', 
+                              points: '+3',
+                              description: 'Duy trì chuỗi ngày học và rèn luyện liên tục không ngắt quãng'
+                            },
+                            { 
+                              label: 'Hoàn thành chặng học xuất sắc', 
+                              points: '+10',
+                              description: 'Tích lũy điểm thi đua dẫn đầu toàn lớp trong suốt chặng học'
+                            },
                           ]
                         });
                       }}
@@ -2924,62 +6414,390 @@ export default function JourneyAdminPage() {
                     </button>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                    {(editingCamp.scoring_rules || []).map((rule, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "3fr 1fr auto",
-                          gap: "0.75rem",
-                          alignItems: "center",
-                          background: "var(--background)",
-                          padding: "0.6rem 0.85rem",
-                          borderRadius: "8px",
-                          border: "1px solid var(--border)",
-                        }}
-                      >
-                        <input
-                          type="text"
-                          value={rule.label}
-                          onChange={(e) => {
-                            const updated = [...(editingCamp.scoring_rules || [])]
-                            updated[idx] = { ...updated[idx], label: e.target.value }
-                            setEditingCamp({ ...editingCamp, scoring_rules: updated })
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+                    {(editingCamp.scoring_rules || []).map((rule, idx) => {
+                      const detectedType = rule.rule_type || (
+                        (rule.applicable_task_ids && rule.applicable_task_ids.length > 0) ||
+                        rule.label.toLowerCase().includes('nhiệm vụ đạt') || 
+                        rule.label.toLowerCase().includes('bài tập hoàn thành') ||
+                        rule.label.toLowerCase().includes('mỗi bài tập') ||
+                        rule.label.toLowerCase().includes('mỗi nhiệm vụ') ||
+                        rule.label.toLowerCase().includes('check-in') ||
+                        rule.label.toLowerCase().includes('đúng giờ') ||
+                        rule.label.toLowerCase().includes('check-out')
+                          ? 'per_task'
+                          : (rule.mandatory_task_ids && rule.mandatory_task_ids.length > 0) ||
+                            rule.label.toLowerCase().includes('đủ nhiệm vụ') || 
+                            rule.label.toLowerCase().includes('làm đủ bài tập') ||
+                            rule.label.toLowerCase().includes('đủ bài tập') ||
+                            rule.label.toLowerCase().includes('đủ ca') ||
+                            rule.label.toLowerCase().includes('chuyên cần')
+                            ? 'full_session'
+                            : (rule.milestones && rule.milestones.length > 0) ||
+                              rule.label.toLowerCase().includes('mốc') || 
+                              rule.label.toLowerCase().includes('milestone')
+                              ? 'milestone'
+                              : rule.label.toLowerCase().includes('chuỗi') ||
+                                rule.label.toLowerCase().includes('liên tiếp')
+                                ? 'streak'
+                                : 'per_task'
+                      );
+
+                      const isPerTaskRule = detectedType === 'per_task';
+                      const isFullSessionRule = detectedType === 'full_session';
+                      const isMilestoneRule = detectedType === 'milestone';
+                      const isStreakRule = detectedType === 'streak';
+                      const isOverallRule = detectedType === 'overall';
+
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            background: "var(--background)",
+                            padding: "0.75rem 0.95rem",
+                            borderRadius: "8px",
+                            border: isPerTaskRule ? "1px solid #bfdbfe" : isFullSessionRule ? "1px solid #a7f3d0" : isMilestoneRule ? "1px solid #fecdd3" : isStreakRule ? "1px solid #fed7aa" : isOverallRule ? "1px solid #e9d5ff" : "1px solid var(--border)",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
                           }}
-                          placeholder="Tiêu chí tính điểm"
-                          style={{ padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.85rem", background: "var(--surface)" }}
-                        />
-                        <input
-                          type="text"
-                          value={rule.points}
-                          onChange={(e) => {
-                            const updated = [...(editingCamp.scoring_rules || [])]
-                            updated[idx] = { ...updated[idx], points: e.target.value }
-                            setEditingCamp({ ...editingCamp, scoring_rules: updated })
-                          }}
-                          placeholder="+1, +2, +10"
-                          style={{ padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.85rem", fontWeight: 700, color: "#4f46e5", textAlign: "center", background: "var(--surface)" }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = (editingCamp.scoring_rules || []).filter((_, i) => i !== idx)
-                            setEditingCamp({ ...editingCamp, scoring_rules: updated })
-                          }}
-                          style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer" }}
                         >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "3fr 1fr auto",
+                              gap: "0.75rem",
+                              alignItems: "center",
+                            }}
+                          >
+                            <input
+                              type="text"
+                              value={rule.label}
+                              onChange={(e) => {
+                                const updated = [...(editingCamp.scoring_rules || [])]
+                                updated[idx] = { ...updated[idx], label: e.target.value }
+                                setEditingCamp({ ...editingCamp, scoring_rules: updated })
+                              }}
+                              placeholder="Tiêu chí tính điểm"
+                              style={{ padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.85rem", background: "var(--surface)", fontWeight: 600 }}
+                            />
+                            <input
+                              type="text"
+                              value={rule.points}
+                              onChange={(e) => {
+                                const updated = [...(editingCamp.scoring_rules || [])]
+                                updated[idx] = { ...updated[idx], points: e.target.value }
+                                setEditingCamp({ ...editingCamp, scoring_rules: updated })
+                              }}
+                              placeholder="+1, +2, +10"
+                              style={{ padding: "0.45rem 0.65rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.85rem", fontWeight: 700, color: "#4f46e5", textAlign: "center", background: "var(--surface)" }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = (editingCamp.scoring_rules || []).filter((_, i) => i !== idx)
+                                setEditingCamp({ ...editingCamp, scoring_rules: updated })
+                              }}
+                              style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "1rem" }}
+                              title="Xóa tiêu chí này"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          {/* Ô NHẬP MÔ TẢ / LỜI TÔN VINH HIỂN THỊ DƯỚI TÊN THẺ THÀNH TÍCH NỔI BẬT */}
+                          <div style={{ marginTop: '0.45rem' }}>
+                            <input
+                              type="text"
+                              value={rule.description || ''}
+                              onChange={(e) => {
+                                const updated = [...(editingCamp.scoring_rules || [])];
+                                updated[idx] = { ...updated[idx], description: e.target.value };
+                                setEditingCamp({ ...editingCamp, scoring_rules: updated });
+                              }}
+                              placeholder="📝 Thuyết minh hiển thị trên thẻ Thành tích nổi bật (VD: Tích lũy bài tập Padlet & Razkids...)"
+                              style={{
+                                width: '100%',
+                                padding: '0.38rem 0.65rem',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border)',
+                                fontSize: '0.78rem',
+                                background: 'var(--surface)',
+                                color: 'var(--text-main)',
+                              }}
+                            />
+                          </div>
+
+                          {/* CHỌN LOẠI CÁCH TÍNH ĐIỂM (TRIGGER TYPE) */}
+                          <div style={{ marginTop: '0.55rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                              ⚙️ Cách tính điểm:
+                            </span>
+                            <select
+                              value={detectedType}
+                              onChange={(e) => {
+                                const nextType = e.target.value;
+                                const updated = [...(editingCamp.scoring_rules || [])];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  rule_type: nextType,
+                                  applicable_task_ids: nextType === 'per_task' ? (updated[idx].applicable_task_ids || (editingCamp.tasks || []).map(t => t.id)) : undefined,
+                                  mandatory_task_ids: nextType === 'full_session' ? (updated[idx].mandatory_task_ids || (editingCamp.tasks || []).map(t => t.id)) : undefined,
+                                };
+                                setEditingCamp({ ...editingCamp, scoring_rules: updated });
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border)',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                background: 'var(--surface)',
+                                color: '#4f46e5',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <option value="per_task">🎯 Từng bài tập / nhiệm vụ hoàn thành (Tick chọn bài được tính điểm)</option>
+                              <option value="full_session">⭐ Làm đủ buổi 100% (Tick chọn bài bắt buộc để nhận ✓)</option>
+                              <option value="streak">🔥 Chuỗi chuyên cần liên tiếp (Tính theo số buổi/ngày liên tục)</option>
+                              <option value="milestone">🏆 Cột mốc bứt phá (Các nấc thang tích lũy)</option>
+                              <option value="overall">👑 Ngôi sao dẫn đầu toàn chặng (Tính theo tổng điểm)</option>
+                            </select>
+                          </div>
+
+                          {/* 1. TICKBOX CHO QUY TẮC: MỖI NHIỆM VỤ ĐẠT */}
+                          {isPerTaskRule && (
+                            <div style={{ marginTop: '0.6rem', padding: '0.55rem 0.75rem', background: 'var(--surface)', borderRadius: '6px', border: '1px dashed #93c5fd' }}>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e40af', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span>🎯</span> Tick chọn các nhiệm vụ ĐƯỢC TÍNH ĐIỂM khi hoàn thành:
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                {(editingCamp.tasks || []).map((t) => {
+                                  const isChecked = !rule.applicable_task_ids || rule.applicable_task_ids.length === 0 || rule.applicable_task_ids.includes(t.id);
+                                  return (
+                                    <label key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', cursor: 'pointer', background: isChecked ? '#eff6ff' : '#f8fafc', padding: '3px 8px', borderRadius: '4px', border: isChecked ? '1px solid #bfdbfe' : '1px solid #e2e8f0', color: isChecked ? '#1e40af' : '#64748b' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={(e) => {
+                                          const currentIds = rule.applicable_task_ids || (editingCamp.tasks || []).map(x => x.id);
+                                          const nextIds = e.target.checked
+                                            ? [...currentIds, t.id]
+                                            : currentIds.filter(id => id !== t.id);
+                                          const updated = [...(editingCamp.scoring_rules || [])];
+                                          updated[idx] = { ...updated[idx], applicable_task_ids: nextIds };
+                                          setEditingCamp({ ...editingCamp, scoring_rules: updated });
+                                        }}
+                                      />
+                                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: t.color || '#6366f1' }}></span>
+                                      <span style={{ fontWeight: 600 }}>{t.name}</span>
+                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>({t.type})</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                                💡 Những nhiệm vụ bỏ tick sẽ không được cộng điểm thi đua khi học viên nộp (dành cho nhiệm vụ phụ/tự nguyện).
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 2. TICKBOX CHO QUY TẮC: BUỔI LÀM ĐỦ NHIỆM VỤ */}
+                          {isFullSessionRule && (
+                            <div style={{ marginTop: '0.6rem', padding: '0.55rem 0.75rem', background: 'var(--surface)', borderRadius: '6px', border: '1px dashed #86efac' }}>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#065f46', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span>⭐</span> Tick chọn các nhiệm vụ BẮT BUỘC để được tính là "Làm Đủ Buổi" & nhận dấu ✓ xanh:
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                {(editingCamp.tasks || []).map((t) => {
+                                  const isChecked = !rule.mandatory_task_ids || rule.mandatory_task_ids.length === 0 || rule.mandatory_task_ids.includes(t.id);
+                                  return (
+                                    <label key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', cursor: 'pointer', background: isChecked ? '#ecfdf5' : '#f8fafc', padding: '3px 8px', borderRadius: '4px', border: isChecked ? '1px solid #a7f3d0' : '1px solid #e2e8f0', color: isChecked ? '#065f46' : '#64748b' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={(e) => {
+                                          const currentIds = rule.mandatory_task_ids || (editingCamp.tasks || []).map(x => x.id);
+                                          const nextIds = e.target.checked
+                                            ? [...currentIds, t.id]
+                                            : currentIds.filter(id => id !== t.id);
+                                          const updated = [...(editingCamp.scoring_rules || [])];
+                                          updated[idx] = { ...updated[idx], mandatory_task_ids: nextIds };
+                                          setEditingCamp({ ...editingCamp, scoring_rules: updated });
+                                        }}
+                                      />
+                                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: t.color || '#10b981' }}></span>
+                                      <span style={{ fontWeight: 600 }}>{t.name}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                                💡 Chỉ cần hoàn thành các nhiệm vụ được tick, học viên sẽ nhận dấu ✓ xanh trọn vẹn và điểm thưởng buổi.
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 3. CẤU HÌNH CÁC NẤC MỐC CHO QUY TẮC: CỘT MỐC BỨT PHÁ */}
+                          {isMilestoneRule && (
+                            <div style={{ marginTop: '0.6rem', padding: '0.65rem 0.85rem', background: 'var(--surface)', borderRadius: '6px', border: '1px dashed #fca5a5' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#9f1239', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <span>🏆</span> Cấu hình các nấc thang Cột Mốc Tích Lũy Bứt Phá:
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem' }}>
+                                  <span style={{ color: 'var(--text-muted)' }}>Tính theo nhiệm vụ:</span>
+                                  <select
+                                    value={rule.milestone_task_id || (editingCamp.tasks || []).find(t => t.type === 'number')?.id || 'chay_km'}
+                                    onChange={(e) => {
+                                      const updated = [...(editingCamp.scoring_rules || [])];
+                                      updated[idx] = { ...updated[idx], milestone_task_id: e.target.value };
+                                      setEditingCamp({ ...editingCamp, scoring_rules: updated });
+                                    }}
+                                    style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', fontSize: '0.75rem', background: 'var(--background)' }}
+                                  >
+                                    {(editingCamp.tasks || []).filter(t => t.type === 'number').map(t => (
+                                      <option key={t.id} value={t.id}>{t.name} ({t.unit || 'số'})</option>
+                                    ))}
+                                    {!(editingCamp.tasks || []).some(t => t.type === 'number') && (
+                                      <option value="chay_km">Chạy bộ (km)</option>
+                                    )}
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                {(rule.milestones || [
+                                  { threshold: 50, points: 5 },
+                                  { threshold: 100, points: 10 },
+                                  { threshold: 200, points: 15 },
+                                  { threshold: 300, points: 20 },
+                                ]).map((mItem, mIdx) => (
+                                  <div key={mIdx} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.8rem', background: 'var(--background)', padding: '4px 8px', borderRadius: '6px' }}>
+                                    <span style={{ fontWeight: 700, color: '#e11d48', minWidth: '55px' }}>Mốc {mIdx + 1}:</span>
+                                    <span>Chạm</span>
+                                    <input
+                                      type="number"
+                                      value={mItem.threshold}
+                                      onChange={(e) => {
+                                        const currentMs = [...(rule.milestones || [
+                                          { threshold: 50, points: 5 },
+                                          { threshold: 100, points: 10 },
+                                          { threshold: 200, points: 15 },
+                                          { threshold: 300, points: 20 },
+                                        ])];
+                                        currentMs[mIdx] = { ...currentMs[mIdx], threshold: parseFloat(e.target.value) || 0 };
+                                        const updated = [...(editingCamp.scoring_rules || [])];
+                                        updated[idx] = { ...updated[idx], milestones: currentMs };
+                                        setEditingCamp({ ...editingCamp, scoring_rules: updated });
+                                      }}
+                                      style={{ width: '65px', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 700 }}
+                                    />
+                                    <span style={{ color: 'var(--text-muted)' }}>
+                                      {(editingCamp.tasks || []).find(t => t.id === (rule.milestone_task_id || 'chay_km'))?.unit || 'km'}
+                                    </span>
+                                    <span style={{ marginLeft: 'auto' }}>Thưởng:</span>
+                                    <input
+                                      type="number"
+                                      value={mItem.points}
+                                      onChange={(e) => {
+                                        const currentMs = [...(rule.milestones || [
+                                          { threshold: 50, points: 5 },
+                                          { threshold: 100, points: 10 },
+                                          { threshold: 200, points: 15 },
+                                          { threshold: 300, points: 20 },
+                                        ])];
+                                        currentMs[mIdx] = { ...currentMs[mIdx], points: parseFloat(e.target.value) || 0 };
+                                        const updated = [...(editingCamp.scoring_rules || [])];
+                                        updated[idx] = { ...updated[idx], milestones: currentMs };
+                                        setEditingCamp({ ...editingCamp, scoring_rules: updated });
+                                      }}
+                                      style={{ width: '55px', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 700, color: '#4f46e5' }}
+                                    />
+                                    <span>điểm</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const currentMs = (rule.milestones || [
+                                          { threshold: 50, points: 5 },
+                                          { threshold: 100, points: 10 },
+                                          { threshold: 200, points: 15 },
+                                          { threshold: 300, points: 20 },
+                                        ]).filter((_, i) => i !== mIdx);
+                                        const updated = [...(editingCamp.scoring_rules || [])];
+                                        updated[idx] = { ...updated[idx], milestones: currentMs };
+                                        setEditingCamp({ ...editingCamp, scoring_rules: updated });
+                                      }}
+                                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0 4px', fontSize: '0.85rem' }}
+                                      title="Xóa mốc này"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const currentMs = [...(rule.milestones || [
+                                      { threshold: 50, points: 5 },
+                                      { threshold: 100, points: 10 },
+                                      { threshold: 200, points: 15 },
+                                      { threshold: 300, points: 20 },
+                                    ])];
+                                    const lastTh = currentMs.length > 0 ? currentMs[currentMs.length - 1].threshold : 0;
+                                    const lastPts = currentMs.length > 0 ? currentMs[currentMs.length - 1].points : 0;
+                                    currentMs.push({ threshold: lastTh + 50, points: lastPts + 5 });
+                                    const updated = [...(editingCamp.scoring_rules || [])];
+                                    updated[idx] = { ...updated[idx], milestones: currentMs };
+                                    setEditingCamp({ ...editingCamp, scoring_rules: updated });
+                                  }}
+                                  style={{ alignSelf: 'flex-start', background: 'transparent', border: '1px dashed #e11d48', color: '#e11d48', padding: '3px 8px', borderRadius: '4px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600, marginTop: '0.2rem' }}
+                                >
+                                  + Thêm nấc mốc mới
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {/* 4. CHUỖI KỶ LUẬT & CHUYÊN CẦN */}
+                          {isStreakRule && (
+                            <div style={{ marginTop: '0.6rem', padding: '0.55rem 0.75rem', background: 'var(--surface)', borderRadius: '6px', border: '1px dashed #fdba74' }}>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c2410c', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span>🔥</span> Chuỗi Kỷ Luật & Chuyên Cần Liên Tiếp:
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                💡 Máy tự động tính chuỗi số buổi / ngày học viên hoàn thành liên tục không ngắt quãng để tôn vinh người kiên trì nhất.
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 5. NGÔI SAO DẪN ĐẦU TOÀN CHẶNG */}
+                          {isOverallRule && (
+                            <div style={{ marginTop: '0.6rem', padding: '0.55rem 0.75rem', background: 'var(--surface)', borderRadius: '6px', border: '1px dashed #d8b4fe' }}>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#7e22ce', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span>👑</span> Ngôi Sao Dẫn Đầu Toàn Chặng:
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                💡 Tôn vinh học viên có tổng điểm thi đua tích lũy cao nhất lớp trong suốt toàn bộ hành trình.
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <button
                     type="button"
                     onClick={() => {
-                      const updated = [...(editingCamp.scoring_rules || []), { label: "Tiêu chí thưởng mới", points: "+1" }]
-                      setEditingCamp({ ...editingCamp, scoring_rules: updated })
+                      const updated = [
+                        ...(editingCamp.scoring_rules || []),
+                        {
+                          label: "Tiêu chí thưởng mới",
+                          points: "+1",
+                          description: "",
+                          rule_type: "per_task",
+                          applicable_task_ids: (editingCamp.tasks || []).map(t => t.id),
+                        }
+                      ];
+                      setEditingCamp({ ...editingCamp, scoring_rules: updated });
                     }}
                     style={{
                       alignSelf: "flex-start",
@@ -3202,6 +7020,7 @@ export default function JourneyAdminPage() {
                     </label>
                     <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
                       {[
+                        { color: "#ea580c", label: "Cam Lửa Kỷ Luật" },
                         { color: "#e11d48", label: "Đỏ Ruby Rubisea" },
                         { color: "#4f46e5", label: "Xanh Indigo VicEdu" },
                         { color: "#10b981", label: "Xanh Ngọc Chuyển Hóa" },
@@ -3239,6 +7058,7 @@ export default function JourneyAdminPage() {
                   </div>
 
                   {/* Mẫu Tin Nhắn Zalo Chăm Sóc & Nhắc Nhở */}
+                  {editingCamp.mode !== 'thoi_quen_ca_nhan' && (
                   <div style={{ background: "rgba(79, 70, 229, 0.04)", padding: "1rem", borderRadius: "10px", border: "1px solid #c7d2fe" }}>
                     <h5 style={{ fontSize: "0.88rem", fontWeight: 700, margin: "0 0 0.5rem", color: "#4f46e5", display: "flex", alignItems: "center", gap: "6px" }}>
                       <MessageSquare size={16} />
@@ -3277,6 +7097,7 @@ export default function JourneyAdminPage() {
                       />
                     </div>
                   </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3291,9 +7112,34 @@ export default function JourneyAdminPage() {
               background: "var(--background)",
               flexShrink: 0,
             }}>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                💡 Mọi thay đổi lịch tuần, nhiệm vụ và sự kiện sẽ được đồng bộ tức thì sang Web 2.
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                {editingCamp.id && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCamp(editingCamp)}
+                    style={{
+                      padding: "0.55rem 0.9rem",
+                      borderRadius: "8px",
+                      border: "1px solid #fecaca",
+                      background: "#fef2f2",
+                      color: "#ef4444",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontSize: "0.82rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "5px",
+                    }}
+                    title="Xóa vĩnh viễn hành trình này và toàn bộ dữ liệu liên quan"
+                  >
+                    <Trash2 size={14} />
+                    <span>Xóa Hành Trình Này</span>
+                  </button>
+                )}
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  💡 Mọi thay đổi lịch tuần, nhiệm vụ và sự kiện sẽ được đồng bộ tức thì sang Web 2.
+                </span>
+              </div>
 
               <div style={{ display: "flex", gap: "0.75rem" }}>
                 <button
@@ -3318,7 +7164,29 @@ export default function JourneyAdminPage() {
                       alert("Vui lòng điền mã slug và tên hành trình!")
                       return
                     }
-                    const res = await saveCamp(editingCamp)
+                    let campToSave = { ...editingCamp }
+                    if (campToSave.mode === 'thoi_quen_ca_nhan') {
+                      const tDays = Number(campToSave.theme?.target_days) || 30
+                      const sDate = campToSave.theme?.start_date || new Date().toISOString().split('T')[0]
+                      const autoSessions: any[] = []
+                      const startDateObj = new Date(sDate)
+                      for (let i = 1; i <= tDays; i++) {
+                        const cur = new Date(startDateObj)
+                        cur.setDate(startDateObj.getDate() + (i - 1))
+                        const dStr = cur.toISOString().split('T')[0]
+                        const code = `N${i < 10 ? '0' + i : i}`
+                        autoSessions.push({
+                          id: `sess-${code.toLowerCase()}`,
+                          sessionCode: code,
+                          title: `Ngày ${i}`,
+                          dateStr: dStr,
+                          summaryText: `Rèn luyện kỷ luật ngày ${i}`,
+                          desc: `Rèn luyện kỷ luật ngày ${i}`,
+                        })
+                      }
+                      campToSave.sessions = autoSessions
+                    }
+                    const res = await saveCamp(campToSave)
                     if (res.success) {
                       setShowCampModal(false)
                       loadCamps()
@@ -3506,25 +7374,27 @@ export default function JourneyAdminPage() {
                 </div>
               </div>
 
-              {/* 3. Slide Canva tương tác */}
-              <div style={{ background: "rgba(168, 85, 247, 0.05)", border: "1px solid rgba(168, 85, 247, 0.25)", borderRadius: "10px", padding: "1rem" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "0.35rem" }}>
-                  <span style={{ fontSize: "1rem" }}>🎨</span>
-                  <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#6b21a8" }}>
-                    Slide Bài Giảng Canva Tương Tác
-                  </span>
+              {/* 3. Slide Canva tương tác: ĐẶC QUYỀN DÀNH RIÊNG CHO "LỚP HỌC TẠI CHI NHÁNH" */}
+              {(editingCamp?.mode === "lop_hoc_buoi" || editingCamp?.scope === "branch" || editingCamp?.theme?.scope === "branch") && (
+                <div style={{ background: "rgba(168, 85, 247, 0.05)", border: "1px solid rgba(168, 85, 247, 0.25)", borderRadius: "10px", padding: "1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "0.35rem" }}>
+                    <span style={{ fontSize: "1rem" }}>🎨</span>
+                    <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#6b21a8" }}>
+                      Slide Bài Giảng Canva Tương Tác (Đặc quyền Lớp Chi Nhánh)
+                    </span>
+                  </div>
+                  <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", margin: "0 0 0.6rem" }}>
+                    Dán link bài giảng Canva để học viên có thể bấm tương tác toàn màn hình ngay trong buổi học.
+                  </p>
+                  <input
+                    type="text"
+                    value={editingSessionItem.canvaUrl || ""}
+                    onChange={(e) => setEditingSessionItem({ ...editingSessionItem, canvaUrl: e.target.value })}
+                    placeholder="VD: https://www.canva.com/design/.../view?embed"
+                    style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                  />
                 </div>
-                <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", margin: "0 0 0.6rem" }}>
-                  Dán link bài giảng Canva để học viên có thể bấm tương tác toàn màn hình ngay trong buổi học.
-                </p>
-                <input
-                  type="text"
-                  value={editingSessionItem.canvaUrl || ""}
-                  onChange={(e) => setEditingSessionItem({ ...editingSessionItem, canvaUrl: e.target.value })}
-                  placeholder="VD: https://www.canva.com/design/.../view?embed"
-                  style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
-                />
-              </div>
+              )}
 
               {/* 4. Tóm tắt nội dung buổi học & Sơ đồ mindmap */}
               <div>
@@ -3716,288 +7586,1020 @@ export default function JourneyAdminPage() {
         </div>
       )}
 
-      {/* MODAL THÊM / SỬA THÀNH VIÊN */}
-      {showMemberModal && editingMember && (
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0, 0, 0, 0.5)",
-          backdropFilter: "blur(4px)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 100,
-          padding: "1rem",
-        }}>
-          <div style={{
-            background: "var(--surface)",
-            borderRadius: "16px",
-            padding: "2rem",
-            maxWidth: "500px",
-            width: "100%",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
-          }}>
-            <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-              {editingMember.id ? "✏️ Chỉnh Sửa Thành Viên" : "✨ Thêm Thành Viên Mới"}
-            </h2>
+            {/* MODAL THÊM / SỬA THÀNH VIÊN ĐA NĂNG (TỰ ĐỘNG THÍCH ỨNG THEO ĐẶC THÙ HÀNH TRÌNH) */}
+      {showMemberModal && editingMember && (() => {
+        const isEditing = !!editingMember.id;
+        const isStaffAlreadyInCamp = (emp: any) => {
+          const empName = (emp.full_name || '').trim().toLowerCase();
+          const empPhone = (emp.phone || '').trim();
+          const empId = (emp.id || '').trim().toLowerCase();
+          return members.some((m: any) => {
+            if (empPhone && m.phone && m.phone === empPhone) return true;
+            const mName = (m.name || '').toLowerCase();
+            if (empName && mName.includes(empName) && empName.length > 2) return true;
+            if (empId && mName.includes(empId)) return true;
+            return false;
+          });
+        };
+        const isStudentAlreadyInCamp = (stu: any) => {
+          const stuName = (stu.full_name || '').trim().toLowerCase();
+          const stuPhone = (stu.parent_phone || stu.phone || '').trim();
+          const stuId = (stu.id || '').trim().toLowerCase();
+          return members.some((m: any) => {
+            if (m.student_id && m.student_id === stu.id) return true;
+            if (stuPhone && m.phone && m.phone === stuPhone) return true;
+            const mName = (m.name || '').toLowerCase();
+            if (stuName && mName.includes(stuName) && stuName.length > 2) return true;
+            if (stuId && mName.includes(stuId)) return true;
+            return false;
+          });
+        };
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1.25rem" }}>
-              {/* Tải ảnh đại diện cho thành viên */}
-              <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.85rem", background: "var(--background)", borderRadius: "10px", border: "1px dashed var(--border)" }}>
-                <div style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: "50%",
-                  overflow: "hidden",
-                  background: "#e0e7ff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "2px solid #818cf8",
-                  flexShrink: 0
-                }}>
-                  {editingMember.avatar_url ? (
-                    <img src={editingMember.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : (
-                    <span style={{ fontSize: "1.2rem", fontWeight: 700, color: "#4f46e5" }}>
-                      {editingMember.name ? editingMember.name.charAt(0) : "👤"}
-                    </span>
-                  )}
+        const filteredStaff = branchStaffList.filter((emp: any) => {
+          if (!staffSearchQuery.trim()) return true;
+          const q = staffSearchQuery.toLowerCase();
+          return (emp.full_name || '').toLowerCase().includes(q) || (emp.id || '').toLowerCase().includes(q) || (emp.phone || '').includes(q) || (emp.position || '').toLowerCase().includes(q);
+        });
+
+        const filteredStudents = classStudentsList.filter((stu: any) => {
+          if (!studentSearchQuery.trim()) return true;
+          const q = studentSearchQuery.toLowerCase();
+          return (stu.full_name || '').toLowerCase().includes(q) || (stu.nickname || '').toLowerCase().includes(q) || (stu.id || '').toLowerCase().includes(q) || (stu.parent_phone || '').includes(q);
+        });
+
+        return (
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.55)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: "1rem",
+          }}>
+            <div style={{
+              background: "var(--surface)",
+              borderRadius: "16px",
+              padding: "1.75rem 2rem",
+              maxWidth: isEditing || memberModalTab === 'manual' ? "540px" : "720px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.25)",
+              border: "1px solid var(--border)",
+              transition: "max-width 0.2s ease",
+            }}>
+              {/* Header Modal */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: isEditing ? "1rem" : "0.75rem" }}>
+                <div>
+                  <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, color: "var(--text-main)" }}>
+                    {isEditing ? "✏️ Chỉnh Sửa Thành Viên" : "✨ Thêm Thành Viên Vào Hành Trình"}
+                  </h2>
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0.2rem 0 0" }}>
+                    {selectedCamp?.title} ({selectedCamp?.mode === 'cham_cong' ? '📍 Chấm Công Chi Nhánh' : selectedCamp?.mode === 'clb_quanh_nam' ? '🏃 CLB Quanh Năm' : '📚 Lớp Học Buổi'})
+                  </p>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.25rem" }}>Ảnh Đại Diện Thành Viên</div>
-                  <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "0.4rem" }}>
-                    Admin có thể tải ảnh giúp thành viên khi họ dùng hết 3 lượt tự đổi.
-                  </div>
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-                    <label style={{
-                      padding: "4px 10px",
-                      borderRadius: "6px",
-                      background: "#4f46e5",
-                      color: "white",
-                      fontSize: "0.78rem",
-                      fontWeight: 600,
+                <button
+                  type="button"
+                  onClick={() => setShowMemberModal(false)}
+                  style={{ background: "transparent", border: "none", fontSize: "1.2rem", cursor: "pointer", color: "var(--text-muted)" }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* TABS CHUYỂN ĐỔI CHẾ ĐỘ THÊM (CHỈ HIỂN THỊ KHI THÊM MỚI) */}
+              {!isEditing && (
+                <div style={{
+                  display: "flex",
+                  gap: "0.4rem",
+                  background: "var(--background)",
+                  padding: "4px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--border)",
+                  marginBottom: "1.25rem",
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMemberModalTab('branch_staff');
+                      if (branchStaffList.length === 0) loadBranchStaff(staffBranch);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "0.55rem 0.6rem",
+                      borderRadius: "8px",
+                      fontSize: "0.8rem",
+                      fontWeight: memberModalTab === 'branch_staff' ? 700 : 500,
+                      background: memberModalTab === 'branch_staff' ? "#10b981" : "transparent",
+                      color: memberModalTab === 'branch_staff' ? "white" : "var(--text-main)",
+                      border: "none",
                       cursor: "pointer",
-                      display: "inline-flex",
+                      display: "flex",
                       alignItems: "center",
-                      gap: "4px"
-                    }}>
-                      <span>📷 Tải ảnh từ máy</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: "none" }}
+                      justifyContent: "center",
+                      gap: "6px",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <Building2 size={15} />
+                    <span>🏢 Nhân Sự Chi Nhánh</span>
+                    {selectedCamp?.mode === 'cham_cong' && (
+                      <span style={{ fontSize: "0.68rem", background: "#ecfdf5", color: "#065f46", padding: "1px 5px", borderRadius: "4px", fontWeight: 800 }}>
+                        Chuẩn bài
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMemberModalTab('class_students');
+                      if (classesList.length === 0) loadBranchClasses(classBranch);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "0.55rem 0.6rem",
+                      borderRadius: "8px",
+                      fontSize: "0.8rem",
+                      fontWeight: memberModalTab === 'class_students' ? 700 : 500,
+                      background: memberModalTab === 'class_students' ? "#4f46e5" : "transparent",
+                      color: memberModalTab === 'class_students' ? "white" : "var(--text-main)",
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <GraduationCap size={15} />
+                    <span>📚 Cả Lớp Học (LMS)</span>
+                    {selectedCamp?.mode === 'lop_hoc_buoi' && (
+                      <span style={{ fontSize: "0.68rem", background: "#e0e7ff", color: "#4338ca", padding: "1px 5px", borderRadius: "4px", fontWeight: 800 }}>
+                        Nhanh 1-Chạm
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMemberModalTab('manual')}
+                    style={{
+                      flex: 1,
+                      padding: "0.55rem 0.6rem",
+                      borderRadius: "8px",
+                      fontSize: "0.8rem",
+                      fontWeight: memberModalTab === 'manual' ? 700 : 500,
+                      background: memberModalTab === 'manual' ? "var(--surface)" : "transparent",
+                      color: memberModalTab === 'manual' ? "var(--text-main)" : "var(--text-muted)",
+                      boxShadow: memberModalTab === 'manual' ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <Plus size={15} />
+                    <span>✍️ Thủ Công (Tự Do)</span>
+                  </button>
+                </div>
+              )}
+
+              {/* TAB 1: NẠP NHÂN SỰ THEO CHI NHÁNH (VICHRM) */}
+              {!isEditing && memberModalTab === 'branch_staff' && (
+                <div>
+                  {/* Filter Chi nhánh & Search */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.78rem", fontWeight: 700, display: "block", marginBottom: "0.3rem", color: "var(--text-muted)" }}>
+                        🏢 Chi Nhánh:
+                      </label>
+                      <select
+                        value={staffBranch}
                         onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = (re) => {
-                            const img = new Image();
-                            img.onload = () => {
-                              const canvas = document.createElement("canvas");
-                              const SIZE = 250;
-                              canvas.width = SIZE;
-                              canvas.height = SIZE;
-                              const ctx = canvas.getContext("2d");
-                              let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
-                              if (img.width > img.height) {
-                                sWidth = img.height;
-                                sx = (img.width - img.height) / 2;
-                              } else {
-                                sHeight = img.width;
-                                sy = (img.height - img.width) / 2;
-                              }
-                              ctx?.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, SIZE, SIZE);
-                              const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
-                              setEditingMember({ ...editingMember, avatar_url: dataUrl });
-                            };
-                            img.src = (re.target?.result as string) || "";
-                          };
-                          reader.readAsDataURL(file);
+                          setStaffBranch(e.target.value);
+                          loadBranchStaff(e.target.value);
                         }}
+                        style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 600 }}
+                      >
+                        <option value="Việt Trì 1">Việt Trì 1</option>
+                        <option value="Việt Trì 2">Việt Trì 2</option>
+                        <option value="Dân Hòa">Dân Hòa</option>
+                        <option value="Tuyên Quang">Tuyên Quang</option>
+                        <option value="Lâm Thao">Lâm Thao</option>
+                        <option value="Đối tác Online">Đối tác Online</option>
+                        <option value="all">🌐 Tất cả chi nhánh</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "0.78rem", fontWeight: 700, display: "block", marginBottom: "0.3rem", color: "var(--text-muted)" }}>
+                        🔍 Tìm Nhân Viên Nhanh:
+                      </label>
+                      <input
+                        type="text"
+                        value={staffSearchQuery}
+                        onChange={(e) => setStaffSearchQuery(e.target.value)}
+                        placeholder="Tìm theo tên, chức vụ, SĐT..."
+                        style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem" }}
                       />
-                    </label>
-                    {editingMember.avatar_url && (
+                    </div>
+                  </div>
+
+                  {/* Selection Action Bar */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.85rem", background: "rgba(16, 185, 129, 0.08)", borderRadius: "8px", border: "1px solid rgba(16, 185, 129, 0.2)", marginBottom: "0.75rem", fontSize: "0.82rem" }}>
+                    <div style={{ color: "#065f46", fontWeight: 600 }}>
+                      Đang hiển thị <b>{filteredStaff.length}</b> nhân sự đang làm việc (Trạng thái khác 'Nghỉ việc')
+                    </div>
+                    <div style={{ display: "flex", gap: "0.4rem" }}>
                       <button
                         type="button"
-                        onClick={() => setEditingMember({ ...editingMember, avatar_url: "" })}
-                        style={{
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          border: "1px solid var(--border)",
-                          background: "transparent",
-                          color: "#ef4444",
-                          fontSize: "0.75rem",
-                          cursor: "pointer"
+                        onClick={() => {
+                          const unadded = filteredStaff.filter((s: any) => !isStaffAlreadyInCamp(s)).map((s: any) => s.id);
+                          setSelectedStaffIds(unadded);
                         }}
+                        style={{ padding: "3px 8px", borderRadius: "6px", background: "#10b981", color: "white", border: "none", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}
                       >
-                        Xóa ảnh
+                        Chọn tất cả ({filteredStaff.filter((s: any) => !isStaffAlreadyInCamp(s)).length})
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStaffIds([])}
+                        style={{ padding: "3px 8px", borderRadius: "6px", background: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)", fontSize: "0.75rem", cursor: "pointer" }}
+                      >
+                        Bỏ chọn
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Staff List */}
+                  <div style={{ maxHeight: "320px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "10px", padding: "0.5rem", display: "flex", flexDirection: "column", gap: "0.4rem", background: "var(--background)" }}>
+                    {loadingStaff ? (
+                      <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                        ⏳ Đang truy vấn danh sách nhân viên từ CRM...
+                      </div>
+                    ) : filteredStaff.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                        Không có nhân viên nào đang làm việc khớp với bộ lọc này.
+                      </div>
+                    ) : (
+                      filteredStaff.map((emp: any) => {
+                        const alreadyIn = isStaffAlreadyInCamp(emp);
+                        const isSelected = selectedStaffIds.includes(emp.id);
+                        const phone = emp.phone || '';
+                        const phoneDigits = phone.replace(/\D/g, '');
+                        const pLast4 = phoneDigits.length >= 4 ? phoneDigits.slice(-4) : '1234';
+
+                        return (
+                          <div
+                            key={emp.id}
+                            onClick={() => {
+                              if (alreadyIn) return;
+                              if (isSelected) {
+                                setSelectedStaffIds(selectedStaffIds.filter((id) => id !== emp.id));
+                              } else {
+                                setSelectedStaffIds([...selectedStaffIds, emp.id]);
+                              }
+                            }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "0.6rem 0.85rem",
+                              borderRadius: "8px",
+                              background: alreadyIn ? "rgba(0,0,0,0.02)" : isSelected ? "rgba(16, 185, 129, 0.08)" : "var(--surface)",
+                              border: isSelected ? "1.5px solid #10b981" : "1px solid var(--border)",
+                              cursor: alreadyIn ? "not-allowed" : "pointer",
+                              opacity: alreadyIn ? 0.6 : 1,
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                              <input
+                                type="checkbox"
+                                checked={alreadyIn || isSelected}
+                                disabled={alreadyIn}
+                                onChange={() => {}}
+                                style={{ accentColor: "#10b981", width: "16px", height: "16px", cursor: alreadyIn ? "not-allowed" : "pointer" }}
+                              />
+                              <div style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: "50%",
+                                background: "rgba(16, 185, 129, 0.15)",
+                                color: "#059669",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 800,
+                                fontSize: "0.8rem",
+                                overflow: "hidden",
+                                flexShrink: 0
+                              }}>
+                                {emp.avatar_url ? <img src={emp.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (emp.full_name?.charAt(0) || "NV")}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--text-main)" }}>
+                                  {emp.full_name} <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 500 }}>({emp.id})</span>
+                                </div>
+                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", gap: "6px", alignItems: "center", marginTop: "1px" }}>
+                                  <span>🏷️ {emp.position || emp.role || 'Nhân sự'}</span>
+                                  <span>·</span>
+                                  <span>🏢 {emp.branch_id || staffBranch}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: "right" }}>
+                              {alreadyIn ? (
+                                <span style={{ fontSize: "0.72rem", background: "#d1fae5", color: "#065f46", padding: "3px 8px", borderRadius: "4px", fontWeight: 700 }}>
+                                  ✓ Đã có trong danh sách
+                                </span>
+                              ) : (
+                                <div>
+                                  <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-main)" }}>{phone || 'Chưa có SĐT'}</div>
+                                  <div style={{ fontSize: "0.7rem", color: "#059669", fontWeight: 700 }}>Mã PIN: {pLast4}</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
-                </div>
-              </div>
 
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Họ và Tên</label>
-                <input
-                  type="text"
-                  value={editingMember.name}
-                  onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                  placeholder="Ví dụ: Bố Hoàng (Bầu Xô) hoặc Bé Bon"
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Số Điện Thoại</label>
-                <input
-                  type="text"
-                  value={editingMember.phone || ""}
-                  onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
-                  placeholder="Ví dụ: 0912345678"
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                  Mã PIN 4 Số (Bảo mật điểm danh)
-                </label>
-                <input
-                  type="text"
-                  maxLength={4}
-                  value={editingMember.pin_code || ""}
-                  onChange={(e) => setEditingMember({ ...editingMember, pin_code: e.target.value })}
-                  placeholder="Mặc định: 4 số cuối SĐT"
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", letterSpacing: "2px", fontWeight: 700 }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Vai Trò / Danh Hiệu</label>
-                <input
-                  type="text"
-                  value={editingMember.role_tag || ""}
-                  onChange={(e) => setEditingMember({ ...editingMember, role_tag: e.target.value })}
-                  placeholder="Ví dụ: Runner Nhí, Phụ huynh đồng hành, Nhân sự HO..."
-                  style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                />
-              </div>
-
-              {/* Phân bảng cho CLB chạy bộ */}
-              {selectedCamp?.mode === 'clb_quanh_nam' && (
-                <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
-                    Phân Bảng Thi Đua Runner
-                  </label>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                  {/* Action Buttons */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1.25rem", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
                     <button
                       type="button"
-                      onClick={() => setEditingMember({ ...editingMember, role_tag: "Runner Nhí" })}
-                      style={{
-                        flex: 1,
-                        padding: "0.5rem",
-                        borderRadius: "6px",
-                        border: isKid(editingMember) ? "2px solid #e11d48" : "1px solid var(--border)",
-                        background: isKid(editingMember) ? "#ffe4e6" : "var(--background)",
-                        color: isKid(editingMember) ? "#be123c" : "var(--text-main)",
-                        fontWeight: 700,
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
-                      }}
+                      onClick={() => setShowMemberModal(false)}
+                      style={{ padding: "0.6rem 1.25rem", borderRadius: "8px", border: "1px solid var(--border)", background: "transparent", color: "var(--text-main)", cursor: "pointer", fontSize: "0.85rem" }}
                     >
-                      🌟 Bảng Runner Nhí (U15)
+                      Hủy Bỏ
                     </button>
+
                     <button
                       type="button"
-                      onClick={() => setEditingMember({ ...editingMember, role_tag: "Runner Lớn / Phụ Huynh" })}
+                      disabled={selectedStaffIds.length === 0 || bulkSubmitting}
+                      onClick={handleBulkAddStaff}
                       style={{
-                        flex: 1,
-                        padding: "0.5rem",
-                        borderRadius: "6px",
-                        border: !isKid(editingMember) ? "2px solid #4f46e5" : "1px solid var(--border)",
-                        background: !isKid(editingMember) ? "#e0e7ff" : "var(--background)",
-                        color: !isKid(editingMember) ? "#4338ca" : "var(--text-main)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "0.65rem 1.5rem",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: selectedStaffIds.length === 0 ? "#94a3b8" : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                        color: "white",
                         fontWeight: 700,
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
+                        fontSize: "0.88rem",
+                        cursor: selectedStaffIds.length === 0 || bulkSubmitting ? "not-allowed" : "pointer",
+                        boxShadow: selectedStaffIds.length === 0 ? "none" : "0 4px 12px rgba(16, 185, 129, 0.35)",
                       }}
                     >
-                      👨‍👩‍👧 Runner Lớn / Phụ Huynh
+                      <Building2 size={16} />
+                      <span>{bulkSubmitting ? "Đang nạp dữ liệu..." : `⚡ Nạp ${selectedStaffIds.length} Nhân Sự Vào Chấm Công`}</span>
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Tích lũy điểm/km & Chỉ hiển thị vé quên công khi ở chế độ Chấm Công GPS */}
-              <div style={{ display: "grid", gridTemplateColumns: selectedCamp?.mode === 'cham_cong' ? "1fr 1fr" : "1fr", gap: "1rem" }}>
+              {/* TAB 2: NẠP CẢ LỚP HỌC (VICEDU LMS) */}
+              {!isEditing && memberModalTab === 'class_students' && (
                 <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
-                    {selectedCamp?.mode === 'clb_quanh_nam' ? 'Tổng Km Tích Lũy' : 'Tổng Sao / Điểm Tích Lũy'}
-                  </label>
-                  <input
-                    type="number"
-                    value={selectedCamp?.mode === 'clb_quanh_nam' ? (editingMember.total_km_all_time || 0) : (editingMember.total_stars || 0)}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value) || 0;
-                      if (selectedCamp?.mode === 'clb_quanh_nam') {
-                        setEditingMember({ ...editingMember, total_km_all_time: val });
-                      } else {
-                        setEditingMember({ ...editingMember, total_stars: val });
-                      }
-                    }}
-                    style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
-                  />
-                </div>
-                {selectedCamp?.mode === 'cham_cong' && (
-                  <div>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Vé Quên Chấm Công</label>
+                  {/* Dropdown Chi nhánh & Lớp học */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.78rem", fontWeight: 700, display: "block", marginBottom: "0.3rem", color: "var(--text-muted)" }}>
+                        🏫 Chi Nhánh:
+                      </label>
+                      <select
+                        value={classBranch}
+                        onChange={(e) => {
+                          setClassBranch(e.target.value);
+                          loadBranchClasses(e.target.value);
+                        }}
+                        style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 600 }}
+                      >
+                        <option value="Việt Trì 1">Việt Trì 1</option>
+                        <option value="Việt Trì 2">Việt Trì 2</option>
+                        <option value="Dân Hòa">Dân Hòa</option>
+                        <option value="Tuyên Quang">Tuyên Quang</option>
+                        <option value="Lâm Thao">Lâm Thao</option>
+                        <option value="all">🌐 Tất cả chi nhánh</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "0.78rem", fontWeight: 700, display: "block", marginBottom: "0.3rem", color: "var(--text-muted)" }}>
+                        📚 Chọn Lớp Học (LMS):
+                      </label>
+                      <select
+                        value={selectedClassId}
+                        onChange={(e) => {
+                          setSelectedClassId(e.target.value);
+                          loadClassStudents(e.target.value);
+                        }}
+                        style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid #818cf8", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 700 }}
+                      >
+                        {classesList.map((c: any) => (
+                          <option key={c.id} value={c.id}>
+                            {c.class_name} ({c.branch_id})
+                          </option>
+                        ))}
+                        {classesList.length === 0 && <option value="">Không có lớp học nào đang hoạt động</option>}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Filter Search */}
+                  <div style={{ marginBottom: "0.75rem" }}>
                     <input
-                      type="number"
-                      value={editingMember.forgot_pills_quota !== undefined ? editingMember.forgot_pills_quota : 3}
-                      onChange={(e) => setEditingMember({ ...editingMember, forgot_pills_quota: parseInt(e.target.value) || 0 })}
+                      type="text"
+                      value={studentSearchQuery}
+                      onChange={(e) => setStudentSearchQuery(e.target.value)}
+                      placeholder="🔍 Lọc nhanh theo tên học sinh, nickname, mã học viên..."
+                      style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.82rem" }}
+                    />
+                  </div>
+
+                  {/* Selection Bar */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.85rem", background: "rgba(79, 70, 229, 0.08)", borderRadius: "8px", border: "1px solid rgba(79, 70, 229, 0.2)", marginBottom: "0.75rem", fontSize: "0.82rem" }}>
+                    <div style={{ color: "#4338ca", fontWeight: 600 }}>
+                      Lớp có <b>{filteredStudents.length}</b> học viên · Đã chọn: <b>{selectedStudentIds.length}</b> bạn
+                    </div>
+                    <div style={{ display: "flex", gap: "0.4rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const unadded = filteredStudents.filter((s: any) => !isStudentAlreadyInCamp(s)).map((s: any) => s.id);
+                          setSelectedStudentIds(unadded);
+                        }}
+                        style={{ padding: "3px 8px", borderRadius: "6px", background: "#4f46e5", color: "white", border: "none", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}
+                      >
+                        Chọn tất cả ({filteredStudents.filter((s: any) => !isStudentAlreadyInCamp(s)).length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStudentIds([])}
+                        style={{ padding: "3px 8px", borderRadius: "6px", background: "var(--background)", color: "var(--text-muted)", border: "1px solid var(--border)", fontSize: "0.75rem", cursor: "pointer" }}
+                      >
+                        Bỏ chọn
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Students List */}
+                  <div style={{ maxHeight: "320px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "10px", padding: "0.5rem", display: "flex", flexDirection: "column", gap: "0.4rem", background: "var(--background)" }}>
+                    {loadingClassStudents ? (
+                      <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                        ⏳ Đang tải danh sách học viên trong lớp...
+                      </div>
+                    ) : filteredStudents.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                        Chưa có học viên nào trong lớp này hoặc chưa chọn lớp.
+                      </div>
+                    ) : (
+                      filteredStudents.map((stu: any) => {
+                        const alreadyIn = isStudentAlreadyInCamp(stu);
+                        const isSelected = selectedStudentIds.includes(stu.id);
+                        const phone = stu.parent_phone || stu.phone || '';
+                        const phoneDigits = phone.replace(/\D/g, '');
+                        const pLast4 = phoneDigits.length >= 4 ? phoneDigits.slice(-4) : '1234';
+
+                        return (
+                          <div
+                            key={stu.id}
+                            onClick={() => {
+                              if (alreadyIn) return;
+                              if (isSelected) {
+                                setSelectedStudentIds(selectedStudentIds.filter((id) => id !== stu.id));
+                              } else {
+                                setSelectedStudentIds([...selectedStudentIds, stu.id]);
+                              }
+                            }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "0.6rem 0.85rem",
+                              borderRadius: "8px",
+                              background: alreadyIn ? "rgba(0,0,0,0.02)" : isSelected ? "rgba(79, 70, 229, 0.08)" : "var(--surface)",
+                              border: isSelected ? "1.5px solid #4f46e5" : "1px solid var(--border)",
+                              cursor: alreadyIn ? "not-allowed" : "pointer",
+                              opacity: alreadyIn ? 0.6 : 1,
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                              <input
+                                type="checkbox"
+                                checked={alreadyIn || isSelected}
+                                disabled={alreadyIn}
+                                onChange={() => {}}
+                                style={{ accentColor: "#4f46e5", width: "16px", height: "16px", cursor: alreadyIn ? "not-allowed" : "pointer" }}
+                              />
+                              <div style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: "50%",
+                                background: "rgba(79, 70, 229, 0.15)",
+                                color: "#4f46e5",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 800,
+                                fontSize: "0.8rem",
+                                overflow: "hidden",
+                                flexShrink: 0
+                              }}>
+                                {stu.avatar_url ? <img src={stu.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (stu.full_name?.charAt(0) || "HV")}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--text-main)" }}>
+                                  {stu.full_name} {stu.nickname && <span style={{ color: "#6366f1", fontStyle: "italic" }}>({stu.nickname})</span>}
+                                </div>
+                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", gap: "6px", alignItems: "center", marginTop: "1px" }}>
+                                  <span>🆔 {stu.id}</span>
+                                  <span>·</span>
+                                  <span>🏫 {stu.branch_id || classBranch}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: "right" }}>
+                              {alreadyIn ? (
+                                <span style={{ fontSize: "0.72rem", background: "#e0e7ff", color: "#4338ca", padding: "3px 8px", borderRadius: "4px", fontWeight: 700 }}>
+                                  ✓ Đã có trong lớp
+                                </span>
+                              ) : (
+                                <div>
+                                  <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-main)" }}>{phone || 'Chưa có SĐT'}</div>
+                                  <div style={{ fontSize: "0.7rem", color: "#4f46e5", fontWeight: 700 }}>Mã PIN: {pLast4}</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1.25rem", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowMemberModal(false)}
+                      style={{ padding: "0.6rem 1.25rem", borderRadius: "8px", border: "1px solid var(--border)", background: "transparent", color: "var(--text-main)", cursor: "pointer", fontSize: "0.85rem" }}
+                    >
+                      Hủy Bỏ
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={selectedStudentIds.length === 0 || bulkSubmitting}
+                      onClick={handleBulkAddStudents}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "0.65rem 1.5rem",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: selectedStudentIds.length === 0 ? "#94a3b8" : "linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)",
+                        color: "white",
+                        fontWeight: 700,
+                        fontSize: "0.88rem",
+                        cursor: selectedStudentIds.length === 0 || bulkSubmitting ? "not-allowed" : "pointer",
+                        boxShadow: selectedStudentIds.length === 0 ? "none" : "0 4px 12px rgba(79, 70, 229, 0.35)",
+                      }}
+                    >
+                      <GraduationCap size={16} />
+                      <span>{bulkSubmitting ? "Đang nạp dữ liệu..." : `⚡ Nạp Toàn Bộ ${selectedStudentIds.length} Học Viên Vào Lớp Học`}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: THÊM THỦ CÔNG HOẶC CHỈNH SỬA THÀNH VIÊN */}
+              {(isEditing || memberModalTab === 'manual') && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {/* Tải ảnh đại diện cho thành viên */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.85rem", background: "var(--background)", borderRadius: "10px", border: "1px dashed var(--border)" }}>
+                    <div style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      background: "#e0e7ff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "2px solid #818cf8",
+                      flexShrink: 0
+                    }}>
+                      {editingMember.avatar_url ? (
+                        <img src={editingMember.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <span style={{ fontSize: "1.2rem", fontWeight: 700, color: "#4f46e5" }}>
+                          {editingMember.name ? editingMember.name.charAt(0) : "👤"}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.25rem" }}>Ảnh Đại Diện Thành Viên</div>
+                      <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "0.4rem" }}>
+                        Admin có thể tải ảnh giúp thành viên khi họ dùng hết 3 lượt tự đổi.
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                        <label style={{
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          background: "#4f46e5",
+                          color: "white",
+                          fontSize: "0.78rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}>
+                          <span>📷 Tải ảnh từ máy</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: "none" }}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = (re) => {
+                                const img = new Image();
+                                img.onload = () => {
+                                  const canvas = document.createElement("canvas");
+                                  const SIZE = 250;
+                                  canvas.width = SIZE;
+                                  canvas.height = SIZE;
+                                  const ctx = canvas.getContext("2d");
+                                  let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+                                  if (img.width > img.height) {
+                                    sWidth = img.height;
+                                    sx = (img.width - img.height) / 2;
+                                  } else {
+                                    sHeight = img.width;
+                                    sy = (img.height - img.width) / 2;
+                                  }
+                                  ctx?.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, SIZE, SIZE);
+                                  const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+                                  setEditingMember({ ...editingMember, avatar_url: dataUrl });
+                                };
+                                img.src = (re.target?.result as string) || "";
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                        </label>
+                        {editingMember.avatar_url && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingMember({ ...editingMember, avatar_url: "" })}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border)",
+                              background: "transparent",
+                              color: "#ef4444",
+                              fontSize: "0.75rem",
+                              cursor: "pointer"
+                            }}
+                          >
+                            Xóa ảnh
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Họ và Tên</label>
+                    <input
+                      type="text"
+                      value={editingMember.name}
+                      onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                      placeholder="Ví dụ: Bố Hoàng (Bầu Xô) hoặc Bé Bon"
                       style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
                     />
                   </div>
-                )}
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Số Điện Thoại</label>
+                    <input
+                      type="text"
+                      value={editingMember.phone || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const digits = val.replace(/\D/g, '');
+                        const pLast4 = digits.length >= 4 ? digits.slice(-4) : editingMember.pin_code;
+                        setEditingMember({ ...editingMember, phone: val, pin_code: editingMember.pin_code === "1234" && pLast4 ? pLast4 : editingMember.pin_code });
+                      }}
+                      placeholder="Ví dụ: 0912345678"
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                      Mã PIN 4 Số (Bảo mật điểm danh)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={editingMember.pin_code || ""}
+                      onChange={(e) => setEditingMember({ ...editingMember, pin_code: e.target.value })}
+                      placeholder="Mặc định: 4 số cuối SĐT"
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", letterSpacing: "2px", fontWeight: 700 }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Vai Trò / Danh Hiệu</label>
+                    <input
+                      type="text"
+                      value={editingMember.role_tag || ""}
+                      onChange={(e) => setEditingMember({ ...editingMember, role_tag: e.target.value })}
+                      placeholder="Ví dụ: Runner Nhí, Nhân sự chi nhánh, Học viên Cambridge..."
+                      style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
+                    />
+                  </div>
+
+                  {/* Phân bảng cho CLB chạy bộ */}
+                  {selectedCamp?.mode === 'clb_quanh_nam' && (
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                        Phân Bảng Thi Đua Runner
+                      </label>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingMember({ ...editingMember, role_tag: "Runner Nhí" })}
+                          style={{
+                            flex: 1,
+                            padding: "0.5rem",
+                            borderRadius: "6px",
+                            border: isKid(editingMember) ? "2px solid #e11d48" : "1px solid var(--border)",
+                            background: isKid(editingMember) ? "#ffe4e6" : "var(--background)",
+                            color: isKid(editingMember) ? "#be123c" : "var(--text-main)",
+                            fontWeight: 700,
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          🌟 Bảng Runner Nhí (U15)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingMember({ ...editingMember, role_tag: "Runner Lớn / Phụ Huynh" })}
+                          style={{
+                            flex: 1,
+                            padding: "0.5rem",
+                            borderRadius: "6px",
+                            border: !isKid(editingMember) ? "2px solid #4f46e5" : "1px solid var(--border)",
+                            background: !isKid(editingMember) ? "#e0e7ff" : "var(--background)",
+                            color: !isKid(editingMember) ? "#4338ca" : "var(--text-main)",
+                            fontWeight: 700,
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          👨‍👩‍👧 Runner Lớn / Phụ Huynh
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tích lũy điểm/km & Vé quên công */}
+                  <div style={{ display: "grid", gridTemplateColumns: selectedCamp?.mode === 'cham_cong' ? "1fr 1fr" : "1fr", gap: "1rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                        {selectedCamp?.mode === 'clb_quanh_nam' ? 'Km Khởi Điểm (Tích lũy ngoài hệ thống)' : 'Tổng Sao / Điểm Tích Lũy'}
+                      </label>
+                      <input
+                        type="number"
+                        value={selectedCamp?.mode === 'clb_quanh_nam' ? (editingMember.total_km_all_time || 0) : (editingMember.total_stars || 0)}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          if (selectedCamp?.mode === 'clb_quanh_nam') {
+                            setEditingMember({ ...editingMember, total_km_all_time: val });
+                          } else {
+                            setEditingMember({ ...editingMember, total_stars: val });
+                          }
+                        }}
+                        style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
+                      />
+                      {selectedCamp?.mode === 'clb_quanh_nam' && (
+                        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.35rem", lineHeight: 1.4 }}>
+                          💡 <em>Số Km khởi điểm từ trước hoặc ngoài hệ thống. Khi lên bảng tiến độ, web sẽ tự động cộng dồn số này với toàn bộ các buổi chạy nộp trên hệ thống.</em>
+                        </div>
+                      )}
+                    </div>
+                    {selectedCamp?.mode === 'cham_cong' && (
+                      <div>
+                        <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Vé Quên Chấm Công</label>
+                        <input
+                          type="number"
+                          value={editingMember.forgot_pills_quota !== undefined ? editingMember.forgot_pills_quota : 3}
+                          onChange={(e) => setEditingMember({ ...editingMember, forgot_pills_quota: parseInt(e.target.value) || 0 })}
+                          style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Trạng thái hoạt động ON/OFF */}
+                  <div style={{ marginTop: "1rem", background: "var(--background)", padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                      Trạng Thái Hoạt Động (Hiển thị ngoài Web)
+                    </label>
+                    <div style={{ display: "flex", gap: "1.25rem", marginTop: "0.4rem" }}>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, color: "#16a34a" }}>
+                        <input
+                          type="radio"
+                          name="memberModalStatus"
+                          checked={editingMember.status !== 'inactive'}
+                          onChange={() => setEditingMember({ ...editingMember, status: 'active' })}
+                        />
+                        🟢 Đang Hoạt Động (ON - Hiện trên web)
+                      </label>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, color: "#dc2626" }}>
+                        <input
+                          type="radio"
+                          name="memberModalStatus"
+                          checked={editingMember.status === 'inactive'}
+                          onChange={() => setEditingMember({ ...editingMember, status: 'inactive' })}
+                        />
+                        🔴 Đã Nghỉ / Tạm Dừng (OFF - Ẩn khỏi web)
+                      </label>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "1.25rem" }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowMemberModal(false)}
+                      style={{ padding: "0.6rem 1.25rem", borderRadius: "8px", border: "1px solid var(--border)", background: "transparent", color: "var(--text-main)", cursor: "pointer" }}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!editingMember.name) {
+                          alert("Vui lòng nhập họ và tên thành viên!");
+                          return;
+                        }
+                        const res = await saveMember(editingMember);
+                        if (res.success) {
+                          setShowMemberModal(false);
+                          loadMembers(selectedCampId);
+                          loadCamps();
+                        } else {
+                          alert("Lỗi lưu thành viên: " + res.error);
+                        }
+                      }}
+                      style={{ padding: "0.6rem 1.5rem", borderRadius: "8px", border: "none", background: "#4f46e5", color: "white", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      {isEditing ? "💾 Lưu Thay Đổi" : "Lưu Thành Viên"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      
+      {/* MODAL POPUP CHỈNH SỬA QUẢN TRỊ VIÊN */}
+      {editingAdmin && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0, 0, 0, 0.75)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 200,
+          padding: "1rem",
+        }}>
+          <div style={{
+            background: "var(--surface)",
+            borderRadius: "14px",
+            maxWidth: "460px",
+            width: "100%",
+            border: "1px solid var(--border)",
+            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.4)",
+            padding: "1.5rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.1rem",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "0.75rem" }}>
+              <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px", color: "#4f46e5" }}>
+                <Edit size={18} /> Chỉnh Sửa Quản Trị Viên
+              </h4>
+              <button
+                type="button"
+                onClick={() => setEditingAdmin(null)}
+                style={{ background: "transparent", border: "none", fontSize: "1.2rem", cursor: "pointer", color: "var(--text-muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                Họ & Tên Quản Trị Viên:
+              </label>
+              <input
+                type="text"
+                value={editingAdmin.name || ""}
+                onChange={(e) => setEditingAdmin({ ...editingAdmin, name: e.target.value })}
+                placeholder="VD: Bố Hoàng, Cô Thúy..."
+                style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.88rem", fontWeight: 600 }}
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "0.75rem" }}>
+              <div>
+                <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                  Số Điện Thoại:
+                </label>
+                <input
+                  type="text"
+                  value={editingAdmin.phone || ""}
+                  onChange={(e) => setEditingAdmin({ ...editingAdmin, phone: e.target.value })}
+                  placeholder="0912..."
+                  style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.88rem" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", color: "#6d28d9" }}>
+                  Mã PIN Web 2 (4 số):
+                </label>
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={editingAdmin.pinLast4 || ""}
+                  onChange={(e) => setEditingAdmin({ ...editingAdmin, pinLast4: e.target.value.replace(/\D/g, '') })}
+                  placeholder="5678"
+                  style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "2px solid #a78bfa", background: "#f5f3ff", color: "#5b21b6", fontSize: "0.95rem", fontWeight: 800, textAlign: "center", letterSpacing: "2px" }}
+                />
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.75rem", borderTop: "1px solid var(--border)", paddingTop: "1.25rem" }}>
+            <div>
+              <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                Chức Danh / Vai Trò Trong Nhóm:
+              </label>
+              <input
+                type="text"
+                value={editingAdmin.roleTitle || ""}
+                onChange={(e) => setEditingAdmin({ ...editingAdmin, roleTitle: e.target.value })}
+                placeholder="VD: Tổng Chỉ Huy, HLV Thể Lực, Giáo viên Chủ nhiệm..."
+                style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)", fontSize: "0.88rem" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
               <button
                 type="button"
-                onClick={() => setShowMemberModal(false)}
-                style={{ padding: "0.6rem 1.25rem", borderRadius: "8px", border: "1px solid var(--border)", background: "transparent", color: "var(--text-main)", cursor: "pointer" }}
+                onClick={() => setEditingAdmin(null)}
+                style={{ padding: "0.55rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontWeight: 600, cursor: "pointer", fontSize: "0.82rem" }}
               >
-                Hủy
+                Hủy Bỏ
               </button>
               <button
                 type="button"
-                onClick={async () => {
-                  if (!editingMember.name) {
-                    alert("Vui lòng nhập họ và tên thành viên!")
-                    return
-                  }
-                  const res = await saveMember(editingMember)
-                  if (res.success) {
-                    setShowMemberModal(false)
-                    loadMembers(selectedCampId)
-                    loadCamps()
-                  } else {
-                    alert("Lỗi lưu thành viên: " + res.error)
-                  }
-                }}
-                style={{ padding: "0.6rem 1.25rem", borderRadius: "8px", border: "none", background: "#4f46e5", color: "white", fontWeight: 700, cursor: "pointer" }}
+                onClick={handleSaveEditedAdmin}
+                style={{ padding: "0.55rem 1.25rem", borderRadius: "8px", border: "none", background: "#4f46e5", color: "white", fontWeight: 700, cursor: "pointer", fontSize: "0.82rem", boxShadow: "0 2px 8px rgba(79, 70, 229, 0.3)" }}
               >
-                Lưu Thành Viên
+                💾 Lưu Thay Đổi
               </button>
             </div>
           </div>
         </div>
       )}
 
-{/* MODAL PHÂN QUYỀN BAN QUẢN TRỊ & GIÁO VIÊN PHỤ TRÁCH */}
+      {/* MODAL PHÂN QUYỀN BAN QUẢN TRỊ & GIÁO VIÊN PHỤ TRÁCH */}
       {showAdminModal && adminCamp && (
         <div style={{
           position: "fixed",
@@ -4226,18 +8828,54 @@ export default function JourneyAdminPage() {
                             </span>
                           </td>
                           <td style={{ padding: "0.65rem 0.85rem", textAlign: "right" }}>
-                            {adm.name.includes("Bầu Xô") ? (
-                              <span style={{ fontSize: "0.72rem", color: "#10b981", fontWeight: 700 }}>Chủ Sở Hữu</span>
-                            ) : (
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "6px" }}>
                               <button
                                 type="button"
-                                onClick={() => handleRemoveAdmin(adm.id)}
-                                style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", padding: "4px" }}
-                                title="Xóa quyền quản trị viên này"
+                                onClick={() => handleStartEditAdmin(adm)}
+                                style={{
+                                  background: "#eff6ff",
+                                  border: "1px solid #bfdbfe",
+                                  color: "#2563eb",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  padding: "4px 8px",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                }}
+                                title="Chỉnh sửa Tên, SĐT, PIN, Chức danh"
                               >
-                                <Trash2 size={15} />
+                                <Edit size={13} />
+                                <span>Sửa</span>
                               </button>
-                            )}
+                              {adm.name.includes("Bầu Xô") ? (
+                                <span style={{ fontSize: "0.72rem", color: "#10b981", fontWeight: 700, padding: "2px 6px", background: "#ecfdf5", borderRadius: "4px" }}>Chủ Sở Hữu</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveAdmin(adm.id)}
+                                  style={{
+                                    background: "#fef2f2",
+                                    border: "1px solid #fecaca",
+                                    color: "#ef4444",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    padding: "4px 8px",
+                                    fontSize: "0.75rem",
+                                    fontWeight: 600,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "3px",
+                                  }}
+                                  title="Xóa quyền quản trị viên này"
+                                >
+                                  <Trash2 size={13} />
+                                  <span>Xóa</span>
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -4341,6 +8979,224 @@ export default function JourneyAdminPage() {
           </div>
         </div>
       )}
+      {/* ============================================================ */}
+      {/* MODAL MÔ PHỎNG XEM TRƯỚC TRÊN ĐIỆN THOẠI (LIVE MOBILE PHONE PREVIEW) */}
+      {/* ============================================================ */}
+      {mobilePreviewCamp && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.8)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 300,
+            padding: "1rem",
+          }}
+          onClick={() => setMobilePreviewCamp(null)}
+        >
+          {/* Top Control Bar */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "1rem",
+              background: "#1e293b",
+              padding: "0.5rem 1rem",
+              borderRadius: "12px",
+              border: "1px solid #334155",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+              color: "white",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Smartphone size={18} color="#10b981" />
+              <span style={{ fontSize: "0.88rem", fontWeight: 700 }}>
+                Xem Trước Mobile: <span style={{ color: "#38bdf8" }}>{mobilePreviewCamp.title}</span>
+              </span>
+            </div>
+
+            <div style={{ display: "flex", gap: "6px", marginLeft: "1rem" }}>
+              <button
+                type="button"
+                onClick={() => setPreviewDevice('iphone')}
+                style={{
+                  padding: "0.3rem 0.75rem",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: previewDevice === 'iphone' ? "#4f46e5" : "#334155",
+                  color: "white",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                iPhone (390px)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewDevice('android')}
+                style={{
+                  padding: "0.3rem 0.75rem",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: previewDevice === 'android' ? "#4f46e5" : "#334155",
+                  color: "white",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Android (360px)
+              </button>
+            </div>
+
+            <a
+              href={`http://localhost:3001/hanh-trinh/${mobilePreviewCamp.slug}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "0.3rem 0.75rem",
+                borderRadius: "6px",
+                border: "1px solid #475569",
+                background: "transparent",
+                color: "#94a3b8",
+                fontSize: "0.75rem",
+                textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              <span>Mở Tab Riêng</span>
+              <ExternalLink size={12} />
+            </a>
+
+            <button
+              type="button"
+              onClick={() => setMobilePreviewCamp(null)}
+              style={{
+                marginLeft: "0.5rem",
+                background: "#ef4444",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                padding: "0.3rem 0.8rem",
+                fontSize: "0.8rem",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              ✕ Đóng
+            </button>
+          </div>
+
+          {/* Smartphone Frame Mockup */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: previewDevice === 'iphone' ? "390px" : "360px",
+              height: "780px",
+              maxHeight: "calc(100vh - 120px)",
+              background: "#0f172a",
+              borderRadius: "44px",
+              border: "12px solid #1e293b",
+              boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.8), inset 0 0 0 2px #475569",
+              position: "relative",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              transition: "width 0.2s ease",
+            }}
+          >
+            {/* iOS / Android Status Bar */}
+            <div
+              style={{
+                height: previewDevice === 'iphone' ? "44px" : "30px",
+                width: "100%",
+                background: "white",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0 22px",
+                zIndex: 30,
+                flexShrink: 0,
+                borderBottom: "1px solid #f8fafc",
+                userSelect: "none",
+              }}
+            >
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.02em" }}>9:41</div>
+              {/* Dynamic Island / Notch */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: previewDevice === 'iphone' ? "10px" : "8px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: previewDevice === 'iphone' ? "95px" : "12px",
+                  height: previewDevice === 'iphone' ? "24px" : "12px",
+                  background: "#000",
+                  borderRadius: previewDevice === 'iphone' ? "999px" : "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+                }}
+              >
+                {previewDevice === 'iphone' && (
+                  <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#1e293b", marginRight: "30px" }} />
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", fontWeight: 700, color: "#0f172a" }}>
+                <span style={{ fontSize: "10px" }}>5G</span>
+                <span>📶</span>
+                <span>🔋</span>
+              </div>
+            </div>
+
+            {/* Screen Iframe Container */}
+            <div style={{ flex: 1, width: "100%", height: "100%", background: "white", overflow: "hidden" }}>
+              <iframe
+                src={`http://localhost:3001/hanh-trinh/${mobilePreviewCamp.slug}`}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                  display: "block",
+                }}
+                title="Mobile Preview"
+              />
+            </div>
+
+            {/* Bottom Home Indicator Bar */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: "6px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: "120px",
+                height: "4px",
+                background: "#94a3b8",
+                borderRadius: "999px",
+                zIndex: 30,
+                pointerEvents: "none",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
+
+
+      

@@ -16,7 +16,7 @@ export interface CampData {
   title: string
   subtitle?: string
   slogan?: string
-  mode: 'clb_quanh_nam' | 'lop_hoc_buoi'
+  mode: 'clb_quanh_nam' | 'lop_hoc_buoi' | 'cham_cong' | 'thoi_quen_ca_nhan'
   scope?: 'admin_only' | 'branch' | 'partner' | 'club'
   status?: string
   target_days?: number
@@ -50,11 +50,13 @@ export interface CampData {
       location: string
       sessionTitle: string
     }>
+    hall_of_fame?: any
+    [key: string]: any
   }
   tasks?: Array<{
     id: string
     name: string
-    type: 'number' | 'boolean' | 'link'
+    type: 'number' | 'boolean' | 'link' | 'text'
     unit?: string
     target?: number
     color: string
@@ -62,13 +64,29 @@ export interface CampData {
   }>
   sessions?: any[]
   club_months?: any[]
-  scoring_rules?: Array<{ label: string; points: string }>
+  scoring_rules?: Array<{
+    label: string
+    points: string
+    applicable_task_ids?: string[]
+    mandatory_task_ids?: string[]
+    milestone_task_id?: string
+    milestones?: Array<{ threshold: number; points: number }>
+    [key: string]: any
+  }>
   highlight_badges?: any[]
   branch_gps?: {
     lat: number
     lng: number
     radius: number
     branch_name?: string
+    branches?: Array<{
+      id: string
+      branch_name: string
+      lat: number
+      lng: number
+      radius: number
+      address?: string
+    }>
   }
   shifts_config?: Array<{
     id: string
@@ -81,7 +99,7 @@ export interface CampData {
 export interface MemberData {
   id?: number
   camp_id: string
-  student_id?: string
+  student_id?: string | null
   name: string
   phone?: string
   phone_last4?: string
@@ -143,7 +161,7 @@ export async function getAdminCamps() {
   }
 }
 
-// 2. Thêm mới hoặc cập nhật thông tin Camp
+// 2. Thêm mới hoặc cập nhật thông tin Camp (Tự động tối ưu hóa)
 export async function saveCamp(camp: CampData) {
   try {
     const supabaseAdmin = getAdminClient()
@@ -156,7 +174,13 @@ export async function saveCamp(camp: CampData) {
       slogan: camp.slogan || 'KỶ LUẬT LÀ SỨC MẠNH · KHÔNG CÓ AI GIÁM SÁT VẪN DỪNG LẠI VÀ CHẠY ĐỦ',
       mode: camp.mode || 'clb_quanh_nam',
       status: camp.status || 'active',
-      logo: camp.logo || { icon: '🏃‍♂️🔥', text: camp.title.slice(0, 15), badgeLabel: 'VICEDU' },
+      logo: {
+        ...(camp.logo || {}),
+        icon: camp.logo?.icon || '🏃‍♂️🔥',
+        text: camp.logo?.text || camp.title.slice(0, 15),
+        badgeLabel: camp.logo?.badgeLabel || 'VICEDU',
+        imageUrl: camp.logo?.imageUrl || '',
+      },
       theme: {
         ...(camp.theme || {}),
         primary: camp.theme?.primary || '#4f46e5',
@@ -182,8 +206,79 @@ export async function saveCamp(camp: CampData) {
       updated_at: new Date().toISOString(),
     }
 
+    // Xử lý tự động hóa riêng cho Chế Độ Thói Quen Cá Nhân (1 Người)
+    if (camp.mode === 'thoi_quen_ca_nhan') {
+      payload.theme = {
+        ...(payload.theme || {}),
+        has_divisions: false,
+        require_pin: false,
+        scope: 'admin_only',
+        target_days: Number(camp.theme?.target_days) || 60,
+        start_date: camp.theme?.start_date || new Date().toISOString().split('T')[0],
+        owner_name: camp.theme?.owner_name || 'Sếp Hoàng',
+        owner_avatar: camp.theme?.owner_avatar || '🦁',
+        owner_phone: camp.theme?.owner_phone || '0912345678',
+        allow_personal_custom_tasks: camp.theme?.allow_personal_custom_tasks ?? true,
+      };
+
+
+      const targetDays = Number(payload.theme.target_days) || 60;
+      const startDateStr = payload.theme.start_date || new Date().toISOString().split('T')[0];
+      const startD = new Date(startDateStr + 'T00:00:00Z');
+
+      if (!camp.sessions || camp.sessions.length !== targetDays || (camp.sessions.length > 0 && camp.sessions[0].dateStr !== startDateStr)) {
+        const autoSessions: any[] = [];
+        for (let i = 1; i <= targetDays; i++) {
+          const curD = new Date(startD.getTime() + (i - 1) * 24 * 60 * 60 * 1000);
+          const yyyy = curD.getUTCFullYear();
+          const mm = String(curD.getUTCMonth() + 1).padStart(2, '0');
+          const dd = String(curD.getUTCDate()).padStart(2, '0');
+          const dateStr = `${yyyy}-${mm}-${dd}`;
+          const code = 'N' + String(i).padStart(2, '0');
+
+          let badge = '';
+          if (i === 1) badge = '🚀 KHỞI ĐỘNG';
+          else if (i === 21) badge = '🔥 CỘT MỐC 21 NGÀY';
+          else if (i === Math.floor(targetDays / 2)) badge = '⚡ NỬA CHẶNG ĐƯỜNG';
+          else if (i === targetDays) badge = `👑 VỀ ĐÍCH ${targetDays} NGÀY`;
+
+          autoSessions.push({
+            id: `day_${String(i).padStart(2, '0')}`,
+            sessionCode: code,
+            title: `Ngày ${i} · Kỷ Luật Thói Quen`,
+            dateStr: dateStr,
+            timeStr: 'Hàng ngày',
+            desc: `Hoàn thành trọn vẹn các tiêu chuẩn rèn luyện trong ngày.`,
+            isPast: false,
+            isToday: i === 1,
+            specialBadge: badge
+          });
+        }
+        payload.sessions = autoSessions;
+      }
+    }
+
     if (camp.id) {
-      // Cập nhật Camp đã có
+      // Cập nhật Camp đã có: Bảo toàn Ban Quản Trị đã cài đặt nếu theme gửi lên chưa có
+      const { data: existingCamp } = await supabaseAdmin
+        .from('journey_camps')
+        .select('theme, branch_gps, shifts_config')
+        .eq('id', camp.id)
+        .single();
+      if (existingCamp?.theme?.admins && (!payload.theme?.admins || payload.theme.admins.length === 0)) {
+        payload.theme.admins = existingCamp.theme.admins;
+      }
+      if (existingCamp) {
+        const hasNewBranches = payload.branch_gps && Array.isArray(payload.branch_gps.branches) && payload.branch_gps.branches.length > 0;
+        const hasExistingBranches = existingCamp.branch_gps && Array.isArray(existingCamp.branch_gps.branches) && existingCamp.branch_gps.branches.length > 0;
+        if (!hasNewBranches && hasExistingBranches) {
+          payload.branch_gps = existingCamp.branch_gps;
+        }
+        if ((!payload.shifts_config || payload.shifts_config.length === 0) && existingCamp.shifts_config && existingCamp.shifts_config.length > 0) {
+          payload.shifts_config = existingCamp.shifts_config;
+        }
+      }
+
       const { data, error } = await supabaseAdmin
         .from('journey_camps')
         .update(payload)
@@ -192,6 +287,41 @@ export async function saveCamp(camp: CampData) {
         .single()
 
       if (error) return { success: false, error: error.message }
+
+      // Tự động đồng bộ thành viên chủ nhân cho thoi_quen_ca_nhan
+      if (camp.mode === 'thoi_quen_ca_nhan') {
+        const ownerName = payload.theme?.owner_name || 'Sếp Hoàng';
+        const ownerAvatar = payload.theme?.owner_avatar || '🦁';
+        const ownerPhone = payload.theme?.owner_phone || '0912345678';
+        const phoneLast4 = ownerPhone.slice(-4);
+
+        const { data: existingMembers } = await supabaseAdmin
+          .from('journey_members')
+          .select('id')
+          .eq('camp_id', data.id);
+
+        if (!existingMembers || existingMembers.length === 0) {
+          await supabaseAdmin.from('journey_members').insert({
+            camp_id: data.id,
+            name: ownerName,
+            avatar_url: ownerAvatar,
+            phone: ownerPhone,
+            phone_last4: phoneLast4,
+            pin_code: '1919',
+            role_tag: 'Chủ nhân hành trình',
+            status: 'active',
+            is_elite: true,
+          });
+        } else {
+          await supabaseAdmin.from('journey_members').update({
+            name: ownerName,
+            avatar_url: ownerAvatar,
+            phone: ownerPhone,
+            phone_last4: phoneLast4,
+          }).eq('id', existingMembers[0].id);
+        }
+      }
+
       return { success: true, camp: data }
     } else {
       // Tạo Camp mới
@@ -203,6 +333,27 @@ export async function saveCamp(camp: CampData) {
         .single()
 
       if (error) return { success: false, error: error.message }
+
+      // Tự động tạo thành viên chủ nhân cho Camp mới
+      if (camp.mode === 'thoi_quen_ca_nhan') {
+        const ownerName = payload.theme?.owner_name || 'Sếp Hoàng';
+        const ownerAvatar = payload.theme?.owner_avatar || '🦁';
+        const ownerPhone = payload.theme?.owner_phone || '0912345678';
+        const phoneLast4 = ownerPhone.slice(-4);
+
+        await supabaseAdmin.from('journey_members').insert({
+          camp_id: data.id,
+          name: ownerName,
+          avatar_url: ownerAvatar,
+          phone: ownerPhone,
+          phone_last4: phoneLast4,
+          pin_code: '1919',
+          role_tag: 'Chủ nhân hành trình',
+          status: 'active',
+          is_elite: true,
+        });
+      }
+
       return { success: true, camp: data }
     }
   } catch (err: any) {
@@ -258,12 +409,12 @@ export async function saveMember(member: MemberData) {
     const supabaseAdmin = getAdminClient()
 
     const phoneDigits = (member.phone || '').replace(/\D/g, '')
-    const phoneLast4 = member.phone_last4 || (phoneDigits.length >= 4 ? phoneDigits.slice(-4) : '')
+    const phoneLast4 = phoneDigits.length >= 4 ? phoneDigits.slice(-4) : (member.phone_last4 || '')
     const pin = member.pin_code || phoneLast4 || '1234'
 
     const payload: any = {
       camp_id: member.camp_id,
-      student_id: member.student_id || null,
+      student_id: (member.student_id && !isNaN(Number(member.student_id))) ? Number(member.student_id) : null,
       name: member.name.trim(),
       phone: member.phone || '',
       phone_last4: phoneLast4,
@@ -322,6 +473,29 @@ export async function deleteMember(memberId: number) {
     return { success: true }
   } catch (err: any) {
     console.error('Lỗi deleteMember:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+// 6.1. Bật/Tắt Trạng thái Thành viên (Active / Inactive)
+export async function toggleMemberStatus(memberId: number, status: 'active' | 'inactive') {
+  try {
+    const supabaseAdmin = getAdminClient()
+
+    const { data, error } = await supabaseAdmin
+      .from('journey_members')
+      .update({
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', memberId)
+      .select()
+      .single()
+
+    if (error) return { success: false, error: error.message }
+    return { success: true, member: data }
+  } catch (err: any) {
+    console.error('Lỗi toggleMemberStatus:', err)
     return { success: false, error: err.message }
   }
 }
@@ -455,6 +629,167 @@ export async function saveCampAdmins(campId: string, admins: any[]) {
     if (updateErr) return { success: false, error: updateErr.message };
     return { success: true };
   } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+// 9. Lấy danh sách nhân viên theo chi nhánh có trạng thái khác 'Nghỉ việc' (Chấm Công VicHRM)
+export async function getBranchEmployees(branchId?: string) {
+  try {
+    const supabaseAdmin = getAdminClient();
+    let query = supabaseAdmin
+      .from('users')
+      .select('id, full_name, nickname, phone, email, branch_id, department, position, role, status, avatar_url')
+      .neq('status', 'Nghỉ việc')
+      .order('full_name', { ascending: true });
+
+    if (branchId && branchId !== 'all') {
+      query = query.ilike('branch_id', `%${branchId}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Lỗi getBranchEmployees:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err: any) {
+    console.error('Lỗi getBranchEmployees:', err);
+    return [];
+  }
+}
+
+// 10. Lấy danh sách Lớp học đang hoạt động (cho Lớp học VicEdu LMS)
+export async function getClassesList(branchId?: string) {
+  try {
+    const supabaseAdmin = getAdminClient();
+    let query = supabaseAdmin
+      .from('classes')
+      .select('id, class_name, branch_id, status, teacher_vn, teacher_foreign')
+      .neq('status', 'Đã kết thúc')
+      .order('class_name', { ascending: true });
+
+    if (branchId && branchId !== 'all') {
+      query = query.ilike('branch_id', `%${branchId}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Lỗi getClassesList:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err: any) {
+    console.error('Lỗi getClassesList:', err);
+    return [];
+  }
+}
+
+// 11. Lấy danh sách Học viên trong 1 Lớp học cụ thể kèm thông tin phụ huynh / SĐT
+export async function getClassStudentsForJourney(classId: string) {
+  try {
+    const supabaseAdmin = getAdminClient();
+    const { data, error } = await supabaseAdmin
+      .from('class_students')
+      .select('student_id, status, students(id, full_name, nickname, parent_phone, avatar_url, branch_id, status)')
+      .eq('class_id', classId);
+
+    if (error) {
+      console.error('Lỗi getClassStudentsForJourney:', error);
+      return [];
+    }
+
+    const students = (data || [])
+      .map((item: any) => {
+        if (!item.students) return null;
+        return {
+          ...item.students,
+          phone: item.students.parent_phone || '',
+        };
+      })
+      .filter((s: any) => s && s.status !== 'Nghỉ học');
+
+    return students;
+  } catch (err: any) {
+    console.error('Lỗi getClassStudentsForJourney:', err);
+    return [];
+  }
+}
+
+// 12. Nạp hàng loạt Thành viên vào Camp (hỗ trợ Chấm công chi nhánh & Nạp cả lớp học)
+export async function bulkSaveMembers(campId: string, membersList: Partial<MemberData>[]) {
+  try {
+    const supabaseAdmin = getAdminClient();
+    const now = new Date().toISOString();
+
+    // Lấy danh sách thành viên hiện có trong camp để chống trùng lặp theo SĐT hoặc student_id hoặc tên
+    const { data: existing } = await supabaseAdmin
+      .from('journey_members')
+      .select('name, phone, student_id')
+      .eq('camp_id', campId);
+
+    const existingPhones = new Set((existing || []).map((m: any) => m.phone).filter(Boolean));
+    const existingStudentIds = new Set((existing || []).map((m: any) => m.student_id).filter(Boolean));
+    const existingNames = new Set((existing || []).map((m: any) => (m.name || '').toLowerCase().trim()));
+
+    const toInsert = membersList
+      .filter((m: any) => {
+        if (!m.name) return false;
+        const phone = (m.phone || '').trim();
+        const name = (m.name || '').toLowerCase().trim();
+        if (phone && existingPhones.has(phone)) return false;
+        if (existingNames.has(name)) return false;
+        // Check clean name without (code)
+        const cleanM = name.split('(')[0].trim();
+        const hasNameDup = Array.from(existingNames).some((ex: any) => {
+          const cleanEx = (ex || '').split('(')[0].trim();
+          return cleanEx === cleanM && cleanM.length > 2;
+        });
+        if (hasNameDup) return false;
+        return true;
+      })
+      .map((m: any) => {
+        const phoneDigits = (m.phone || '').replace(/\D/g, '');
+        const phoneLast4 = m.phone_last4 || (phoneDigits.length >= 4 ? phoneDigits.slice(-4) : '');
+        const pin = m.pin_code || phoneLast4 || '1234';
+        const numStudentId = (m.student_id && !isNaN(Number(m.student_id))) ? Number(m.student_id) : null;
+        return {
+          camp_id: campId,
+          student_id: numStudentId,
+          name: m.name.trim(),
+          phone: m.phone || '',
+          phone_last4: phoneLast4,
+          pin_code: pin,
+          role_tag: m.role_tag || 'Thành viên',
+          avatar_url: m.avatar_url || '',
+          is_elite: !!m.is_elite,
+          total_km_all_time: Number(m.total_km_all_time) || 0,
+          weekly_streak: Number(m.weekly_streak) || 0,
+          total_stars: Number(m.total_stars) || 0,
+          forgot_pills_quota: typeof m.forgot_pills_quota === 'number' ? m.forgot_pills_quota : 3,
+          status: m.status || 'active',
+          created_at: now,
+          updated_at: now,
+        };
+      });
+
+    if (toInsert.length === 0) {
+      return { success: true, count: 0, message: 'Tất cả nhân sự / học sinh đã có sẵn trong danh sách của hành trình này!' };
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('journey_members')
+      .insert(toInsert)
+      .select();
+
+    if (error) {
+      console.error('Lỗi insert bulkSaveMembers:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, count: data?.length || toInsert.length, members: data };
+  } catch (err: any) {
+    console.error('Lỗi bulkSaveMembers:', err);
     return { success: false, error: err.message };
   }
 }
