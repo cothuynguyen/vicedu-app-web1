@@ -174,6 +174,7 @@ export default function JourneyAdminPage() {
   const [previewDevice, setPreviewDevice] = useState<'iphone' | 'android'>('iphone')
   const [previewProofImage, setPreviewProofImage] = useState<string | null>(null)
   const [staffList, setStaffList] = useState<any[]>([])
+  const [adminStaffSearch, setAdminStaffSearch] = useState("")
   const [newAdmin, setNewAdmin] = useState({
     name: "",
     phone: "",
@@ -191,6 +192,7 @@ export default function JourneyAdminPage() {
           { id: "admin_1", name: "Bố Hoàng (Bầu Xô)", phone: "0912345678", pinLast4: "5678", roleTitle: "Tổng Chỉ Huy · Super Admin", avatar: "🦁", canAccessCRM: true }
         ]
     setCampAdmins(existing)
+    setAdminStaffSearch("")
     setShowAdminModal(true)
     if (staffList.length === 0) {
       const staff = await getVicEduStaff()
@@ -8679,35 +8681,127 @@ export default function JourneyAdminPage() {
                   <span>➕</span> Thêm Quản Trị Viên / Giáo Viên Mới
                 </h4>
 
-                <div style={{ marginBottom: "0.85rem" }}>
-                  <label style={{ fontSize: "0.8rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
-                    1. Chọn Nhanh Giáo Viên / Nhân Sự Từ Hệ Thống VicEdu
-                  </label>
-                  <select
-                    style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 600 }}
-                    onChange={(e) => {
-                      const selectedId = e.target.value
-                      const found = staffList.find(s => s.id === selectedId)
-                      if (found) {
-                        setNewAdmin({
-                          ...newAdmin,
-                          name: found.full_name || "",
-                          phone: found.phone || "",
-                          pinLast4: found.phone ? found.phone.slice(-4) : "1234",
-                          roleTitle: found.role === "Giáo viên" ? "Giáo viên Chủ nhiệm" : `${found.role} Phụ trách`,
-                          avatar: found.role === "Giáo viên" ? "👩‍🏫" : "👤",
-                        })
-                      }
-                    }}
-                  >
-                    <option value="">-- Bấm vào đây để chọn nhanh Nhân sự / Giáo viên VicEdu --</option>
-                    {staffList.map(st => (
-                      <option key={st.id} value={st.id}>
-                        {st.full_name} · [{st.role}] · SĐT: {st.phone || "Chưa có"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {(() => {
+                  const filteredStaff = staffList
+                    .filter((s: any) => s.status !== "Nghỉ việc")
+                    .filter((s: any) => {
+                      if (!adminStaffSearch.trim()) return true;
+                      const q = adminStaffSearch.toLowerCase().trim();
+                      const name = (s.full_name || "").toLowerCase();
+                      const phone = (s.phone || "").toLowerCase();
+                      const role = (s.role || "").toLowerCase();
+                      const dept = (s.department || "").toLowerCase();
+                      const email = (s.email || "").toLowerCase();
+                      return name.includes(q) || phone.includes(q) || role.includes(q) || dept.includes(q) || email.includes(q);
+                    });
+
+                  return (
+                    <div style={{ marginBottom: "0.85rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem", flexWrap: "wrap", gap: "6px" }}>
+                        <label style={{ fontSize: "0.8rem", fontWeight: 700, margin: 0 }}>
+                          1. Chọn Nhanh Giáo Viên / Nhân Sự Từ Hệ Thống VicEdu
+                        </label>
+                        <span style={{ fontSize: "0.72rem", color: "#059669", background: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(16, 185, 129, 0.25)", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>
+                          🟢 {filteredStaff.length} nhân sự đang làm việc (Đã lọc bỏ 'Nghỉ việc')
+                        </span>
+                      </div>
+
+                      {/* Ô Tìm Kiếm Nhanh Nhân Sự */}
+                      <div style={{ position: "relative", marginBottom: "0.45rem" }}>
+                        <Search
+                          size={15}
+                          style={{
+                            position: "absolute",
+                            left: "10px",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            color: "var(--text-muted)",
+                            pointerEvents: "none",
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={adminStaffSearch}
+                          onChange={(e) => setAdminStaffSearch(e.target.value)}
+                          placeholder="🔍 Gõ tên, SĐT, chức vụ hoặc bộ phận để lọc nhanh..."
+                          style={{
+                            width: "100%",
+                            padding: "0.5rem 2.2rem 0.5rem 2.1rem",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            background: "var(--surface)",
+                            color: "var(--text-main)",
+                            fontSize: "0.82rem",
+                          }}
+                        />
+                        {adminStaffSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setAdminStaffSearch("")}
+                            style={{
+                              position: "absolute",
+                              right: "8px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              background: "rgba(0,0,0,0.06)",
+                              border: "none",
+                              borderRadius: "50%",
+                              width: "20px",
+                              height: "20px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "var(--text-muted)",
+                              cursor: "pointer",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                            }}
+                            title="Xóa tìm kiếm"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Dropdown danh sách */}
+                      <select
+                        style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-main)", fontSize: "0.85rem", fontWeight: 600 }}
+                        value=""
+                        onChange={(e) => {
+                          const selectedId = e.target.value
+                          const found = staffList.find((s: any) => s.id === selectedId)
+                          if (found) {
+                            setNewAdmin({
+                              ...newAdmin,
+                              name: found.full_name || "",
+                              phone: found.phone || "",
+                              pinLast4: found.phone ? found.phone.slice(-4) : "1234",
+                              roleTitle: found.role === "Giáo viên" ? "Giáo viên Chủ nhiệm" : `${found.role || 'Nhân sự'} Phụ trách`,
+                              avatar: found.role === "Giáo viên" ? "👩‍🏫" : "👤",
+                            })
+                          }
+                        }}
+                      >
+                        <option value="">
+                          {adminStaffSearch.trim()
+                            ? `-- Tìm thấy ${filteredStaff.length} nhân sự phù hợp (Bấm để chọn) --`
+                            : `-- Bấm vào đây để chọn nhanh Nhân sự / Giáo viên VicEdu (${filteredStaff.length}) --`}
+                        </option>
+                        {filteredStaff.map((st: any) => (
+                          <option key={st.id} value={st.id}>
+                            {st.full_name} · [{st.role || "Nhân sự"}]{st.department ? ` - ${st.department}` : ""} · SĐT: {st.phone || "Chưa có"}
+                          </option>
+                        ))}
+                      </select>
+
+                      {adminStaffSearch.trim() && filteredStaff.length === 0 && (
+                        <div style={{ marginTop: "0.4rem", fontSize: "0.75rem", color: "#dc2626", fontStyle: "italic" }}>
+                          ⚠️ Không tìm thấy nhân sự phù hợp với từ khóa "{adminStaffSearch}". Bạn có thể nhập họ tên & SĐT thủ công ở các ô bên dưới.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "0.75rem", marginBottom: "0.85rem" }}>
                   <div>

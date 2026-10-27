@@ -592,7 +592,8 @@ export async function getVicEduStaff() {
     const supabaseAdmin = getAdminClient();
     const { data, error } = await supabaseAdmin
       .from('users')
-      .select('id, full_name, email, role, phone')
+      .select('id, full_name, email, role, phone, status, department')
+      .neq('status', 'Nghỉ việc')
       .order('full_name', { ascending: true });
     if (error) return [];
     return data || [];
