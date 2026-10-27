@@ -130,6 +130,18 @@ export default function JourneyAdminPage() {
     if (c.slug?.includes("ielts")) return "branch";
     return "admin_only";
   };
+  const [portalBaseUrl, setPortalBaseUrl] = useState<string>("https://hoc.viceduvn.com");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        setPortalBaseUrl("http://localhost:3001");
+      } else {
+        setPortalBaseUrl("https://hoc.viceduvn.com");
+      }
+    }
+  }, []);
+
   const [campSearch, setCampSearch] = useState("")
 
   // Bộ lọc Phân Bảng Runner Nhí vs Runner Lớn cho Tab Thành Viên
@@ -1827,7 +1839,7 @@ export default function JourneyAdminPage() {
 
                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                   <a
-                    href={`http://localhost:3001/hanh-trinh/${selectedCamp.slug}`}
+                    href={`${portalBaseUrl}/hanh-trinh/${selectedCamp.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -2018,7 +2030,7 @@ export default function JourneyAdminPage() {
                       {/* Nút Xem Web Báo Cáo + Actions */}
                       <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.65rem", display: "flex", flexDirection: "column", gap: "0.45rem" }}>
                         <a
-                          href={`http://localhost:3001/hanh-trinh/${camp.slug}`}
+                          href={`${portalBaseUrl}/hanh-trinh/${camp.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -2235,7 +2247,7 @@ export default function JourneyAdminPage() {
                           <td style={{ padding: "0.85rem 1rem", textAlign: "right" }}>
                             <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
                               <a
-                                href={`http://localhost:3001/hanh-trinh/${camp.slug}`}
+                                href={`${portalBaseUrl}/hanh-trinh/${camp.slug}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
@@ -9151,7 +9163,7 @@ export default function JourneyAdminPage() {
             </div>
 
             <a
-              href={`http://localhost:3001/hanh-trinh/${mobilePreviewCamp.slug}`}
+              href={`${portalBaseUrl}/hanh-trinh/${mobilePreviewCamp.slug}`}
               target="_blank"
               rel="noreferrer"
               style={{
@@ -9258,7 +9270,7 @@ export default function JourneyAdminPage() {
             {/* Screen Iframe Container */}
             <div style={{ flex: 1, width: "100%", height: "100%", background: "white", overflow: "hidden" }}>
               <iframe
-                src={`http://localhost:3001/hanh-trinh/${mobilePreviewCamp.slug}`}
+                src={`${portalBaseUrl}/hanh-trinh/${mobilePreviewCamp.slug}`}
                 style={{
                   width: "100%",
                   height: "100%",
