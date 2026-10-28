@@ -7666,22 +7666,27 @@ export default function JourneyAdminPage() {
                     }
                     let campToSave = { ...editingCamp }
                     if (campToSave.mode === 'thoi_quen_ca_nhan') {
-                      const tDays = Number(campToSave.theme?.target_days) || 30
+                      const tDays = Number(campToSave.theme?.target_days) || 60
                       const sDate = campToSave.theme?.start_date || new Date().toISOString().split('T')[0]
+                      const existingSessions = Array.isArray(campToSave.sessions) ? campToSave.sessions : []
                       const autoSessions: any[] = []
-                      const startDateObj = new Date(sDate)
+                      const startDateObj = new Date(sDate + 'T00:00:00Z')
                       for (let i = 1; i <= tDays; i++) {
-                        const cur = new Date(startDateObj)
-                        cur.setDate(startDateObj.getDate() + (i - 1))
-                        const dStr = cur.toISOString().split('T')[0]
+                        const cur = new Date(startDateObj.getTime() + (i - 1) * 24 * 60 * 60 * 1000)
+                        const yyyy = cur.getUTCFullYear()
+                        const mm = String(cur.getUTCMonth() + 1).padStart(2, '0')
+                        const dd = String(cur.getUTCDate()).padStart(2, '0')
+                        const dStr = `${yyyy}-${mm}-${dd}`
                         const code = `N${i < 10 ? '0' + i : i}`
+                        const prevSess = existingSessions[i - 1]
                         autoSessions.push({
-                          id: `sess-${code.toLowerCase()}`,
+                          ...(prevSess || {}),
+                          id: prevSess?.id || `sess-${code.toLowerCase()}`,
                           sessionCode: code,
-                          title: `Ngày ${i}`,
+                          title: prevSess?.title || `Ngày ${i}`,
                           dateStr: dStr,
-                          summaryText: `Rèn luyện kỷ luật ngày ${i}`,
-                          desc: `Rèn luyện kỷ luật ngày ${i}`,
+                          summaryText: prevSess?.summaryText || `Rèn luyện kỷ luật ngày ${i}`,
+                          desc: prevSess?.desc || `Rèn luyện kỷ luật ngày ${i}`,
                         })
                       }
                       campToSave.sessions = autoSessions

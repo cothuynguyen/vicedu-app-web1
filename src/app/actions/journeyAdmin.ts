@@ -227,6 +227,7 @@ export async function saveCamp(camp: CampData) {
       const startD = new Date(startDateStr + 'T00:00:00Z');
 
       if (!camp.sessions || camp.sessions.length !== targetDays || (camp.sessions.length > 0 && camp.sessions[0].dateStr !== startDateStr)) {
+        const existingSessions = Array.isArray(camp.sessions) ? camp.sessions : [];
         const autoSessions: any[] = [];
         for (let i = 1; i <= targetDays; i++) {
           const curD = new Date(startD.getTime() + (i - 1) * 24 * 60 * 60 * 1000);
@@ -235,20 +236,24 @@ export async function saveCamp(camp: CampData) {
           const dd = String(curD.getUTCDate()).padStart(2, '0');
           const dateStr = `${yyyy}-${mm}-${dd}`;
           const code = 'N' + String(i).padStart(2, '0');
+          const prevSess = existingSessions[i - 1];
 
-          let badge = '';
-          if (i === 1) badge = '🚀 KHỞI ĐỘNG';
-          else if (i === 21) badge = '🔥 CỘT MỐC 21 NGÀY';
-          else if (i === Math.floor(targetDays / 2)) badge = '⚡ NỬA CHẶNG ĐƯỜNG';
-          else if (i === targetDays) badge = `👑 VỀ ĐÍCH ${targetDays} NGÀY`;
+          let badge = prevSess?.specialBadge || '';
+          if (!badge) {
+            if (i === 1) badge = '🚀 KHỞI ĐỘNG';
+            else if (i === 21) badge = '🔥 CỘT MỐC 21 NGÀY';
+            else if (i === Math.floor(targetDays / 2)) badge = '⚡ NỬA CHẶNG ĐƯỜNG';
+            else if (i === targetDays) badge = `👑 VỀ ĐÍCH ${targetDays} NGÀY`;
+          }
 
           autoSessions.push({
-            id: `day_${String(i).padStart(2, '0')}`,
+            ...(prevSess || {}),
+            id: prevSess?.id || `sess-${code.toLowerCase()}`,
             sessionCode: code,
-            title: `Ngày ${i} · Kỷ Luật Thói Quen`,
+            title: prevSess?.title || `Ngày ${i} · Kỷ Luật Thói Quen`,
             dateStr: dateStr,
-            timeStr: 'Hàng ngày',
-            desc: `Hoàn thành trọn vẹn các tiêu chuẩn rèn luyện trong ngày.`,
+            timeStr: prevSess?.timeStr || 'Hàng ngày',
+            desc: prevSess?.desc || `Hoàn thành trọn vẹn các tiêu chuẩn rèn luyện trong ngày.`,
             isPast: false,
             isToday: i === 1,
             specialBadge: badge
