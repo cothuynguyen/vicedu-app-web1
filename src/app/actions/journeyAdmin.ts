@@ -794,3 +794,87 @@ export async function bulkSaveMembers(campId: string, membersList: Partial<Membe
     return { success: false, error: err.message };
   }
 }
+
+
+// 13. Mở khóa thiết bị cho nhân sự (Chấm công chống gian lận)
+export async function resetMemberDeviceBinding(campId: string, memberId: number | string) {
+  try {
+    const supabaseAdmin = getAdminClient();
+    const { data: camp, error: fetchErr } = await supabaseAdmin
+      .from('journey_camps')
+      .select('id, theme')
+      .eq('id', campId)
+      .single();
+
+    if (fetchErr || !camp) {
+      return { success: false, error: fetchErr?.message || 'Không tìm thấy hành trình' };
+    }
+
+    const theme = camp.theme || {};
+    const deviceBindings = { ...(theme.device_bindings || {}) };
+    delete deviceBindings[String(memberId)];
+
+    const updatedTheme = { ...theme, device_bindings: deviceBindings };
+    const { error: updateErr } = await supabaseAdmin
+      .from('journey_camps')
+      .update({
+        theme: updatedTheme,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', campId);
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    return { success: true, deviceBindings };
+  } catch (err: any) {
+    console.error('Lỗi resetMemberDeviceBinding:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+// 14. Ghim / Cập nhật tọa độ GPS văn phòng chi nhánh
+export async function updateCampBranchGps(
+  campId: string,
+  lat: number,
+  lng: number,
+  radius: number = 100
+) {
+  try {
+    const supabaseAdmin = getAdminClient();
+    const { data: camp, error: fetchErr } = await supabaseAdmin
+      .from('journey_camps')
+      .select('id, branch_gps')
+      .eq('id', campId)
+      .single();
+
+    if (fetchErr || !camp) {
+      return { success: false, error: fetchErr?.message || 'Không tìm thấy hành trình' };
+    }
+
+    const branchGps = {
+      ...(camp.branch_gps || {}),
+      lat,
+      lng,
+      radius: radius || 100,
+    };
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('journey_camps')
+      .update({
+        branch_gps: branchGps,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', campId);
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    return { success: true, branch_gps: branchGps };
+  } catch (err: any) {
+    console.error('Lỗi updateCampBranchGps:', err);
+    return { success: false, error: err.message };
+  }
+}

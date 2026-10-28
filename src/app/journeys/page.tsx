@@ -62,6 +62,8 @@ import {
   getClassesList,
   getClassStudentsForJourney,
   bulkSaveMembers,
+  resetMemberDeviceBinding,
+  updateCampBranchGps,
   CampData,
   MemberData,
 } from "@/app/actions/journeyAdmin"
@@ -987,6 +989,86 @@ export default function JourneyAdminPage() {
       if (selectedCampId) loadMembers(selectedCampId)
     }
   }
+
+  const [isPinningGps, setIsPinningGps] = useState(false);
+
+  const handleResetDevice = async (m: any) => {
+    if (!selectedCampId) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn mở khóa thiết bị cho nhân sự "${m.name}"?\n\nSau khi mở khóa, nhân sự có thể đăng nhập và gắn điện thoại mới khi vào ca chấm công.`)) {
+      return;
+    }
+    const res = await resetMemberDeviceBinding(selectedCampId, m.id);
+    if (res.success) {
+      setCamps(prev => prev.map(c => {
+        if (c.id === selectedCampId) {
+          const newBindings = { ...(c.theme?.device_bindings || {}) };
+          delete newBindings[String(m.id)];
+          return {
+            ...c,
+            theme: {
+              ...(c.theme || {}),
+              device_bindings: newBindings,
+            }
+          };
+        }
+        return c;
+      }));
+      alert(`Đã mở khóa thiết bị thành công cho "${m.name}"!`);
+    } else {
+      alert("Lỗi khi mở khóa thiết bị: " + (res.error || "Không xác định"));
+    }
+  };
+
+  const handlePinCurrentGps = () => {
+    if (!navigator.geolocation) {
+      alert("Trình duyệt không hỗ trợ định vị GPS!");
+      return;
+    }
+    if (!selectedCampId || !selectedCamp) return;
+
+    const currentGps = selectedCamp.branch_gps;
+    const confirmMsg = currentGps && currentGps.lat
+      ? `Tọa độ Văn phòng hiện tại:\n• Lat: ${currentGps.lat}\n• Lng: ${currentGps.lng}\n• Bán kính: ${currentGps.radius || 100}m\n\nBạn đang đứng tại Văn phòng và muốn ghim vị trí này làm tọa độ chuẩn mới?`
+      : `Bạn đang đứng tại Văn phòng đúng không?\nNhấn OK để hệ thống đo tọa độ GPS thực tế của bạn làm tâm điểm chấm công.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsPinningGps(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        const accuracy = Math.round(pos.coords.accuracy);
+
+        const res = await updateCampBranchGps(selectedCampId, lat, lng, 100);
+        setIsPinningGps(false);
+        if (res.success) {
+          setCamps(prev => prev.map(c => {
+            if (c.id === selectedCampId) {
+              return {
+                ...c,
+                branch_gps: {
+                  ...(c.branch_gps || {}),
+                  lat,
+                  lng,
+                  radius: 100,
+                }
+              };
+            }
+            return c;
+          }));
+          alert(`🎯 Đã ghim tọa độ văn phòng thành công!\n\n• Vĩ độ (Lat): ${lat}\n• Kinh độ (Lng): ${lng}\n• Bán kính cho phép: 100m\n• Độ chính xác GPS đo được: ~${accuracy}m`);
+        } else {
+          alert("Lỗi khi lưu tọa độ GPS: " + (res.error || "Không xác định"));
+        }
+      },
+      (err) => {
+        setIsPinningGps(false);
+        alert(`Không thể lấy vị trí GPS: ${err.message}. Vui lòng kiểm tra quyền vị trí của trình duyệt!`);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   const loadMembers = async (campId: string) => {
     if (!campId) return
@@ -3559,6 +3641,32 @@ export default function JourneyAdminPage() {
               {selectedCamp?.mode === 'cham_cong' && (
                 <button
                   type="button"
+                  onClick={handlePinCurrentGps}
+                  disabled={isPinningGps}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                    color: "white",
+                    padding: "0.55rem 1.15rem",
+                    borderRadius: "8px",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: isPinningGps ? "wait" : "pointer",
+                    boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
+                  }}
+                  title="Lấy vị trí GPS bạn đang đứng để ghim làm tọa độ Văn phòng (Bán kính 100m)"
+                >
+                  <MapPin size={16} />
+                  <span>{isPinningGps ? "⏳ Đang dò GPS..." : "📍 Ghim Tọa Độ VP (Chỗ Tôi Đang Đứng)"}</span>
+                </button>
+              )}
+
+              {selectedCamp?.mode === 'cham_cong' && (
+                <button
+                  type="button"
                   onClick={() => handleOpenAddMemberModal('branch_staff')}
                   style={{
                     display: "inline-flex",
@@ -3644,6 +3752,9 @@ export default function JourneyAdminPage() {
                   </th>
                   {selectedCamp?.mode === 'cham_cong' && (
                     <th style={{ padding: "0.75rem" }}>Vé Quên Chấm Công</th>
+                  )}
+                  {selectedCamp?.mode === 'cham_cong' && (
+                    <th style={{ padding: "0.75rem" }}>Thiết Bị Điểm Danh</th>
                   )}
                   <th style={{ padding: "0.75rem", textAlign: "center" }}>Trạng Thái</th>
                   <th style={{ padding: "0.75rem", textAlign: "right" }}>Thao Tác</th>
@@ -3741,6 +3852,51 @@ export default function JourneyAdminPage() {
                           </span>
                         </td>
                       )}
+                      {selectedCamp?.mode === 'cham_cong' && (() => {
+                        const binding = selectedCamp?.theme?.device_bindings?.[String(m.id)];
+                        return (
+                          <td style={{ padding: "0.75rem" }}>
+                            {binding ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                <div>
+                                  <div style={{ fontWeight: 700, color: "#16a34a", fontSize: "0.78rem", display: "flex", alignItems: "center", gap: "4px" }}>
+                                    <Smartphone size={13} />
+                                    <span>{binding.deviceName || "Điện thoại chính chủ"}</span>
+                                  </div>
+                                  <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "1px" }}>
+                                    {new Date(binding.boundAt).toLocaleDateString("vi-VN")}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleResetDevice(m)}
+                                  style={{
+                                    background: "#fef2f2",
+                                    color: "#dc2626",
+                                    border: "1px solid #fecaca",
+                                    padding: "3px 8px",
+                                    borderRadius: "5px",
+                                    fontSize: "0.72rem",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "3px",
+                                  }}
+                                  title="Mở khóa để nhân sự có thể đăng nhập trên máy mới"
+                                >
+                                  <RefreshCw size={11} />
+                                  <span>Mở khóa</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <span style={{ color: "var(--text-muted)", fontSize: "0.75rem", fontStyle: "italic" }}>
+                                ⚪ Chưa gắn máy
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })()}
                       <td style={{ padding: "0.75rem", textAlign: "center" }}>
                         <button
                           type="button"
@@ -8435,6 +8591,75 @@ export default function JourneyAdminPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Quản lý thiết bị điểm danh cho chấm công */}
+                  {selectedCamp?.mode === 'cham_cong' && editingMember.id && (() => {
+                    const binding = selectedCamp?.theme?.device_bindings?.[String(editingMember.id)];
+                    return (
+                      <div style={{ marginTop: "1rem", background: "var(--background)", padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                        <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
+                          📱 Thiết Bị Điểm Danh Gắn Với Tài Khoản
+                        </label>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginTop: "0.4rem" }}>
+                          <div>
+                            <div style={{ fontSize: "0.85rem", fontWeight: 700, color: binding ? "#16a34a" : "var(--text-muted)" }}>
+                              {binding ? `📱 ${binding.deviceName || 'Điện thoại chính chủ'}` : '⚪ Chưa gắn thiết bị nào'}
+                            </div>
+                            {binding && (
+                              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                Đã gắn máy lúc: {new Date(binding.boundAt).toLocaleString('vi-VN')}
+                              </div>
+                            )}
+                          </div>
+                          {binding && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.confirm(`Bạn có chắc chắn muốn mở khóa thiết bị cho ${editingMember.name}?`)) {
+                                  const res = await resetMemberDeviceBinding(selectedCamp.id, editingMember.id!);
+                                  if (res.success) {
+                                    setCamps(prev => prev.map(c => {
+                                      if (c.id === selectedCamp.id) {
+                                        const newBindings = { ...(c.theme?.device_bindings || {}) };
+                                        delete newBindings[String(editingMember.id)];
+                                        return {
+                                          ...c,
+                                          theme: {
+                                            ...(c.theme || {}),
+                                            device_bindings: newBindings,
+                                          }
+                                        };
+                                      }
+                                      return c;
+                                    }));
+                                    alert("Đã mở khóa thiết bị thành công!");
+                                  } else {
+                                    alert("Lỗi mở khóa: " + res.error);
+                                  }
+                                }
+                              }}
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: "6px",
+                                border: "1px solid #fecaca",
+                                background: "#fef2f2",
+                                color: "#dc2626",
+                                fontWeight: 700,
+                                fontSize: "0.78rem",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                            >
+                              <RefreshCw size={12} />
+                              <span>Mở khóa thiết bị</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Trạng thái hoạt động ON/OFF */}
                   <div style={{ marginTop: "1rem", background: "var(--background)", padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
