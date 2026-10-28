@@ -1238,7 +1238,7 @@ export default function JourneyAdminPage() {
           "STT": idx + 1,
           "Mã NV": member.id,
           "Họ và Tên": member.name || `NV #${member.id}`,
-          "Số Điện Thoại": member.phone || "",
+          "Số Điện Thoại": member.phone ? (String(member.phone).startsWith("'") ? String(member.phone) : `'${member.phone}`) : "",
           "Chức Vụ / Vai Trò": member.role_tag || "Nhân sự",
         }
 
@@ -1326,7 +1326,7 @@ export default function JourneyAdminPage() {
           "STT": idx + 1,
           "Thời Gian Gửi": r.submitted_at ? new Date(r.submitted_at).toLocaleString("vi-VN") : "",
           "Họ và Tên": member?.name || `Mã #${r.member_id}`,
-          "Số Điện Thoại": member?.phone || "",
+          "Số Điện Thoại": member?.phone ? (String(member.phone).startsWith("'") ? String(member.phone) : `'${member.phone}`) : "",
           "Chức Vụ": member?.role_tag || "Nhân sự",
           "Chi Nhánh Làm Việc": tasks.branch_verified || "VP VicEdu Việt Trì",
           "Ca Làm Việc": tasks.shift_id || r.session_id || "Ca chuẩn",
@@ -1756,6 +1756,31 @@ export default function JourneyAdminPage() {
           </div>
 
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+            {/* NÚT XUẤT EXCEL 2-SHEET NỔI BẬT TRÊN HEADER CHÍNH THEO Ý BỐ HOÀNG */}
+            <button
+              type="button"
+              onClick={handleOpenExportModal}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                padding: "0.65rem 1.15rem",
+                borderRadius: "10px",
+                border: "none",
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.35)",
+                transition: "all 0.2s ease",
+              }}
+              title="Xuất bảng công tổng hợp (Matrix) & Nhật ký chi tiết ra file Excel (.xlsx)"
+            >
+              <Download size={16} />
+              <span>📥 Xuất Bảng Lương & Công Excel</span>
+            </button>
+
             <button
               onClick={() => openCampModal()}
               style={{
