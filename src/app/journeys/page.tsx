@@ -6751,6 +6751,18 @@ export default function JourneyAdminPage() {
                                 rules_doc_url: e.target.value.trim()
                               }
                             })}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val && !/^https?:\/\//i.test(val) && !val.startsWith('/')) {
+                                setEditingCamp({
+                                  ...editingCamp,
+                                  theme: {
+                                    ...(editingCamp.theme || {}),
+                                    rules_doc_url: `https://${val}`
+                                  }
+                                });
+                              }
+                            }}
                             style={{
                               width: "100%",
                               padding: "0.55rem 0.75rem",
