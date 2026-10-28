@@ -1,4 +1,4 @@
-"use server"
+﻿"use server"
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -534,12 +534,19 @@ export async function updateReportApproval(
   try {
     const supabaseAdmin = getAdminClient()
 
+    const updatePayload: Record<string, any> = {
+      approval_status: approvalStatus,
+      approved_by: approvedBy,
+    };
+    if (approvalStatus === 'approved') {
+      updatePayload.attended_session = true;
+    } else if (approvalStatus === 'rejected') {
+      updatePayload.attended_session = false;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('journey_reports')
-      .update({
-        approval_status: approvalStatus,
-        approved_by: approvedBy,
-      })
+      .update(updatePayload)
       .eq('id', reportId)
       .select()
       .single()

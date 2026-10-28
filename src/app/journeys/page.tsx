@@ -410,6 +410,12 @@ export default function JourneyAdminPage() {
   const [reports, setReports] = useState<any[]>([])
   const [approvalFilter, setApprovalFilter] = useState<string>("all")
 
+  // State Modal Xuất Excel Thông Minh 2-Sheet dành cho Quản Trị Viên & Kế Toán
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [exportMonth, setExportMonth] = useState<string>('all')
+  const [exportBranch, setExportBranch] = useState<string>('all')
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false)
+
   // GPS Geofence Đa Chi Nhánh (VicEdu Multi-Branch) & Shifts form state (for Tab 2)
   const [branchesList, setBranchesList] = useState<Array<{
     id: string;
@@ -1172,45 +1178,188 @@ export default function JourneyAdminPage() {
     }
   }
 
-  // Xuất file Excel chấm công & điểm danh (XLSX)
-  const handleExportExcel = async () => {
+  // Mở modal xuất Excel thông minh
+  const handleOpenExportModal = () => {
+    const curMonth = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit' }).format(new Date())
+    setExportMonth(curMonth || '2026-10')
+    setExportBranch('all')
+    setIsExportModalOpen(true)
+  }
+
+  // Thực thi xuất file Excel chấm công 2-Sheet (Bảng Công Tổng Hợp & Nhật Ký Chi Tiết)
+  const handleExecuteExportExcel = async () => {
     if (!selectedCampId) return
-    const res = await getCampExportData(selectedCampId)
-    if (!res.success || !res.camp) {
-      alert("Lỗi tải dữ liệu xuất Excel!")
-      return
-    }
-
-    const { camp, members: expMembers, reports: expReports } = res
-    const membersList = expMembers || []
-    const reportsList = expReports || []
-
-    const rows = reportsList.map((r: any, idx: number) => {
-      const member = membersList.find((m: any) => m.id === r.member_id)
-      const tasksStr = r.tasks ? Object.entries(r.tasks).map(([k, v]) => `${k}: ${v}`).join(", ") : ""
-      return {
-        "STT": idx + 1,
-        "Họ và Tên": member?.name || `Mã #${r.member_id}`,
-        "Số Điện Thoại": member?.phone || "",
-        "Mã PIN / 4 Số Cuối": member?.pin_code || member?.phone_last4 || "",
-        "Vai Trò": member?.role_tag || "Thành viên",
-        "Buổi Học / Ca": r.session_id || r.shift_code || "Chưa rõ",
-        "Có Mặt": r.attended_session ? "Có mặt (Đủ công)" : "Vắng mặt",
-        "Nhiệm Vụ Đã Làm": tasksStr,
-        "Thời Gian Gửi": r.submitted_at ? new Date(r.submitted_at).toLocaleString("vi-VN") : "",
-        "Trạng Thái Duyệt": r.approval_status === "approved" ? "Đã duyệt" : r.approval_status === "rejected" ? "Từ chối" : "Chờ duyệt",
-        "Người Duyệt": r.approved_by || "",
-        "Ghi Chú Giải Trình": r.difficulty_note || "",
+    try {
+      setIsGeneratingExcel(true)
+      const res = await getCampExportData(selectedCampId)
+      if (!res.success || !res.camp) {
+        alert("Lỗi tải dữ liệu xuất Excel!")
+        return
       }
-    })
 
-    const worksheet = XLSX.utils.json_to_sheet(rows)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Dữ Liệu Điểm Danh")
+      const { camp, members: expMembers, reports: expReports } = res
+      let membersList = expMembers || []
+      let reportsList = expReports || []
 
-    const safeTitle = camp.slug || "journey"
-    const dateStr = new Date().toISOString().slice(0, 10)
-    XLSX.writeFile(workbook, `Bang_Cham_Cong_${safeTitle}_${dateStr}.xlsx`)
+      // Lọc reports theo tháng
+      if (exportMonth !== 'all') {
+        reportsList = reportsList.filter((r: any) => {
+          const sId = String(r.session_id || '')
+          const subDate = r.submitted_at ? String(r.submitted_at).slice(0, 7) : ''
+          return sId.includes(exportMonth) || subDate === exportMonth
+        })
+      }
+
+      // Lọc theo chi nhánh
+      if (exportBranch !== 'all') {
+        const branchTarget = exportBranch.toLowerCase()
+        reportsList = reportsList.filter((r: any) => {
+          const bv = String(r.tasks?.branch_verified || '').toLowerCase()
+          return bv.includes(branchTarget) || branchTarget.includes(bv)
+        })
+      }
+
+      // 1. TẠO SHEET 1: BẢNG CÔNG TỔNG HỢP (MA TRẬN NGÀY 01 -> 31)
+      let targetYear = 2026
+      let targetMonthNum = 10
+      if (exportMonth !== 'all' && exportMonth.includes('-')) {
+        const parts = exportMonth.split('-').map(Number)
+        targetYear = parts[0] || 2026
+        targetMonthNum = parts[1] || 10
+      }
+      const daysInMonth = exportMonth !== 'all' ? new Date(targetYear, targetMonthNum, 0).getDate() : 31
+      const dayCols = Array.from({ length: daysInMonth }, (_, i) => {
+        const d = i + 1
+        return d < 10 ? `0${d}` : `${d}`
+      })
+
+      const matrixRows = membersList.map((member: any, idx: number) => {
+        const row: Record<string, any> = {
+          "STT": idx + 1,
+          "Mã NV": member.id,
+          "Họ và Tên": member.name || `NV #${member.id}`,
+          "Số Điện Thoại": member.phone || "",
+          "Chức Vụ / Vai Trò": member.role_tag || "Nhân sự",
+        }
+
+        let totalShifts = 0
+        let totalLateTimes = 0
+        let totalEarlyTimes = 0
+        let totalForgotTickets = 0
+
+        dayCols.forEach(dayStr => {
+          const fullDatePrefix = exportMonth !== 'all' ? `${exportMonth}-${dayStr}` : `-${dayStr}`
+          const dayReports = reportsList.filter((r: any) => {
+            if (r.member_id !== member.id) return false
+            const sId = String(r.session_id || '')
+            const subAt = r.submitted_at ? String(r.submitted_at).slice(0, 10) : ''
+            return sId.includes(fullDatePrefix) || subAt.endsWith(fullDatePrefix)
+          })
+
+          if (dayReports.length === 0) {
+            row[`Ngày ${dayStr}`] = "-"
+            return
+          }
+
+          const r = dayReports[0]
+          const tasks = r.tasks || {}
+          const isForgot = tasks.is_forgot_punch
+          const isApproved = r.approval_status === "approved" || tasks.approval_status === "approved"
+          const isAttended = r.attended_session || isApproved
+          const isDungGio = tasks.dung_gio
+          const earlyMins = Number(tasks.early_minutes) || 0
+
+          let dayStatus = ""
+          if (isForgot) {
+            totalForgotTickets++
+            dayStatus = isApproved ? "Q (Duyệt)" : "Q (Chờ)"
+            if (isAttended) totalShifts++
+          } else if (isAttended) {
+            totalShifts++
+            if (!isDungGio) {
+              totalLateTimes++
+              dayStatus = "M (Muộn)"
+            } else {
+              dayStatus = "X (Đủ)"
+            }
+
+            if (earlyMins > 0) {
+              totalEarlyTimes++
+              dayStatus += ` / S(-${earlyMins}p)`
+            }
+          } else {
+            dayStatus = "Vắng"
+          }
+
+          row[`Ngày ${dayStr}`] = dayStatus
+        })
+
+        const requiredDays = Math.max(daysInMonth - 4, 26)
+        const diligenceRate = Math.min(100, Math.round((totalShifts / requiredDays) * 100))
+
+        row["Tổng Ca Công"] = totalShifts
+        row["Số Lần Muộn"] = totalLateTimes
+        row["Số Lần Về Sớm"] = totalEarlyTimes
+        row["Số Đơn Quên Chấm Công"] = totalForgotTickets
+        row["Tỷ Lệ Chuyên Cần (%)"] = `${diligenceRate}%`
+
+        return row
+      })
+
+      // 2. TẠO SHEET 2: NHẬT KÝ CHI TIẾT
+      const detailRows = reportsList.map((r: any, idx: number) => {
+        const member = (expMembers || []).find((m: any) => m.id === r.member_id)
+        const tasks = r.tasks || {}
+        const isForgot = tasks.is_forgot_punch
+
+        let attendanceType = "Điểm danh GPS trực tiếp"
+        if (isForgot) attendanceType = "Đơn giải trình quên chấm công"
+
+        let statusIn = tasks.check_in_time ? (tasks.dung_gio ? "✨ Đúng giờ" : "⚠️ Đi muộn") : (tasks.check_in_time || "Chưa ghi nhận")
+        let statusOut = tasks.check_out_time ? (tasks.early_minutes > 0 ? `⚠️ Về sớm ${tasks.early_minutes}p` : "✨ Đúng giờ") : "Chưa check-out"
+
+        let approvalText = "Chờ duyệt"
+        if (r.approval_status === "approved" || tasks.approval_status === "approved") approvalText = "Đã duyệt"
+        else if (r.approval_status === "rejected" || tasks.approval_status === "rejected") approvalText = "Từ chối"
+
+        return {
+          "STT": idx + 1,
+          "Thời Gian Gửi": r.submitted_at ? new Date(r.submitted_at).toLocaleString("vi-VN") : "",
+          "Họ và Tên": member?.name || `Mã #${r.member_id}`,
+          "Số Điện Thoại": member?.phone || "",
+          "Chức Vụ": member?.role_tag || "Nhân sự",
+          "Chi Nhánh Làm Việc": tasks.branch_verified || "VP VicEdu Việt Trì",
+          "Ca Làm Việc": tasks.shift_id || r.session_id || "Ca chuẩn",
+          "Hình Thức": attendanceType,
+          "Giờ Vào Ca": tasks.check_in_time || "–",
+          "Tình Trạng Vào": statusIn,
+          "Giờ Ra Ca": tasks.check_out_time || "–",
+          "Tình Trạng Ra": statusOut,
+          "Số Phút Về Sớm": tasks.early_minutes || 0,
+          "Trạng Thái Duyệt": approvalText,
+          "Người Duyệt": r.approved_by || "",
+          "Ghi Chú Giải Trình": tasks.explanation_reason || r.difficulty_note || "",
+        }
+      })
+
+      const wsSummary = XLSX.utils.json_to_sheet(matrixRows)
+      const wsDetails = XLSX.utils.json_to_sheet(detailRows)
+
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, wsSummary, "Bảng Công Tổng Hợp")
+      XLSX.utils.book_append_sheet(workbook, wsDetails, "Nhật Ký Chi Tiết")
+
+      const safeTitle = camp.slug || "journey"
+      const monthTag = exportMonth === "all" ? "Toan_Thoi_Gian" : exportMonth
+      const branchTag = exportBranch === "all" ? "Tat_Ca_Chi_Nhanh" : exportBranch.replace(/\s+/g, "_")
+      XLSX.writeFile(workbook, `Bang_Cham_Cong_${safeTitle}_${monthTag}_${branchTag}.xlsx`)
+
+      setIsExportModalOpen(false)
+    } catch (err: any) {
+      alert("Lỗi xuất Excel: " + err.message)
+    } finally {
+      setIsGeneratingExcel(false)
+    }
   }
 
   // Quản lý Tasks trong editingCamp
@@ -2608,7 +2757,7 @@ export default function JourneyAdminPage() {
                 {/* NÚT XUẤT EXCEL BÁO CÁO LỒNG VÀO TRONG THEO Ý BỐ HOÀNG */}
                 <button
                   type="button"
-                  onClick={handleExportExcel}
+                  onClick={handleOpenExportModal}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -3361,7 +3510,7 @@ export default function JourneyAdminPage() {
 
               <button
                 type="button"
-                onClick={handleExportExcel}
+                onClick={handleOpenExportModal}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -9521,6 +9670,205 @@ export default function JourneyAdminPage() {
                 pointerEvents: "none",
               }}
             />
+          </div>
+        </div>
+      )}
+
+
+      {/* Modal Xuất Báo Cáo & Bảng Công Excel Thông Minh (2-Sheet) */}
+      {isExportModalOpen && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          backdropFilter: "blur(4px)",
+          zIndex: 9999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1rem"
+        }}>
+          <div style={{
+            background: "var(--card-bg, #ffffff)",
+            border: "1.5px solid var(--border, #e2e8f0)",
+            borderRadius: "16px",
+            width: "100%",
+            maxWidth: "520px",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
+            overflow: "hidden"
+          }}>
+            {/* Header Modal */}
+            <div style={{
+              padding: "1.1rem 1.25rem",
+              borderBottom: "1px solid var(--border, #e2e8f0)",
+              background: "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "1.3rem" }}>📥</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "#166534" }}>
+                    XUẤT BẢNG CÔNG & BÁO CÁO EXCEL
+                  </h3>
+                  <div style={{ fontSize: "0.74rem", color: "#15803d", marginTop: "2px" }}>
+                    Xuất file Excel 2-Sheet (Bảng Công Tổng Hợp & Nhật Ký Chi Tiết)
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  color: "#64748b",
+                  padding: "4px"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body Modal */}
+            <div style={{ padding: "1.25rem" }}>
+              {/* Chọn Tháng */}
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "var(--foreground, #0f172a)", marginBottom: "0.4rem" }}>
+                  📅 1. Chọn tháng cần lấy dữ liệu công:
+                </label>
+                <select
+                  value={exportMonth}
+                  onChange={e => setExportMonth(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.8rem",
+                    borderRadius: "10px",
+                    border: "1.5px solid var(--border, #cbd5e1)",
+                    background: "var(--background, #ffffff)",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    color: "var(--foreground, #0f172a)"
+                  }}
+                >
+                  <option value="all">📅 Tất cả các tháng (Toàn bộ dữ liệu)</option>
+                  <option value="2026-10">Tháng 10/2026</option>
+                  <option value="2026-11">Tháng 11/2026</option>
+                  <option value="2026-12">Tháng 12/2026</option>
+                  <option value="2027-01">Tháng 01/2027</option>
+                  <option value="2027-02">Tháng 02/2027</option>
+                  <option value="2027-03">Tháng 03/2027</option>
+                  <option value="2027-04">Tháng 04/2027</option>
+                  <option value="2027-05">Tháng 05/2027</option>
+                  <option value="2027-06">Tháng 06/2027</option>
+                  <option value="2027-07">Tháng 07/2027</option>
+                  <option value="2027-08">Tháng 08/2027</option>
+                  <option value="2027-09">Tháng 09/2027</option>
+                  <option value="2027-10">Tháng 10/2027</option>
+                  <option value="2027-11">Tháng 11/2027</option>
+                  <option value="2027-12">Tháng 12/2027</option>
+                </select>
+              </div>
+
+              {/* Chọn Chi Nhánh */}
+              <div style={{ marginBottom: "1.1rem" }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "var(--foreground, #0f172a)", marginBottom: "0.4rem" }}>
+                  🏢 2. Lọc theo Chi nhánh / Điểm làm việc:
+                </label>
+                <select
+                  value={exportBranch}
+                  onChange={e => setExportBranch(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.8rem",
+                    borderRadius: "10px",
+                    border: "1.5px solid var(--border, #cbd5e1)",
+                    background: "var(--background, #ffffff)",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    color: "var(--foreground, #0f172a)"
+                  }}
+                >
+                  <option value="all">🏢 Tất cả chi nhánh (Toàn hệ thống)</option>
+                  {((selectedCamp?.branch_gps as any)?.branches || [
+                    { branch_name: "VP VicEdu Việt Trì 1" },
+                    { branch_name: "VP VicEdu Tuyên Quang" },
+                    { branch_name: "VP VicEdu Lâm Thao" },
+                    { branch_name: "VP VicEdu Dân Hòa" },
+                  ]).map((b: any, bIdx: number) => (
+                    <option key={bIdx} value={b.branch_name}>
+                      📍 {b.branch_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Thông tin cấu trúc 2-Sheet giải thích cho Kế toán */}
+              <div style={{
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+                padding: "0.75rem 0.9rem",
+                fontSize: "0.76rem",
+                color: "#475569",
+                lineHeight: 1.5,
+                marginBottom: "1.25rem"
+              }}>
+                <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: "3px" }}>
+                  📊 File Excel xuất ra bao gồm 2 Sheet chuyên dụng:
+                </div>
+                <div>• <b>Sheet 1 (Bảng Công Tổng Hợp):</b> Ma trận Ngày 01-31 (X, Muộn, Về sớm, Vé quên công Q) cho Kế toán copy vào bảng tính lương.</div>
+                <div style={{ marginTop: "2px" }}>• <b>Sheet 2 (Nhật Ký Chi Tiết):</b> Chi tiết từng ca làm, giờ vào/ra, số phút muộn, tọa độ GPS, đơn giải trình.</div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => setIsExportModalOpen(false)}
+                  style={{
+                    padding: "0.55rem 1rem",
+                    borderRadius: "10px",
+                    border: "1px solid var(--border, #cbd5e1)",
+                    background: "transparent",
+                    color: "var(--foreground, #475569)",
+                    fontWeight: 600,
+                    fontSize: "0.84rem",
+                    cursor: "pointer"
+                  }}
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteExportExcel}
+                  disabled={isGeneratingExcel}
+                  style={{
+                    padding: "0.55rem 1.25rem",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                    color: "#ffffff",
+                    fontWeight: 800,
+                    fontSize: "0.86rem",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    boxShadow: "0 2px 8px rgba(5, 150, 105, 0.25)"
+                  }}
+                >
+                  {isGeneratingExcel ? (
+                    <>⏳ Đang tạo file Excel...</>
+                  ) : (
+                    <>📥 Tải Bảng Tính Excel (.xlsx)</>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
