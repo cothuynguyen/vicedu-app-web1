@@ -559,6 +559,23 @@ export async function updateReportApproval(
   }
 }
 
+
+// 8.1 Xóa vĩnh viễn báo cáo / điểm danh
+export async function deleteReport(reportId: number) {
+  try {
+    const supabaseAdmin = getAdminClient()
+    const { error } = await supabaseAdmin
+      .from('journey_reports')
+      .delete()
+      .eq('id', reportId)
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (err: any) {
+    console.error('Lỗi deleteReport:', err)
+    return { success: false, error: err.message }
+  }
+}
+
 // 9. Lấy dữ liệu tổng hợp để xuất Excel chuẩn UTF-8
 export async function getCampExportData(campId: string) {
   try {

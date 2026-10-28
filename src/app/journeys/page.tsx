@@ -55,6 +55,7 @@ import {
   toggleMemberStatus,
   getCampReports,
   updateReportApproval,
+  deleteReport,
   getCampExportData,
   getVicEduStaff,
   saveCampAdmins,
@@ -1175,6 +1176,19 @@ export default function JourneyAdminPage() {
       loadCamps()
     } else {
       alert("Lỗi duyệt: " + res.error)
+    }
+  }
+
+  // Xóa vĩnh viễn báo cáo / chấm công khỏi hàng đợi
+  const handleDeleteReport = async (reportId: number, memberName?: string, sessionCode?: string) => {
+    const confirmMsg = `Sếp có chắc chắn muốn XÓA BÁO CÁO của "${memberName || 'nhân sự'}" (Buổi/Ca: ${sessionCode || reportId}) không?\n\nBản ghi này sẽ bị xóa hoàn toàn khỏi cơ sở dữ liệu.`
+    if (!window.confirm(confirmMsg)) return
+    const res = await deleteReport(reportId)
+    if (res.success) {
+      loadReports(selectedCampId, approvalFilter)
+      loadCamps()
+    } else {
+      alert("Lỗi khi xóa: " + res.error)
     }
   }
 
@@ -3674,6 +3688,25 @@ export default function JourneyAdminPage() {
                             title="Từ chối bản ghi này"
                           >
                             Từ chối
+                          </button>
+                          <button
+                            onClick={() => handleDeleteReport(r.id, r.member?.name, r.session_id)}
+                            style={{
+                              background: "#64748b",
+                              color: "white",
+                              border: "none",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "2px",
+                            }}
+                            title="Xóa vĩnh viễn bản ghi chấm công này khỏi hệ thống"
+                          >
+                            Xóa
                           </button>
                         </div>
                       </td>
