@@ -4307,6 +4307,7 @@ export default function JourneyAdminPage() {
                 ] : editingCamp.mode === 'cham_cong' ? [
                   { key: "general", label: "🏢 Chi Nhánh & GPS", icon: Edit },
                   { key: "tasks", label: "✨ Tiêu Chuẩn & KPI Ca", icon: Layers, badge: editingCamp.tasks?.length || 0 },
+                  { key: "scoring", label: "💎 Quy Tắc Tính Điểm & Thi Đua", icon: Award },
                   { key: "branding", label: "🎨 Giao Diện & Nhận Diện", icon: Palette },
                 ] : [
                   { key: "general", label: "📋 Thông Tin & Slogan", icon: Edit },
@@ -6709,6 +6710,116 @@ export default function JourneyAdminPage() {
                       Tùy biến số điểm thưởng cho từng nỗ lực để tạo động lực nội tại cho các học viên / runner nhí
                     </p>
                   </div>
+
+                  {/* CẤU HÌNH LINK BÀI VIẾT QUY CHẾ ĐẦY ĐỦ (DÀNH CHO TẤT CẢ HÀNH TRÌNH TRỪ THÓI QUEN CÁ NHÂN) */}
+                  {editingCamp.mode !== 'thoi_quen_ca_nhan' && (
+                    <div style={{
+                      padding: "1.1rem",
+                      borderRadius: "14px",
+                      background: "linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)",
+                      border: "1.5px solid #bfdbfe",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.85rem",
+                      boxShadow: "0 2px 8px rgba(59, 130, 246, 0.05)"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span style={{ fontSize: "1.3rem" }}>📖</span>
+                        <div>
+                          <h5 style={{ fontSize: "0.92rem", fontWeight: 800, margin: 0, color: "#1e3a8a" }}>
+                            Liên Kết Bài Viết Quy Chế Tính Điểm Chi Tiết (Web1 / PDF)
+                          </h5>
+                          <p style={{ fontSize: "0.78rem", color: "#64748b", margin: "3px 0 0" }}>
+                            Hiển thị nút <b>"Đọc cơ chế tính điểm đầy đủ ↗"</b> dưới Bảng xếp hạng. Khi click sẽ mở bài viết Sếp tạo trên Web1 (quantri.viceduvn.com)
+                          </p>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.85rem" }}>
+                        <div>
+                          <label style={{ fontSize: "0.76rem", fontWeight: 800, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                            🔗 Đường dẫn bài viết quy chế (URL):
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="VD: https://viceduvn.com/tin-tuc/quy-che-cham-cong-vicedu"
+                            value={editingCamp.theme?.rules_doc_url || ""}
+                            onChange={(e) => setEditingCamp({
+                              ...editingCamp,
+                              theme: {
+                                ...(editingCamp.theme || {}),
+                                rules_doc_url: e.target.value.trim()
+                              }
+                            })}
+                            style={{
+                              width: "100%",
+                              padding: "0.55rem 0.75rem",
+                              borderRadius: "8px",
+                              border: "1.5px solid #cbd5e1",
+                              fontSize: "0.82rem",
+                              outline: "none",
+                              background: "#ffffff"
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: "0.76rem", fontWeight: 800, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                            🏷️ Tiêu đề nút hiển thị:
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Mặc định: Đọc cơ chế tính điểm đầy đủ"
+                            value={editingCamp.theme?.rules_doc_title || ""}
+                            onChange={(e) => setEditingCamp({
+                              ...editingCamp,
+                              theme: {
+                                ...(editingCamp.theme || {}),
+                                rules_doc_title: e.target.value
+                              }
+                            })}
+                            style={{
+                              width: "100%",
+                              padding: "0.55rem 0.75rem",
+                              borderRadius: "8px",
+                              border: "1.5px solid #cbd5e1",
+                              fontSize: "0.82rem",
+                              outline: "none",
+                              background: "#ffffff"
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: "0.76rem", fontWeight: 800, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                          📝 Ghi chú tóm tắt quy chế (Hiển thị ngay trên nút bấm - Tùy chọn):
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder="VD: Làm đủ tiêu chuẩn ca để được tính công. Đi muộn hoặc quên check-out cần nộp đơn giải trình trước ngày 05 hàng tháng."
+                          value={editingCamp.theme?.rules_doc_note || ""}
+                          onChange={(e) => setEditingCamp({
+                            ...editingCamp,
+                            theme: {
+                              ...(editingCamp.theme || {}),
+                              rules_doc_note: e.target.value
+                            }
+                          })}
+                          style={{
+                            width: "100%",
+                            padding: "0.55rem 0.75rem",
+                            borderRadius: "8px",
+                            border: "1.5px solid #cbd5e1",
+                            fontSize: "0.82rem",
+                            outline: "none",
+                            background: "#ffffff",
+                            resize: "vertical"
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Nút bấm chọn nhanh mẫu tính điểm chuẩn */}
                   <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", alignItems: "center" }}>
