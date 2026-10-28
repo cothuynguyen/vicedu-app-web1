@@ -3638,7 +3638,7 @@ export default function JourneyAdminPage() {
             </div>
 
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-              {selectedCamp?.mode === 'cham_cong' && (
+              {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
                 <button
                   type="button"
                   onClick={handlePinCurrentGps}
@@ -3664,7 +3664,7 @@ export default function JourneyAdminPage() {
                 </button>
               )}
 
-              {selectedCamp?.mode === 'cham_cong' && (
+              {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
                 <button
                   type="button"
                   onClick={() => handleOpenAddMemberModal('branch_staff')}
@@ -3750,10 +3750,10 @@ export default function JourneyAdminPage() {
                   <th style={{ padding: "0.75rem" }}>
                     {selectedCamp?.mode === 'cham_cong' ? 'Số Ngày Công Tích Lũy' : selectedCamp?.mode === 'clb_quanh_nam' ? 'Km Khởi Điểm (Ngoài HT)' : 'Điểm / Sao Tích Lũy'}
                   </th>
-                  {selectedCamp?.mode === 'cham_cong' && (
+                  {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
                     <th style={{ padding: "0.75rem" }}>Vé Quên Chấm Công</th>
                   )}
-                  {selectedCamp?.mode === 'cham_cong' && (
+                  {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
                     <th style={{ padding: "0.75rem" }}>Thiết Bị Điểm Danh</th>
                   )}
                   <th style={{ padding: "0.75rem", textAlign: "center" }}>Trạng Thái</th>
@@ -3845,14 +3845,14 @@ export default function JourneyAdminPage() {
                           <strong style={{ color: "#4f46e5" }}>{m.total_stars || 0} ⭐ · {m.weekly_streak || 0} streak</strong>
                         )}
                       </td>
-                      {selectedCamp?.mode === 'cham_cong' && (
+                      {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
                         <td style={{ padding: "0.75rem" }}>
                           <span style={{ background: "#fef3c7", color: "#b45309", padding: "2px 8px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 700 }}>
                             {m.forgot_pills_quota !== undefined ? m.forgot_pills_quota : 3} vé
                           </span>
                         </td>
                       )}
-                      {selectedCamp?.mode === 'cham_cong' && (() => {
+                      {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (() => {
                         const binding = selectedCamp?.theme?.device_bindings?.[String(m.id)];
                         return (
                           <td style={{ padding: "0.75rem" }}>
@@ -7876,7 +7876,7 @@ export default function JourneyAdminPage() {
                   >
                     <Building2 size={15} />
                     <span>🏢 Nhân Sự Chi Nhánh</span>
-                    {selectedCamp?.mode === 'cham_cong' && (
+                    {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
                       <span style={{ fontSize: "0.68rem", background: "#ecfdf5", color: "#065f46", padding: "1px 5px", borderRadius: "4px", fontWeight: 800 }}>
                         Chuẩn bài
                       </span>
@@ -8579,7 +8579,7 @@ export default function JourneyAdminPage() {
                         </div>
                       )}
                     </div>
-                    {selectedCamp?.mode === 'cham_cong' && (
+                    {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
                       <div>
                         <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>Vé Quên Chấm Công</label>
                         <input
@@ -8593,7 +8593,7 @@ export default function JourneyAdminPage() {
                   </div>
 
                   {/* Quản lý thiết bị điểm danh cho chấm công */}
-                  {selectedCamp?.mode === 'cham_cong' && editingMember.id && (() => {
+                  {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong') || !!selectedCamp?.theme?.device_bindings?.[String(editingMember.id)]) && editingMember.id && (() => {
                     const binding = selectedCamp?.theme?.device_bindings?.[String(editingMember.id)];
                     return (
                       <div style={{ marginTop: "1rem", background: "var(--background)", padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
