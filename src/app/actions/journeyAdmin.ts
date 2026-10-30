@@ -907,3 +907,32 @@ export async function updateCampBranchGps(
     return { success: false, error: err.message };
   }
 }
+
+// 15. Đổi nhanh Mã PIN chấm công cho thành viên
+export async function updateMemberPin(memberId: number, pinCode: string) {
+  try {
+    const supabaseAdmin = getAdminClient();
+    const cleanPin = pinCode.replace(/\D/g, '').slice(0, 4);
+    if (!cleanPin || cleanPin.length < 4) {
+      return { success: false, error: 'Mã PIN bắt buộc phải đủ 4 chữ số!' };
+    }
+    const { data, error } = await supabaseAdmin
+      .from('journey_members')
+      .update({
+        pin_code: cleanPin,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', memberId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Lỗi updateMemberPin:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true, member: data };
+  } catch (err: any) {
+    console.error('Lỗi updateMemberPin:', err);
+    return { success: false, error: err.message };
+  }
+}

@@ -65,6 +65,7 @@ import {
   bulkSaveMembers,
   resetMemberDeviceBinding,
   updateCampBranchGps,
+  updateMemberPin,
   CampData,
   MemberData,
 } from "@/app/actions/journeyAdmin"
@@ -4029,16 +4030,51 @@ export default function JourneyAdminPage() {
                       )}
                       <td style={{ padding: "0.75rem" }}>{m.phone || "---"}</td>
                       <td style={{ padding: "0.75rem" }}>
-                        <span style={{
-                          background: "rgba(79, 70, 229, 0.1)",
-                          color: "#4f46e5",
-                          fontWeight: 700,
-                          padding: "3px 8px",
-                          borderRadius: "6px",
-                          letterSpacing: "1px",
-                        }}>
-                          {m.pin_code || m.phone_last4 || "----"}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{
+                            background: "rgba(79, 70, 229, 0.1)",
+                            color: "#4f46e5",
+                            fontWeight: 700,
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            letterSpacing: "1px",
+                          }}>
+                            {m.pin_code || m.phone_last4 || "----"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const cur = m.pin_code || m.phone_last4 || "";
+                              const input = window.prompt(`Nhập mã PIN Chấm Công mới (4 số) cho nhân sự "${m.name}":`, cur);
+                              if (input === null) return;
+                              const clean = input.replace(/\D/g, '').slice(0, 4);
+                              if (clean.length < 4) {
+                                alert("Mã PIN bắt buộc phải đủ 4 chữ số!");
+                                return;
+                              }
+                              const res = await updateMemberPin(m.id, clean);
+                              if (res.success) {
+                                alert(`✅ Đã đổi mã PIN của "${m.name}" thành: ${clean} thành công!`);
+                                loadMembers(selectedCampId);
+                              } else {
+                                alert("❌ Lỗi đổi PIN: " + res.error);
+                              }
+                            }}
+                            style={{
+                              background: "transparent",
+                              border: "1px solid var(--border)",
+                              borderRadius: "4px",
+                              padding: "2px 6px",
+                              cursor: "pointer",
+                              fontSize: "0.7rem",
+                              color: "var(--text-muted)",
+                              fontWeight: 600,
+                            }}
+                            title="Bấm để đổi nhanh mã PIN chấm công"
+                          >
+                            ✏️ Đổi
+                          </button>
+                        </div>
                       </td>
                       <td style={{ padding: "0.75rem" }}>
                         <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{m.role_tag || "Thành viên"}</span>
