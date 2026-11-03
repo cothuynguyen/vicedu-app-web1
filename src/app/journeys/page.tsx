@@ -150,6 +150,62 @@ export default function JourneyAdminPage() {
 
   // Bộ lọc Phân Bảng Runner Nhí vs Runner Lớn cho Tab Thành Viên
   const [memberDivisionFilter, setMemberDivisionFilter] = useState<"all" | "kids" | "adults">("all")
+  // Bộ lọc Chi Nhánh & Tìm kiếm cho Tab Thành Viên Chấm Công (VicHRM)
+  const [memberBranchFilter, setMemberBranchFilter] = useState<string>("all")
+  const [memberSearchQuery, setMemberSearchQuery] = useState<string>("")
+
+  // Helper chuẩn hóa Chi Nhánh Chấm Công (Gộp Việt Trì 1, Việt Trì 2, cả 1 và 2 thành "Việt Trì" duy nhất)
+  const getMemberBranch = (m: any): string => {
+    if (!m) return 'Khác';
+    const rawBranch = (m.branch || m.branch_id || '').trim();
+    const name = (m.name || '').trim();
+    const role = (m.role_tag || m.roleTag || m.role || '').trim();
+    const combined = `${rawBranch} ${name} ${role}`.toLowerCase();
+
+    if (
+      combined.includes('việt trì') || 
+      combined.includes('viet tri') || 
+      /nvvt/i.test(name) ||
+      /nvvt/i.test(rawBranch)
+    ) {
+      return 'Việt Trì';
+    }
+    if (
+      combined.includes('dân hòa') || 
+      combined.includes('dan hoa') || 
+      combined.includes('đoan hùng') || 
+      combined.includes('doan hung') || 
+      /nvdh/i.test(name) ||
+      /nvdh/i.test(rawBranch)
+    ) {
+      return 'Dân Hòa';
+    }
+    if (
+      combined.includes('lâm thao') || 
+      combined.includes('lam thao') || 
+      /nvlt/i.test(name) ||
+      /nvlt/i.test(rawBranch)
+    ) {
+      return 'Lâm Thao';
+    }
+    if (
+      combined.includes('tuyên quang') || 
+      combined.includes('tuyen quang') || 
+      /nvtq/i.test(name) ||
+      /nvtq/i.test(rawBranch)
+    ) {
+      return 'Tuyên Quang';
+    }
+    if (
+      combined.includes('đối tác') || 
+      combined.includes('doi tac') || 
+      /nvđt|nvdt/i.test(name)
+    ) {
+      return 'Đối tác Online';
+    }
+    if (rawBranch) return rawBranch;
+    return 'Khác';
+  };
 
   // Helper nhận diện Runner Nhí (U15) vs Người Lớn
   const isKid = (m: any): boolean => {
@@ -3814,6 +3870,75 @@ export default function JourneyAdminPage() {
             </div>
           )}
 
+          {/* BỘ LỌC CHI NHÁNH CHẤM CÔNG (CHO VICHRM CHẤM CÔNG) */}
+          {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (() => {
+            const counts: Record<string, number> = {};
+            members.forEach(m => {
+              const b = getMemberBranch(m);
+              counts[b] = (counts[b] || 0) + 1;
+            });
+            const knownBranches = ['Việt Trì', 'Dân Hòa', 'Tuyên Quang', 'Lâm Thao'];
+            const detectedBranches = Object.keys(counts).filter(b => b !== 'Khác' && !knownBranches.includes(b));
+            const allBranches = [...knownBranches, ...detectedBranches];
+            if (counts['Khác']) allBranches.push('Khác');
+
+            const branchOptions = [
+              { key: 'all', label: '🌟 Tất cả', count: members.length }
+            ];
+            allBranches.forEach(b => {
+              if (counts[b] !== undefined) {
+                branchOptions.push({
+                  key: b,
+                  label: `📍 ${b}`,
+                  count: counts[b]
+                });
+              }
+            });
+
+            return (
+              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-muted)", marginRight: "0.25rem" }}>
+                  🏢 Lọc theo chi nhánh:
+                </span>
+                {branchOptions.map(div => {
+                  const isActive = memberBranchFilter === div.key;
+                  return (
+                    <button
+                      key={div.key}
+                      type="button"
+                      onClick={() => setMemberBranchFilter(div.key)}
+                      style={{
+                        padding: "0.4rem 0.85rem",
+                        borderRadius: "8px",
+                        fontSize: "0.82rem",
+                        fontWeight: isActive ? 700 : 500,
+                        background: isActive ? "#0284c7" : "var(--background)",
+                        color: isActive ? "white" : "var(--text-main)",
+                        border: isActive ? "1px solid #0284c7" : "1px solid var(--border)",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px"
+                      }}
+                    >
+                      <span>{div.label}</span>
+                      <span style={{
+                        background: isActive ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.06)",
+                        padding: "1px 6px",
+                        borderRadius: "10px",
+                        fontSize: "0.72rem",
+                        fontWeight: 700
+                      }}>
+                        {div.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
             <div>
               <h3 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0 }}>
@@ -3822,6 +3947,16 @@ export default function JourneyAdminPage() {
                   if (selectedCamp?.mode === 'clb_quanh_nam') {
                     if (memberDivisionFilter === 'kids') return isKid(m);
                     if (memberDivisionFilter === 'adults') return !isKid(m);
+                  }
+                  if (selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) {
+                    if (memberBranchFilter !== 'all' && getMemberBranch(m) !== memberBranchFilter) return false;
+                  }
+                  if (memberSearchQuery.trim()) {
+                    const q = memberSearchQuery.toLowerCase().trim();
+                    const n = (m.name || '').toLowerCase();
+                    const p = (m.phone || '').toLowerCase();
+                    const r = (m.role_tag || '').toLowerCase();
+                    if (!n.includes(q) && !p.includes(q) && !r.includes(q)) return false;
                   }
                   return true;
                 }).length} người)
@@ -3846,6 +3981,43 @@ export default function JourneyAdminPage() {
             </div>
 
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Tìm tên, mã NV, SĐT..."
+                  value={memberSearchQuery}
+                  onChange={(e) => setMemberSearchQuery(e.target.value)}
+                  style={{
+                    padding: "0.55rem 0.85rem",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    background: "var(--background)",
+                    color: "var(--text-main)",
+                    fontSize: "0.82rem",
+                    minWidth: "200px",
+                  }}
+                />
+                {memberSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setMemberSearchQuery("")}
+                    style={{
+                      position: "absolute",
+                      right: "8px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--text-muted)",
+                      fontSize: "0.8rem",
+                      fontWeight: 700
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
               {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
                 <button
                   type="button"
@@ -3975,6 +4147,16 @@ export default function JourneyAdminPage() {
                       if (memberDivisionFilter === 'kids') return isKid(m);
                       if (memberDivisionFilter === 'adults') return !isKid(m);
                     }
+                    if (selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) {
+                      if (memberBranchFilter !== 'all' && getMemberBranch(m) !== memberBranchFilter) return false;
+                    }
+                    if (memberSearchQuery.trim()) {
+                      const q = memberSearchQuery.toLowerCase().trim();
+                      const n = (m.name || '').toLowerCase();
+                      const p = (m.phone || '').toLowerCase();
+                      const r = (m.role_tag || '').toLowerCase();
+                      if (!n.includes(q) && !p.includes(q) && !r.includes(q)) return false;
+                    }
                     return true;
                   })
                   .map((m, idx) => (
@@ -4012,6 +4194,22 @@ export default function JourneyAdminPage() {
                                 </span>
                               )}
                             </div>
+                            {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
+                              <div style={{ marginTop: '2px' }}>
+                                <span style={{
+                                  fontSize: "0.7rem",
+                                  fontWeight: 700,
+                                  padding: "1px 6px",
+                                  borderRadius: "4px",
+                                  background: getMemberBranch(m) === 'Việt Trì' ? '#eff6ff' : getMemberBranch(m) === 'Dân Hòa' ? '#f0fdf4' : getMemberBranch(m) === 'Tuyên Quang' ? '#fff7ed' : '#faf5ff',
+                                  color: getMemberBranch(m) === 'Việt Trì' ? '#1d4ed8' : getMemberBranch(m) === 'Dân Hòa' ? '#15803d' : getMemberBranch(m) === 'Tuyên Quang' ? '#c2410c' : '#7e22ce',
+                                  border: `1px solid ${getMemberBranch(m) === 'Việt Trì' ? '#bfdbfe' : getMemberBranch(m) === 'Dân Hòa' ? '#bbf7d0' : getMemberBranch(m) === 'Tuyên Quang' ? '#fed7aa' : '#e9d5ff'}`,
+                                  display: "inline-block"
+                                }}>
+                                  📍 ${getMemberBranch(m)}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
