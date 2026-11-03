@@ -9078,6 +9078,51 @@ export default function JourneyAdminPage() {
                     />
                   </div>
 
+                  {/* Phân loại cho Chấm công */}
+                  {selectedCamp?.mode === 'cham_cong' && (
+                    <div style={{ marginTop: "0.5rem" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                        Hình Thức Làm Việc
+                      </label>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingMember({ ...editingMember, role_tag: "Nhân sự chi nhánh" })}
+                          style={{
+                            flex: 1,
+                            padding: "0.5rem",
+                            borderRadius: "6px",
+                            border: !(editingMember.role_tag || '').toLowerCase().includes('part') ? "2px solid #059669" : "1px solid var(--border)",
+                            background: !(editingMember.role_tag || '').toLowerCase().includes('part') ? "#ecfdf5" : "var(--background)",
+                            color: !(editingMember.role_tag || '').toLowerCase().includes('part') ? "#065f46" : "var(--text-main)",
+                            fontWeight: 700,
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          🏢 Chính thức / Full-time
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingMember({ ...editingMember, role_tag: "Part time" })}
+                          style={{
+                            flex: 1,
+                            padding: "0.5rem",
+                            borderRadius: "6px",
+                            border: (editingMember.role_tag || '').toLowerCase().includes('part') ? "2px solid #7c3aed" : "1px solid var(--border)",
+                            background: (editingMember.role_tag || '').toLowerCase().includes('part') ? "#f5f3ff" : "var(--background)",
+                            color: (editingMember.role_tag || '').toLowerCase().includes('part') ? "#5b21b6" : "var(--text-main)",
+                            fontWeight: 700,
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          ⚡ Nhân sự Part-time
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Phân bảng cho CLB chạy bộ */}
                   {selectedCamp?.mode === 'clb_quanh_nam' && (
                     <div>
