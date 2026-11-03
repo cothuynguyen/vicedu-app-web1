@@ -619,6 +619,7 @@ export default function JourneyAdminPage() {
       total_km_all_time: 0,
       total_stars: 0,
       forgot_pills_quota: 3,
+      branch: (selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) ? "Việt Trì" : "",
     });
     setShowMemberModal(true);
   };
@@ -4373,7 +4374,10 @@ export default function JourneyAdminPage() {
                         <div style={{ display: "inline-flex", gap: "0.5rem" }}>
                           <button
                             onClick={() => {
-                              setEditingMember(m)
+                              setEditingMember({
+                                ...m,
+                                branch: m.branch || getMemberBranch(m),
+                              })
                               setShowMemberModal(true)
                             }}
                             style={{
@@ -9077,6 +9081,45 @@ export default function JourneyAdminPage() {
                       style={{ width: "100%", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)", color: "var(--text-main)" }}
                     />
                   </div>
+
+                  {/* Chọn Chi Nhánh Làm Việc cho Hành Trình Chấm Công */}
+                  {(selectedCamp?.mode === 'cham_cong' || selectedCamp?.slug?.includes('cham-cong')) && (
+                    <div style={{ marginTop: "0.5rem" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 700, display: "block", marginBottom: "0.35rem" }}>
+                        🏢 Chi Nhánh Làm Việc (Bắt buộc cho Chấm Công)
+                      </label>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.5rem" }}>
+                        {['Việt Trì', 'Dân Hòa', 'Tuyên Quang', 'Lâm Thao'].map(bName => {
+                          const curBranch = editingMember.branch || getMemberBranch(editingMember);
+                          const isSel = curBranch === bName;
+                          return (
+                            <button
+                              key={bName}
+                              type="button"
+                              onClick={() => setEditingMember({ ...editingMember, branch: bName })}
+                              style={{
+                                padding: "0.55rem 0.75rem",
+                                borderRadius: "8px",
+                                border: isSel ? "2px solid #059669" : "1px solid var(--border)",
+                                background: isSel ? "#ecfdf5" : "var(--background)",
+                                color: isSel ? "#065f46" : "var(--text-main)",
+                                fontWeight: 700,
+                                fontSize: "0.82rem",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                transition: "all 0.15s ease"
+                              }}
+                            >
+                              <span>📍 {bName}</span>
+                              {isSel && <span style={{ color: "#059669", fontWeight: 900 }}>✓</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Phân loại cho Chấm công */}
                   {selectedCamp?.mode === 'cham_cong' && (

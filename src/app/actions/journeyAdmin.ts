@@ -112,6 +112,7 @@ export interface MemberData {
   total_stars?: number
   forgot_pills_quota?: number
   status?: string
+  branch?: string
 }
 
 // 1. Lấy toàn bộ danh sách Camp kèm số lượng Thành viên & Báo cáo
@@ -401,7 +402,20 @@ export async function getCampMembers(campId: string) {
       .order('id', { ascending: true })
 
     if (error) return { success: false, error: error.message }
-    return { success: true, members: data || [] }
+
+    const { data: camp } = await supabaseAdmin
+      .from('journey_camps')
+      .select('theme')
+      .eq('id', campId)
+      .single()
+    const memberBranches = camp?.theme?.member_branches || {}
+
+    const members = (data || []).map((m: any) => ({
+      ...m,
+      branch: memberBranches[String(m.id)] || memberBranches[m.id] || m.branch || '',
+    }))
+
+    return { success: true, members }
   } catch (err: any) {
     console.error('Lỗi getCampMembers:', err)
     return { success: false, error: err.message }
@@ -435,6 +449,7 @@ export async function saveMember(member: MemberData) {
       updated_at: new Date().toISOString(),
     }
 
+    let savedMember: any = null
     if (member.id) {
       const { data, error } = await supabaseAdmin
         .from('journey_members')
@@ -444,7 +459,7 @@ export async function saveMember(member: MemberData) {
         .single()
 
       if (error) return { success: false, error: error.message }
-      return { success: true, member: data }
+      savedMember = data
     } else {
       payload.created_at = new Date().toISOString()
       const { data, error } = await supabaseAdmin
@@ -454,8 +469,39 @@ export async function saveMember(member: MemberData) {
         .single()
 
       if (error) return { success: false, error: error.message }
-      return { success: true, member: data }
+      savedMember = data
     }
+
+    // Luu dong bo chi nhanh vao camp.theme.member_branches
+    const mId = savedMember?.id || member.id
+    if (mId && member.branch && member.camp_id) {
+      try {
+        const { data: camp } = await supabaseAdmin
+          .from('journey_camps')
+          .select('id, theme')
+          .eq('id', member.camp_id)
+          .single()
+        if (camp) {
+          const theme = camp.theme || {}
+          const memberBranches = { ...(theme.member_branches || {}) }
+          memberBranches[String(mId)] = member.branch
+          await supabaseAdmin
+            .from('journey_camps')
+            .update({
+              theme: {
+                ...theme,
+                member_branches: memberBranches,
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', member.camp_id)
+        }
+      } catch (branchErr) {
+        console.error('Lỗi lưu member_branches:', branchErr)
+      }
+    }
+
+    return { success: true, member: { ...savedMember, branch: member.branch || '' } }
   } catch (err: any) {
     console.error('Lỗi saveMember:', err)
     return { success: false, error: err.message }
