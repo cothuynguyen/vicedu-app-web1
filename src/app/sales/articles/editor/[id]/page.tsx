@@ -28,6 +28,8 @@ export default function ArticleEditorPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isCustomHtmlMode, setIsCustomHtmlMode] = useState(false);
+  const [showRawHtmlSource, setShowRawHtmlSource] = useState(false);
 
   useEffect(() => {
     if (!isNew) {
@@ -46,6 +48,11 @@ export default function ArticleEditorPage({ params }: { params: Promise<{ id: st
       alert('Không tìm thấy bài viết!');
       router.push('/sales/articles');
     } else {
+      const rawContent = data.content || '';
+      const hasCustomBlocks =
+        rawContent.includes('<!-- CUSTOM_HTML_LAYOUT -->') ||
+        /<div\s+[^>]*style=/i.test(rawContent);
+      setIsCustomHtmlMode(hasCustomBlocks);
       setFormData({
         title: data.title || '',
         slug: data.slug || '',
@@ -54,7 +61,7 @@ export default function ArticleEditorPage({ params }: { params: Promise<{ id: st
         category: data.category || 'Góc Phụ huynh',
         status: data.status || 'draft',
         facebook_pixel_id: data.facebook_pixel_id || '',
-        content: data.content || '' // Tạm thời dùng string cho content
+        content: rawContent
       });
     }
     setLoading(false);
@@ -221,13 +228,90 @@ export default function ArticleEditorPage({ params }: { params: Promise<{ id: st
 
             <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', marginBottom: '24px' }} />
             
-            {/* Vùng soạn thảo Nội dung - Tạm dùng textarea trước khi tích hợp Novel hoàn chỉnh */}
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>Nội dung chính</h3>
-            
-            <QuillEditor 
-              value={formData.content}
-              onChange={(htmlContent) => setFormData({...formData, content: htmlContent})}
-            />
+            {/* Vùng soạn thảo Nội dung - Tự động bảo vệ bố cục HTML khối (Chống Quill làm vỡ khung) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0, color: '#374151' }}>Nội dung chính</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {isCustomHtmlMode ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowRawHtmlSource(!showRawHtmlSource)}
+                      style={{
+                        fontSize: '0.8rem', fontWeight: 600, padding: '6px 12px', borderRadius: '6px',
+                        border: '1px solid #3b82f6', background: showRawHtmlSource ? '#1d4ed8' : '#eff6ff',
+                        color: showRawHtmlSource ? '#ffffff' : '#1d4ed8', cursor: 'pointer'
+                      }}
+                    >
+                      {showRawHtmlSource ? '👁️ Xem giao diện trực quan' : '💻 Sửa mã HTML gốc'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('⚠️ Chuyển sang bộ soạn thảo văn bản thường (Quill) sẽ xóa bỏ các khung màu, bảng biểu thiết kế khối (div/grid). Bạn có chắc chắn muốn chuyển không?')) {
+                          setIsCustomHtmlMode(false);
+                        }
+                      }}
+                      style={{
+                        fontSize: '0.78rem', fontWeight: 500, padding: '6px 10px', borderRadius: '6px',
+                        border: '1px solid #d1d5db', background: '#f9fafb', color: '#6b7280', cursor: 'pointer'
+                      }}
+                    >
+                      Chuyển sang Soạn thảo thường
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomHtmlMode(true);
+                      setShowRawHtmlSource(true);
+                    }}
+                    style={{
+                      fontSize: '0.8rem', fontWeight: 600, padding: '6px 12px', borderRadius: '6px',
+                      border: '1px solid #10b981', background: '#ecfdf5', color: '#047857', cursor: 'pointer'
+                    }}
+                  >
+                    🎨 Chế độ Bố cục HTML (Giữ nguyên khối)
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {isCustomHtmlMode ? (
+              <div>
+                <div style={{
+                  background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px',
+                  padding: '10px 14px', marginBottom: '14px', fontSize: '0.85rem', color: '#166534'
+                }}>
+                  🛡️ <strong>Chế độ Bảo Vệ Bố Cục Thiết Kế Khối đang BẬT:</strong> Bài viết này sử dụng các khối thẻ giao diện nâng cao. Bạn có thể thoải mái đổi Tiêu đề, Ảnh bìa, Chuyên mục và bấm <strong>"Lưu bài viết"</strong> mà không bao giờ sợ bị vỡ khung hay mất màu nền!
+                </div>
+                {showRawHtmlSource ? (
+                  <textarea
+                    value={formData.content}
+                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                    style={{
+                      width: '100%', minHeight: '520px', padding: '14px', borderRadius: '8px',
+                      border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '0.86rem',
+                      lineHeight: 1.55, background: '#0f172a', color: '#f8fafc', outline: 'none'
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px',
+                      maxHeight: '650px', overflowY: 'auto', background: '#ffffff'
+                    }}
+                    dangerouslySetInnerHTML={{ __html: formData.content }}
+                  />
+                )}
+              </div>
+            ) : (
+              <QuillEditor 
+                value={formData.content}
+                onChange={(htmlContent) => setFormData({...formData, content: htmlContent})}
+              />
+            )}
           </div>
         </div>
 
