@@ -1383,12 +1383,44 @@ export default function JourneyAdminPage() {
         const member = (expMembers || []).find((m: any) => m.id === r.member_id)
         const tasks = r.tasks || {}
         const isForgot = tasks.is_forgot_punch
+        const hasOutside = !!(tasks.outside_check_in_note || tasks.outside_check_out_note)
 
-        let attendanceType = "Điểm danh GPS trực tiếp"
+        let attendanceType = "Điểm danh GPS tại VP"
         if (isForgot) attendanceType = "Đơn giải trình quên chấm công"
+        else if (hasOutside) attendanceType = "🚀 Đi công việc / Sự kiện bên ngoài"
+
+        const rawShift = tasks.shift_id || r.session_id || "Ca chuẩn"
+        const shiftLabel =
+          rawShift === "PLH" ? "Linh hoạt - Dành cho nhân viên" :
+          rawShift === "PK" ? "Partime/Bảo vệ/Tạp vụ" :
+          rawShift
 
         let statusIn = tasks.check_in_time ? (tasks.dung_gio ? "✨ Đúng giờ" : "⚠️ Đi muộn") : (tasks.check_in_time || "Chưa ghi nhận")
         let statusOut = tasks.check_out_time ? (tasks.early_minutes > 0 ? `⚠️ Về sớm ${tasks.early_minutes}p` : "✨ Đúng giờ") : "Chưa check-out"
+
+        // Tính Thời Gian Làm Việc (Giờ Ra - Giờ Vào)
+        let workedDuration = tasks.check_in_time ? "Chưa check-out" : "–"
+        if (tasks.check_in_time && tasks.check_out_time) {
+          const [h1, m1] = String(tasks.check_in_time).split(":").map(Number)
+          const [h2, m2] = String(tasks.check_out_time).split(":").map(Number)
+          if (!isNaN(h1) && !isNaN(m1) && !isNaN(h2) && !isNaN(m2)) {
+            let diffMin = (h2 * 60 + m2) - (h1 * 60 + m1)
+            if (diffMin < 0) diffMin += 24 * 60
+            const hrs = Math.floor(diffMin / 60)
+            const mins = diffMin % 60
+            const decHours = (diffMin / 60).toFixed(1)
+            workedDuration = `${hrs} giờ ${mins > 0 ? `${mins} phút ` : ""}(${decHours}h)`
+          }
+        }
+
+        // Ghi nhận Vị Trí Ngoài Văn Phòng (nếu nhân sự chọn Đang đi công việc / Sự kiện bên ngoài)
+        const outInStr = tasks.outside_check_in_note
+          ? `Vào: ${tasks.outside_check_in_note}${tasks.outside_check_in_dist ? ` (Cách VP ${tasks.outside_check_in_dist}m)` : ""}`
+          : ""
+        const outOutStr = tasks.outside_check_out_note
+          ? `Ra: ${tasks.outside_check_out_note}${tasks.outside_check_out_dist ? ` (Cách VP ${tasks.outside_check_out_dist}m)` : ""}`
+          : ""
+        const outsideLocationText = [outInStr, outOutStr].filter(Boolean).join(" | ") || "Tại văn phòng"
 
         let approvalText = "Chờ duyệt"
         if (r.approval_status === "approved" || tasks.approval_status === "approved") approvalText = "Đã duyệt"
@@ -1400,13 +1432,15 @@ export default function JourneyAdminPage() {
           "Họ và Tên": member?.name || `Mã #${r.member_id}`,
           "Số Điện Thoại": member?.phone ? (String(member.phone).startsWith("'") ? String(member.phone) : `'${member.phone}`) : "",
           "Chức Vụ": member?.role_tag || "Nhân sự",
-          "Chi Nhánh Làm Việc": tasks.branch_verified || "VP VicEdu Việt Trì",
-          "Ca Làm Việc": tasks.shift_id || r.session_id || "Ca chuẩn",
+          "Chi Nhánh Làm Việc": member ? getMemberBranch(member) : (tasks.branch_verified || "VP VicEdu Việt Trì"),
+          "Ca Làm Việc": shiftLabel,
           "Hình Thức": attendanceType,
           "Giờ Vào Ca": tasks.check_in_time || "–",
           "Tình Trạng Vào": statusIn,
           "Giờ Ra Ca": tasks.check_out_time || "–",
           "Tình Trạng Ra": statusOut,
+          "Thời Gian Làm Việc": workedDuration,
+          "Vị Trí Ngoài Văn Phòng": outsideLocationText,
           "Số Phút Về Sớm": tasks.early_minutes || 0,
           "Trạng Thái Duyệt": approvalText,
           "Người Duyệt": r.approved_by || "",
@@ -9147,20 +9181,20 @@ export default function JourneyAdminPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setEditingMember({ ...editingMember, role_tag: "Part time" })}
+                          onClick={() => setEditingMember({ ...editingMember, role_tag: "Partime/Bảo vệ/Tạp vụ" })}
                           style={{
                             flex: 1,
                             padding: "0.5rem",
                             borderRadius: "6px",
-                            border: (editingMember.role_tag || '').toLowerCase().includes('part') ? "2px solid #7c3aed" : "1px solid var(--border)",
-                            background: (editingMember.role_tag || '').toLowerCase().includes('part') ? "#f5f3ff" : "var(--background)",
-                            color: (editingMember.role_tag || '').toLowerCase().includes('part') ? "#5b21b6" : "var(--text-main)",
+                            border: ((editingMember.role_tag || '').toLowerCase().includes('part') || (editingMember.role_tag || '').toLowerCase().includes('bảo vệ') || (editingMember.role_tag || '').toLowerCase().includes('tạp vụ')) ? "2px solid #7c3aed" : "1px solid var(--border)",
+                            background: ((editingMember.role_tag || '').toLowerCase().includes('part') || (editingMember.role_tag || '').toLowerCase().includes('bảo vệ') || (editingMember.role_tag || '').toLowerCase().includes('tạp vụ')) ? "#f5f3ff" : "var(--background)",
+                            color: ((editingMember.role_tag || '').toLowerCase().includes('part') || (editingMember.role_tag || '').toLowerCase().includes('bảo vệ') || (editingMember.role_tag || '').toLowerCase().includes('tạp vụ')) ? "#5b21b6" : "var(--text-main)",
                             fontWeight: 700,
                             fontSize: "0.8rem",
                             cursor: "pointer",
                           }}
                         >
-                          ⚡ Nhân sự Part-time
+                          ⚡ Partime / Bảo vệ / Tạp vụ
                         </button>
                       </div>
                     </div>
