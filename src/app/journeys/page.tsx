@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/context/AuthContext"
 import {
   Crown,
@@ -44,7 +44,6 @@ import {
   Smartphone,
   Settings,
 } from "lucide-react"
-import * as XLSX from "xlsx"
 import {
   getAdminCamps,
   saveCamp,
@@ -1024,12 +1023,50 @@ export default function JourneyAdminPage() {
     ];
   };
 
-  // Load initial camps
+  const JOURNEY_CAMPS_CACHE_KEY = "vicedu_admin_camps_cache_v1"
+  const membersCacheRef = useRef<Record<string, any[]>>({})
+  const reportsCacheRef = useRef<Record<string, any[]>>({})
+
+  // Khởi tạo tức thì từ bộ nhớ đệm sessionStorage (0ms) nếu đã từng mở trong phiên
+  useEffect(() => {
+    if (typeof window !== "undefined" && camps.length === 0) {
+      try {
+        const raw = sessionStorage.getItem(JOURNEY_CAMPS_CACHE_KEY)
+        if (raw) {
+          const cachedCamps = JSON.parse(raw)
+          if (Array.isArray(cachedCamps) && cachedCamps.length > 0) {
+            setCamps(cachedCamps)
+            setSelectedCampId((prev) => prev || cachedCamps[0].id)
+            const bList = parseBranchesFromCamp(cachedCamps[0])
+            setBranchesList(bList)
+            setSelectedBranchIndex(0)
+            if (cachedCamps[0].shifts_config && cachedCamps[0].shifts_config.length > 0) {
+              setShiftsForm(cachedCamps[0].shifts_config)
+            }
+            setLoading(false)
+          }
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [])
+
+  // Load initial camps (Stale-While-Revalidate)
   const loadCamps = async () => {
-    setLoading(true)
+    if (camps.length === 0) {
+      setLoading(true)
+    }
     const res = await getAdminCamps()
     if (res.success && res.camps) {
       setCamps(res.camps)
+      try {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(JOURNEY_CAMPS_CACHE_KEY, JSON.stringify(res.camps))
+        }
+      } catch {
+        // Ignore quota errors
+      }
       if (res.camps.length > 0 && !selectedCampId) {
         setSelectedCampId(res.camps[0].id)
         const bList = parseBranchesFromCamp(res.camps[0])
@@ -1137,8 +1174,12 @@ export default function JourneyAdminPage() {
 
   const loadMembers = async (campId: string) => {
     if (!campId) return
+    if (membersCacheRef.current[campId]) {
+      setMembers(membersCacheRef.current[campId])
+    }
     const res = await getCampMembers(campId)
     if (res.success && res.members) {
+      membersCacheRef.current[campId] = res.members
       setMembers(res.members)
     }
   }
@@ -1146,18 +1187,23 @@ export default function JourneyAdminPage() {
   // Load reports when selected camp or filter changes
   const loadReports = async (campId: string, filter: string) => {
     if (!campId) return
+    const cacheKey = `${campId}_${filter}`
+    if (reportsCacheRef.current[cacheKey]) {
+      setReports(reportsCacheRef.current[cacheKey])
+    }
     const res = await getCampReports(campId, filter)
     if (res.success && res.reports) {
+      reportsCacheRef.current[cacheKey] = res.reports
       setReports(res.reports)
     }
   }
 
+  // Tải ngay danh sách hành trình khi mở trang (không đợi thác nước Auth)
   useEffect(() => {
-    if (user?.role === "Super Admin") {
-      loadCamps()
-    }
-  }, [user?.role])
+    loadCamps()
+  }, [])
 
+  // Cập nhật thông tin cấu hình nhẹ khi đổi hành trình
   useEffect(() => {
     if (selectedCampId) {
       const camp = camps.find((c) => c.id === selectedCampId)
@@ -1169,10 +1215,32 @@ export default function JourneyAdminPage() {
           setShiftsForm(camp.shifts_config)
         }
       }
-      loadMembers(selectedCampId)
-      loadReports(selectedCampId, approvalFilter)
     }
-  }, [selectedCampId, approvalFilter])
+  }, [selectedCampId, camps])
+
+  // Lazy-load theo Tab: Chỉ tải Members hoặc Reports ngay khi mở Tab tương ứng,
+  // hoặc tải ngầm nhẹ nhàng sau 1.2s khi giao diện Tab 1 đã hiển thị mượt mà
+  useEffect(() => {
+    if (!selectedCampId) return
+    if (activeTab === "members") {
+      loadMembers(selectedCampId)
+      return
+    }
+    if (activeTab === "approvals") {
+      loadReports(selectedCampId, approvalFilter)
+      return
+    }
+    const timer = setTimeout(() => {
+      if (!membersCacheRef.current[selectedCampId]) {
+        loadMembers(selectedCampId)
+      }
+      const reportKey = `${selectedCampId}_${approvalFilter}`
+      if (!reportsCacheRef.current[reportKey]) {
+        loadReports(selectedCampId, approvalFilter)
+      }
+    }, 1200)
+    return () => clearTimeout(timer)
+  }, [selectedCampId, activeTab, approvalFilter])
 
   // Lấy tọa độ GPS thiết bị hiện tại của Bố Hoàng cho chi nhánh đang chọn
   const handleDetectCurrentGPS = () => {
@@ -1448,6 +1516,7 @@ export default function JourneyAdminPage() {
         }
       })
 
+      const XLSX = await import("xlsx")
       const wsSummary = XLSX.utils.json_to_sheet(matrixRows)
       const wsDetails = XLSX.utils.json_to_sheet(detailRows)
 
@@ -2100,7 +2169,7 @@ export default function JourneyAdminPage() {
                         color: scopeFilter === f.key ? "white" : "var(--text-muted)",
                         fontWeight: 700,
                       }}>
-                        {f.count}
+                        {loading && camps.length === 0 ? "…" : f.count}
                       </span>
                     </button>
                   ))}
@@ -2268,7 +2337,40 @@ export default function JourneyAdminPage() {
               </div>
             )}
 
-            {filteredCamps.length === 0 ? (
+            {loading && camps.length === 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: "1rem" }}>
+                {[1, 2, 3].map((sk) => (
+                  <div
+                    key={sk}
+                    style={{
+                      background: "var(--surface)",
+                      borderRadius: "12px",
+                      border: "1px solid var(--border)",
+                      padding: "1.1rem",
+                      height: "245px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+                        <div style={{ width: "110px", height: "22px", borderRadius: "6px", background: "var(--border)", opacity: 0.55 }} />
+                        <div style={{ width: "80px", height: "18px", borderRadius: "4px", background: "var(--border)", opacity: 0.4 }} />
+                      </div>
+                      <div style={{ width: "75%", height: "22px", borderRadius: "6px", background: "var(--border)", opacity: 0.65, marginBottom: "0.5rem" }} />
+                      <div style={{ width: "92%", height: "16px", borderRadius: "4px", background: "var(--border)", opacity: 0.4, marginBottom: "0.75rem" }} />
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.4rem" }}>
+                        <div style={{ height: "44px", borderRadius: "6px", background: "var(--background)" }} />
+                        <div style={{ height: "44px", borderRadius: "6px", background: "var(--background)" }} />
+                        <div style={{ height: "44px", borderRadius: "6px", background: "var(--background)" }} />
+                      </div>
+                    </div>
+                    <div style={{ height: "34px", borderRadius: "6px", background: "var(--border)", opacity: 0.45 }} />
+                  </div>
+                ))}
+              </div>
+            ) : filteredCamps.length === 0 ? (
               <div style={{ textAlign: "center", padding: "3rem", background: "var(--surface)", borderRadius: "12px", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
                 <Compass size={40} style={{ margin: "0 auto 0.75rem", opacity: 0.6 }} />
                 <p style={{ fontWeight: 600 }}>Không tìm thấy hành trình nào phù hợp với bộ lọc!</p>
@@ -4241,7 +4343,7 @@ export default function JourneyAdminPage() {
                                   border: `1px solid ${getMemberBranch(m) === 'Việt Trì' ? '#bfdbfe' : getMemberBranch(m) === 'Dân Hòa' ? '#bbf7d0' : getMemberBranch(m) === 'Tuyên Quang' ? '#fed7aa' : '#e9d5ff'}`,
                                   display: "inline-block"
                                 }}>
-                                  📍 ${getMemberBranch(m)}
+                                  📍 {getMemberBranch(m)}
                                 </span>
                               </div>
                             )}

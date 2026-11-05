@@ -115,45 +115,60 @@ export interface MemberData {
   branch?: string
 }
 
-// 1. Lấy toàn bộ danh sách Camp kèm số lượng Thành viên & Báo cáo
+// 1. Lấy toàn bộ danh sách Camp kèm số lượng Thành viên & Báo cáo (Song song hóa Promise.all + Hash Map O(N))
 export async function getAdminCamps() {
   try {
     const supabaseAdmin = getAdminClient()
 
-    const { data: camps, error: campErr } = await supabaseAdmin
-      .from('journey_camps')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const [
+      { data: camps, error: campErr },
+      { data: members },
+      { data: reports },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('journey_camps')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      supabaseAdmin
+        .from('journey_members')
+        .select('camp_id'),
+      supabaseAdmin
+        .from('journey_reports')
+        .select('camp_id, approval_status'),
+    ])
 
     if (campErr) {
       console.error('Lỗi lấy danh sách camps:', campErr)
       return { success: false, error: campErr.message }
     }
 
-    // Đếm số thành viên và số báo cáo cho mỗi camp
-    const { data: members } = await supabaseAdmin
-      .from('journey_members')
-      .select('id, camp_id')
-
-    const { data: reports } = await supabaseAdmin
-      .from('journey_reports')
-      .select('id, camp_id, approval_status')
-
-    const enrichedCamps = (camps || []).map((camp) => {
-      const campMembers = (members || []).filter((m) => m.camp_id === camp.id)
-      const campReports = (reports || []).filter((r) => r.camp_id === camp.id)
-      const pendingReports = campReports.filter((r) => r.approval_status === 'pending_approval')
-
-      return {
-        ...camp,
-        has_divisions: camp.has_divisions ?? (camp.theme as any)?.has_divisions ?? true,
-        require_pin: camp.require_pin ?? (camp.theme as any)?.require_pin ?? true,
-        scope: (camp.theme as any)?.scope || camp.scope || (camp.mode === 'clb_quanh_nam' ? 'club' : (camp.slug.includes('ielts') ? 'branch' : 'admin_only')),
-        memberCount: campMembers.length,
-        reportCount: campReports.length,
-        pendingCount: pendingReports.length,
+    const memberCountMap: Record<string, number> = {}
+    for (const m of members || []) {
+      if (m.camp_id) {
+        memberCountMap[m.camp_id] = (memberCountMap[m.camp_id] || 0) + 1
       }
-    })
+    }
+
+    const reportCountMap: Record<string, number> = {}
+    const pendingCountMap: Record<string, number> = {}
+    for (const r of reports || []) {
+      if (r.camp_id) {
+        reportCountMap[r.camp_id] = (reportCountMap[r.camp_id] || 0) + 1
+        if (r.approval_status === 'pending_approval') {
+          pendingCountMap[r.camp_id] = (pendingCountMap[r.camp_id] || 0) + 1
+        }
+      }
+    }
+
+    const enrichedCamps = (camps || []).map((camp) => ({
+      ...camp,
+      has_divisions: camp.has_divisions ?? (camp.theme as any)?.has_divisions ?? true,
+      require_pin: camp.require_pin ?? (camp.theme as any)?.require_pin ?? true,
+      scope: (camp.theme as any)?.scope || camp.scope || (camp.mode === 'clb_quanh_nam' ? 'club' : (camp.slug.includes('ielts') ? 'branch' : 'admin_only')),
+      memberCount: memberCountMap[camp.id] || 0,
+      reportCount: reportCountMap[camp.id] || 0,
+      pendingCount: pendingCountMap[camp.id] || 0,
+    }))
 
     return { success: true, camps: enrichedCamps }
   } catch (err: any) {
@@ -390,24 +405,29 @@ export async function deleteCamp(campId: string) {
   }
 }
 
-// 4. Lấy danh sách thành viên của một Camp
+// 4. Lấy danh sách thành viên của một Camp (Song song hóa Promise.all)
 export async function getCampMembers(campId: string) {
   try {
     const supabaseAdmin = getAdminClient()
 
-    const { data, error } = await supabaseAdmin
-      .from('journey_members')
-      .select('*')
-      .eq('camp_id', campId)
-      .order('id', { ascending: true })
+    const [
+      { data, error },
+      { data: camp },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('journey_members')
+        .select('*')
+        .eq('camp_id', campId)
+        .order('id', { ascending: true }),
+      supabaseAdmin
+        .from('journey_camps')
+        .select('theme')
+        .eq('id', campId)
+        .single(),
+    ])
 
     if (error) return { success: false, error: error.message }
 
-    const { data: camp } = await supabaseAdmin
-      .from('journey_camps')
-      .select('theme')
-      .eq('id', campId)
-      .single()
     const memberBranches = camp?.theme?.member_branches || {}
 
     const members = (data || []).map((m: any) => ({
@@ -627,32 +647,42 @@ export async function deleteReport(reportId: number) {
   }
 }
 
-// 9. Lấy dữ liệu tổng hợp để xuất Excel chuẩn UTF-8
+// 9. Lấy dữ liệu tổng hợp để xuất Excel chuẩn UTF-8 (Song song hóa Promise.all)
 export async function getCampExportData(campId: string) {
   try {
     const supabaseAdmin = getAdminClient()
 
-    const { data: camp } = await supabaseAdmin
-      .from('journey_camps')
-      .select('*')
-      .eq('id', campId)
-      .single()
+    const [
+      { data: camp },
+      { data: rawMembers },
+      { data: reports },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('journey_camps')
+        .select('*')
+        .eq('id', campId)
+        .single(),
+      supabaseAdmin
+        .from('journey_members')
+        .select('*')
+        .eq('camp_id', campId)
+        .order('id', { ascending: true }),
+      supabaseAdmin
+        .from('journey_reports')
+        .select('*')
+        .eq('camp_id', campId),
+    ])
 
-    const { data: members } = await supabaseAdmin
-      .from('journey_members')
-      .select('*')
-      .eq('camp_id', campId)
-      .order('id', { ascending: true })
-
-    const { data: reports } = await supabaseAdmin
-      .from('journey_reports')
-      .select('*')
-      .eq('camp_id', campId)
+    const memberBranches = camp?.theme?.member_branches || {}
+    const members = (rawMembers || []).map((m: any) => ({
+      ...m,
+      branch: memberBranches[String(m.id)] || memberBranches[m.id] || m.branch || '',
+    }))
 
     return {
       success: true,
       camp,
-      members: members || [],
+      members,
       reports: reports || [],
     }
   } catch (err: any) {
